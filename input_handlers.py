@@ -85,7 +85,6 @@ class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
     def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
         raise SystemExit()
 
-
 class PopupMessage(BaseEventHandler):
     """Display a popup text window."""
 
@@ -188,6 +187,43 @@ class AskUserEventHandler(EventHandler):
         """
         return MainGameEventHandler(self.engine)
 
+def text_input(buffer: str = "") -> str:
+    for event in tcod.event.wait():
+        match event:
+            case tcod.event.KeyDown(sym=tcod.eventKeySym.KeySym.RETURN):
+                return buffer
+            case tcod.event.KeyDown(sym=tcod.eventKeySym.BACKSPACE):
+                buffer = buffer[:-1]
+                print(buffer)
+            case tcod.event.TextInput(text=text):
+                buffer += text
+                print(buffer)
+
+# class TextInputEventHandler(AskUserEventHandler):
+
+#     def handle_events(self, event: tcod.event.Event, buffer: str = "") -> BaseEventHandler:
+#         for keypress in tcod.event.wait():
+#             match keypress:
+#                 case tcod.event.K_RETURN:
+#                     return buffer
+#                 case tcod.event.K_BACKSPACE:
+#                     buffer = buffer[:-1]
+#                 case tcod.event.TextInput(text=text):
+#                     buffer += text
+#                     print(buffer)
+
+#     def ev_mousebuttondown(
+#         self, event: tcod.event.MouseButtonDown
+#     ) -> Optional[ActionOrHandler]:
+#         """By default any mouse click exits this input handler."""
+#         return self.on_exit()
+
+#     def on_exit(self) -> Optional[ActionOrHandler]:
+#         """Called when the user is trying to exit or cancel an action.
+
+#         By default this returns to the main event handler.
+#         """
+#         return MainGameEventHandler(self.engine)
 
 class CharacterScreenEventHandler(AskUserEventHandler):
     TITLE = "Character Information"
@@ -228,10 +264,10 @@ class CharacterScreenEventHandler(AskUserEventHandler):
         )
 
         console.print(
-            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.fighter.power}"
+            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.unit.power}"
         )
         console.print(
-            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.fighter.defense}"
+            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.unit.defense}"
         )
 
 
@@ -263,17 +299,17 @@ class LevelUpEventHandler(AskUserEventHandler):
         console.print(
             x=x + 1,
             y=4,
-            string=f"a) Constitution (+20 HP, from {self.engine.player.fighter.max_hp})",
+            string=f"a) Constitution (+20 HP, from {self.engine.player.unit.max_hp})",
         )
         console.print(
             x=x + 1,
             y=5,
-            string=f"b) Strength (+1 attack, from {self.engine.player.fighter.power})",
+            string=f"b) Strength (+1 attack, from {self.engine.player.unit.power})",
         )
         console.print(
             x=x + 1,
             y=6,
-            string=f"c) Agility (+1 defense, from {self.engine.player.fighter.defense})",
+            string=f"c) Agility (+1 defense, from {self.engine.player.unit.defense})",
         )
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
@@ -350,7 +386,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 item_key = chr(ord("a") + i)
                 is_equipped = self.engine.player.equipment.item_is_equipped(item)
 
-                item_string = f"({item_key}) {item.name}"
+                item_string = f"({item_key}) {item.type}"
 
                 if is_equipped:
                     item_string = f"{item_string} (E)"

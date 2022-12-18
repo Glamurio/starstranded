@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Tuple, TYPE_CHECKING
-
-import color
+from typing import Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tcod import Console
     from engine import Engine
-    from game_map import GameMap
+    from world import GameMap
 
 
 def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
@@ -15,26 +13,34 @@ def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
         return ""
 
     names = ", ".join(
-        entity.name for entity in game_map.entities if entity.x == x and entity.y == y
+        entity.type for entity in game_map.entities if entity.x == x and entity.y == y
     )
 
     return names.capitalize()
 
 
 def render_bar(
-    console: Console, current_value: int, maximum_value: int, total_width: int
+    console: Console,
+    current_value: int,
+    maximum_value: int,
+    x: int, y: int,
+    total_width: int,
+    bg_full: Optional[Tuple[int, int, int]],
+    bg_empty: Optional[Tuple[int, int, int]],
+    fg_color: Optional[Tuple[int, int, int]],
+    fg_text: str
 ) -> None:
     bar_width = int(float(current_value) / maximum_value * total_width)
 
-    console.draw_rect(x=0, y=89, width=total_width, height=1, ch=1, bg=color.bar_empty)
+    console.draw_rect(x=x, y=y, width=total_width, height=1, ch=1, bg=bg_empty)
 
     if bar_width > 0:
         console.draw_rect(
-            x=0, y=89, width=bar_width, height=1, ch=1, bg=color.bar_filled
+            x=x, y=y, width=bar_width, height=1, ch=1, bg=bg_full
         )
 
     console.print(
-        x=1, y=89, string=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
+        x=x+1, y=y, string=f"{fg_text}: {current_value}/{maximum_value}", fg=fg_color
     )
 
 def render_dungeon_level(

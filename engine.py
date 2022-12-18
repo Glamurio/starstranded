@@ -10,10 +10,11 @@ from tcod.map import compute_fov
 import exceptions
 from message_log import MessageLog
 import render_functions
+import color
 
 if TYPE_CHECKING:
     from entity import Actor
-    from game_map import GameMap, GameWorld
+    from world import GameMap, GameWorld
 
 
 class Engine:
@@ -53,13 +54,46 @@ class Engine:
         self.game_map.render(console)
 
         self.message_log.render(console=console, x=21, y=89, width=40, height=5)
-
+        
+        # HP
         render_functions.render_bar(
             console=console,
-            current_value=self.player.fighter.hp,
-            maximum_value=self.player.fighter.max_hp,
+            current_value=self.player.unit.hp,
+            maximum_value=self.player.unit.max_hp,
+            x=0, y=89,
             total_width=20,
+            bg_full=color.hp_bar_filled,
+            bg_empty=color.hp_bar_empty,
+            fg_color=color.bar_text,
+            fg_text="HP"
         )
+
+        # Hunger
+        render_functions.render_bar(
+            console=console,
+            current_value=self.player.unit.hunger,
+            maximum_value=self.player.unit.max_hunger,
+            x=0, y=91,
+            total_width=20,
+            bg_full=color.hunger_bar_filled,
+            bg_empty=color.hunger_bar_empty,
+            fg_color=color.bar_text,
+            fg_text="Hunger"
+        )
+
+        # Thirst
+        render_functions.render_bar(
+            console=console,
+            current_value=self.player.unit.thirst,
+            maximum_value=self.player.unit.max_thirst,
+            x=0, y=93,
+            total_width=20,
+            bg_full=color.thirst_bar_filled,
+            bg_empty=color.thirst_bar_empty,
+            fg_color=color.bar_text,
+            fg_text="Thirst"
+        )
+
 
         render_functions.render_dungeon_level(
             console=console,

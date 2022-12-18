@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 
 class GameMap:
     def __init__(
-        self, engine: Engine, width: int, height: int, entities: Iterable[Entity] = ()
-    ):
+        self, world: GameWorld, engine: Engine, width: int, height: int, entities: Iterable[Entity] = ()
+    ):  
+        self.world = world
         self.engine = engine
         self.width, self.height = width, height
         self.entities = set(entities)
@@ -110,7 +111,8 @@ class GameWorld:
         max_rooms: int,
         room_min_size: int,
         room_max_size: int,
-        current_floor: int = 0
+        current_floor: int = 0,
+        current_time: int = 0
     ):
         self.engine = engine
 
@@ -123,6 +125,7 @@ class GameWorld:
         self.room_max_size = room_max_size
 
         self.current_floor = current_floor
+        self.current_time = current_time
 
         self.game_maps = []
 
@@ -138,4 +141,15 @@ class GameWorld:
             map_width=self.map_width,
             map_height=self.map_height,
             engine=self.engine,
+            world=self
         )
+
+    def pass_time(self, actor: Actor, time: int) -> int:
+        """Passes game time in minutes after every player turn. Returns current game time"""
+        if actor.type == "Player":
+            self.current_time += time
+            if self.current_time % 4 == 0:
+                actor.unit.handle_hunger(-1)
+            if self.current_time % 2 == 0:
+                actor.unit.handle_thirst(-1)
+        return self.current_time

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, Iterator, List, Tuple, TYPE_CHECKING
-from game_map import GameMap
+from world import GameMap, GameWorld
 
 import tile_types
 import random
@@ -155,10 +155,11 @@ def generate_dungeon(
     map_width: int,
     map_height: int,
     engine: Engine,
+    world: GameWorld,
 ) -> GameMap:
     """Generate a new dungeon map."""
     player = engine.player
-    dungeon = GameMap(engine, map_width, map_height, entities=[player])
+    dungeon = GameMap(world, engine, map_width, map_height, entities=[player])
 
     rooms: List[RectangularRoom] = []
     center_of_last_room = (0, 0)

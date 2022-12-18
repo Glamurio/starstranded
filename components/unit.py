@@ -6,18 +6,23 @@ from components.base_component import BaseComponent
 from render_order import RenderOrder
 
 import color
+from utilities import clamp
 
 if TYPE_CHECKING:
     from entity import Actor
 
-class Fighter(BaseComponent):
+class Unit(BaseComponent):
     parent: Actor
 
-    def __init__(self, hp: int, base_defense: int, base_power: int):
+    def __init__(self, hp: int, base_defense: int, base_power: int, thirst: int = 100, hunger: int = 100):
         self.max_hp = hp
         self._hp = hp
         self.base_defense = base_defense
         self.base_power = base_power
+        self.max_hunger = hunger
+        self.hunger = hunger
+        self.max_thirst = thirst
+        self.thirst = thirst
 
     @property
     def hp(self) -> int:
@@ -56,14 +61,14 @@ class Fighter(BaseComponent):
             death_message = "You died!"
             death_message_color = color.player_die
         else:
-            death_message = f"{self.parent.name} is dead!"
+            death_message = f"{self.parent.type} is dead!"
             death_message_color = color.enemy_die
 
         self.parent.char = "%"
-        self.parent.color = (191, 0, 0)
+        self.parent.color = color.red
         self.parent.blocks_movement = False
         self.parent.ai = None
-        self.parent.name = f"remains of {self.parent.name}"
+        self.parent.type = f"remains of {self.parent.type}"
         self.parent.render_order = RenderOrder.CORPSE
 
         self.engine.message_log.add_message(death_message, death_message_color)
@@ -87,3 +92,10 @@ class Fighter(BaseComponent):
 
     def take_damage(self, amount: int) -> None:
         self.hp -= amount
+
+    def handle_hunger(self, amount: int) -> None:
+        self.hunger = clamp((self.hunger + amount), 0, self.max_hunger)
+
+    def handle_thirst(self, amount: int) -> None:
+        self.thirst = clamp((self.thirst + amount), 0, self.max_thirst)
+

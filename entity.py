@@ -11,10 +11,10 @@ if TYPE_CHECKING:
     from components.consumable import Consumable
     from components.equipment import Equipment
     from components.equippable import Equippable
-    from components.fighter import Fighter
+    from components.unit import Unit
     from components.inventory import Inventory
     from components.level import Level
-    from game_map import GameMap
+    from world import GameMap
 
 T = TypeVar("T", bound="Entity")
 
@@ -32,7 +32,8 @@ class Entity:
         y: int = 0,
         char: str = "?",
         color: Tuple[int, int, int] = (255, 255, 255),
-        name: str = "<Unnamed>",
+        name: Optional[str] = None,
+        type: str = "<Unnamed>",
         blocks_movement: bool = False,
         render_order: RenderOrder = RenderOrder.CORPSE,
     ):
@@ -41,6 +42,7 @@ class Entity:
         self.char = char
         self.color = color
         self.name = name
+        self.type = type
         self.blocks_movement = blocks_movement
         self.render_order = render_order
         if parent:
@@ -90,10 +92,11 @@ class Actor(Entity):
         y: int = 0,
         char: str = "?",
         color: Tuple[int, int, int] = (255, 255, 255),
-        name: str = "<Unnamed>",
+        name: Optional[str] = None,
+        type: str = "<Unnamed>",
         ai_cls: Type[BaseAI],
         equipment: Equipment,
-        fighter: Fighter,
+        unit: Unit,
         inventory: Inventory,
         level: Level,
     ):
@@ -103,6 +106,7 @@ class Actor(Entity):
             char=char,
             color=color,
             name=name,
+            type=type,
             blocks_movement=True,
             render_order=RenderOrder.ACTOR,
         )
@@ -112,8 +116,8 @@ class Actor(Entity):
         self.equipment: Equipment = equipment
         self.equipment.parent = self
 
-        self.fighter = fighter
-        self.fighter.parent = self
+        self.unit = unit
+        self.unit.parent = self
 
         self.inventory = inventory
         self.inventory.parent = self
@@ -126,6 +130,10 @@ class Actor(Entity):
         """Returns True as long as this actor can perform actions."""
         return bool(self.ai)
 
+    def set_name(self, name: str) -> str:
+        """Sets the entity name."""
+        self.name = name
+
 class Item(Entity):
     def __init__(
         self,
@@ -134,7 +142,8 @@ class Item(Entity):
         y: int = 0,
         char: str = "?",
         color: Tuple[int, int, int] = (255, 255, 255),
-        name: str = "<Unnamed>",
+        name: Optional[str] = None,
+        type: str = "<Unnamed>",
         consumable: Optional[Consumable] = None,
         equippable: Optional[Equippable] = None,
     ):
@@ -144,6 +153,7 @@ class Item(Entity):
             char=char,
             color=color,
             name=name,
+            type=type,
             blocks_movement=False,
             render_order=RenderOrder.ITEM,
         )

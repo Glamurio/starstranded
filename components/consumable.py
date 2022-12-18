@@ -65,7 +65,7 @@ class ConfusionConsumable(Consumable):
             raise Impossible("You cannot confuse yourself!")
 
         self.engine.message_log.add_message(
-            f"The eyes of the {target.name} look vacant, as it starts to stumble around!",
+            f"The eyes of the {target.type} look vacant, as it starts to stumble around!",
             color.status_effect_applied,
         )
         target.ai = components.ai.ConfusedEnemy(
@@ -80,11 +80,11 @@ class HealingConsumable(Consumable):
 
     def activate(self, action: actions.ItemAction) -> None:
         consumer = action.entity
-        amount_recovered = consumer.fighter.heal(self.amount)
+        amount_recovered = consumer.unit.heal(self.amount)
 
         if amount_recovered > 0:
             self.engine.message_log.add_message(
-                f"You consume the {self.parent.name}, and recover {amount_recovered} HP!",
+                f"You consume the {self.parent.type}, and recover {amount_recovered} HP!",
                 color.health_recovered,
             )
             self.consume()
@@ -117,9 +117,9 @@ class FireballDamageConsumable(Consumable):
         for actor in self.engine.game_map.actors:
             if actor.distance(*target_xy) <= self.radius:
                 self.engine.message_log.add_message(
-                    f"The {actor.name} is engulfed in a fiery explosion, taking {self.damage} damage!"
+                    f"The {actor.type} is engulfed in a fiery explosion, taking {self.damage} damage!"
                 )
-                actor.fighter.take_damage(self.damage)
+                actor.unit.take_damage(self.damage)
                 targets_hit = True
 
         if not targets_hit:
@@ -147,9 +147,9 @@ class LightningDamageConsumable(Consumable):
 
         if target:
             self.engine.message_log.add_message(
-                f"A lighting bolt strikes the {target.name} with a loud thunder, for {self.damage} damage!"
+                f"A lighting bolt strikes the {target.type} with a loud thunder, for {self.damage} damage!"
             )
-            target.fighter.take_damage(self.damage)
+            target.unit.take_damage(self.damage)
             self.consume()
         else:
             raise Impossible("No enemy is close enough to strike.")
