@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import math
+
 from typing import Iterable, Iterator, Optional, TYPE_CHECKING
+from collections import namedtuple
 
 import numpy as np  # type: ignore
 from tcod.console import Console
@@ -11,6 +14,18 @@ import tile_types
 if TYPE_CHECKING:
     from engine import Engine
     from entity import Entity
+
+
+Point = namedtuple("Point", "x y")
+
+def distance(p1, p2, diag=True, euclidean=False):
+    if diag:
+        return max(abs(p1.x - p2.x), abs(p1.y - p2.y))
+    if euclidean:
+        return math.sqrt(math.pow((p1.x - p2.x), 2) + math.pow((p1.y - p2.y), 2))
+    
+    return abs(p1.x - p2.x) + abs(p1.y - p2.y)
+
 
 class GameMap:
     def __init__(
@@ -130,11 +145,11 @@ class GameWorld:
         self.game_maps = []
 
     def generate_floor(self) -> None:
-        from procgen import generate_dungeon
+        from procgen import generate_map
 
         self.current_floor += 1
 
-        self.engine.game_map = generate_dungeon(
+        self.engine.game_map = generate_map(
             max_rooms=self.max_rooms,
             room_min_size=self.room_min_size,
             room_max_size=self.room_max_size,

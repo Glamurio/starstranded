@@ -65,7 +65,7 @@ class ConfusionConsumable(Consumable):
             raise Impossible("You cannot confuse yourself!")
 
         self.engine.message_log.add_message(
-            f"The eyes of the {target.type} look vacant, as it starts to stumble around!",
+            f"The eyes of {target.get_title()} look vacant, as it starts to stumble around!",
             color.status_effect_applied,
         )
         target.ai = components.ai.ConfusedEnemy(
@@ -84,12 +84,31 @@ class HealingConsumable(Consumable):
 
         if amount_recovered > 0:
             self.engine.message_log.add_message(
-                f"You consume the {self.parent.type}, and recover {amount_recovered} HP!",
+                f"You consume {self.parent.get_title()}, and recover {amount_recovered} HP!",
                 color.health_recovered,
             )
             self.consume()
         else:
             raise Impossible(f"Your health is already full.")
+
+class FoodConsumable(Consumable):
+    def __init__(self, hunger_amount: int = 0, thirst_amount: int = 0):
+        self.hunger_amount = hunger_amount
+        self.thirst_amount = thirst_amount
+
+    def activate(self, action: actions.ItemAction) -> None:
+        consumer = action.entity
+        consumer.unit.handle_hunger(self.hunger_amount)
+        consumer.unit.handle_thirst(self.thirst_amount)
+
+        hunger_restore = f'and lose {self.hunger_amount}' if self.hunger_amount >= 0 else f'and restore {self.hunger_amount}'
+        thirst_restore = f'and lose {self.thirst_amount}' if self.thirst_amount >= 0 else f'and restore {self.thirst_amount}'
+
+        self.engine.message_log.add_message(
+            f"You consume {self.parent.get_title()} {hunger_restore if hunger_restore else ''} {thirst_restore if thirst_restore else ''}",
+            color.health_recovered,
+        )
+        self.consume()
 
 
 class FireballDamageConsumable(Consumable):
@@ -117,7 +136,7 @@ class FireballDamageConsumable(Consumable):
         for actor in self.engine.game_map.actors:
             if actor.distance(*target_xy) <= self.radius:
                 self.engine.message_log.add_message(
-                    f"The {actor.type} is engulfed in a fiery explosion, taking {self.damage} damage!"
+                    f"{actor.get_title()} is engulfed in a fiery explosion, taking {self.damage} damage!"
                 )
                 actor.unit.take_damage(self.damage)
                 targets_hit = True
@@ -147,7 +166,7 @@ class LightningDamageConsumable(Consumable):
 
         if target:
             self.engine.message_log.add_message(
-                f"A lighting bolt strikes the {target.type} with a loud thunder, for {self.damage} damage!"
+                f"A lighting bolt strikes {target.get_title()} with a loud thunder, for {self.damage} damage!"
             )
             target.unit.take_damage(self.damage)
             self.consume()

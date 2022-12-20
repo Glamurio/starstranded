@@ -17,11 +17,13 @@ max_items_by_floor = [
     (4, 2),
 ]
 
+
 max_monsters_by_floor = [
     (1, 2),
     (4, 3),
     (6, 5),
 ]
+
 
 item_chances: Dict[int, List[Tuple[Entity, int]]] = {
     0: [(entity_factories.health_potion, 35)],
@@ -36,6 +38,7 @@ enemy_chances: Dict[int, List[Tuple[Entity, int]]] = {
     5: [(entity_factories.troll, 30)],
     7: [(entity_factories.troll, 60)],
 }
+
 
 def get_max_value_for_floor(
     max_value_by_floor: List[Tuple[int, int]], floor: int
@@ -106,7 +109,8 @@ class RectangularRoom:
             and self.y2 >= other.y1
         )
 
-def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int,) -> None:
+
+def place_entities(room: RectangularRoom, map: GameMap, floor_number: int,) -> None:
     number_of_monsters = random.randint(
         0, get_max_value_for_floor(max_monsters_by_floor, floor_number)
     )
@@ -125,8 +129,9 @@ def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int,) 
         x = random.randint(room.x1 + 1, room.x2 - 1)
         y = random.randint(room.y1 + 1, room.y2 - 1)
 
-        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
-            entity.spawn(dungeon, x, y)
+        if not any(entity.x == x and entity.y == y for entity in map.entities):
+            entity.spawn(map, x, y)
+
 
 def tunnel_between(
     start: Tuple[int, int], end: Tuple[int, int]
@@ -148,7 +153,7 @@ def tunnel_between(
         yield x, y
 
 
-def generate_dungeon(
+def generate_map(
     max_rooms: int,
     room_min_size: int,
     room_max_size: int,

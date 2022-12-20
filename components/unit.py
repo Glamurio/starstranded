@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 
 from typing import TYPE_CHECKING
 
@@ -6,6 +7,7 @@ from components.base_component import BaseComponent
 from render_order import RenderOrder
 
 import color
+import entity_factories
 from utilities import clamp
 
 if TYPE_CHECKING:
@@ -61,15 +63,19 @@ class Unit(BaseComponent):
             death_message = "You died!"
             death_message_color = color.player_die
         else:
-            death_message = f"{self.parent.type} is dead!"
+            death_message = f"{self.parent.get_title()} is dead!"
             death_message_color = color.enemy_die
 
         self.parent.char = "%"
         self.parent.color = color.red
         self.parent.blocks_movement = False
         self.parent.ai = None
-        self.parent.type = f"remains of {self.parent.type}"
+        self.parent.is_alive = False
         self.parent.render_order = RenderOrder.CORPSE
+
+        meat = copy.deepcopy(entity_factories.meat)
+        meat.add_attribute(self.parent.type)
+        self.parent.inventory.items.append(meat)
 
         self.engine.message_log.add_message(death_message, death_message_color)
 
@@ -98,4 +104,3 @@ class Unit(BaseComponent):
 
     def handle_thirst(self, amount: int) -> None:
         self.thirst = clamp((self.thirst + amount), 0, self.max_thirst)
-

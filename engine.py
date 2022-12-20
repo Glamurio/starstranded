@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import lzma
 import pickle
+
 from typing import TYPE_CHECKING
+from collections import namedtuple
+import tcod
+
+import numpy as np  # type: ignore
 
 from tcod.console import Console
 from tcod.map import compute_fov
@@ -11,11 +16,14 @@ import exceptions
 from message_log import MessageLog
 import render_functions
 import color
+from world import Point, distance
 
 if TYPE_CHECKING:
     from entity import Actor
     from world import GameMap, GameWorld
 
+# Global convenience methods borrows from Rift Wizard
+Point = namedtuple("Point", "x y")
 
 class Engine:
     game_map: GameMap
@@ -26,11 +34,13 @@ class Engine:
         self.mouse_location = (0, 0)
         self.player = player
 
+
     def save_as(self, filename: str) -> None:
         """Save this Engine instance as a compressed file."""
         save_data = lzma.compress(pickle.dumps(self))
         with open(filename, "wb") as f:
             f.write(save_data)
+
 
     def handle_enemy_turns(self) -> None:
         for entity in set(self.game_map.actors) - {self.player}:
@@ -39,6 +49,24 @@ class Engine:
                     entity.ai.perform()
                 except exceptions.Impossible:
                     pass  # Ignore impossible action exceptions from AI.
+
+
+    def in_bounds(self, x: int, y: int) -> bool:
+        """Return True if x and y are inside of the bounds of this map."""
+        return 0 <= x < self.width and 0 <= y < self.height
+
+
+    def can_see(self, x1, y1, x2, y2, radius: int):
+
+        if distance(Point(x1, y1), Point(x2, y2)) > radius:
+            return False
+
+        for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
+            if not self.game_map.tiles["transparent"][x][y]:
+                return False
+
+        return True
+
 
     def update_fov(self) -> None:
         """Recompute the visible area based on the players point of view."""
@@ -49,6 +77,7 @@ class Engine:
         )
         # If a tile is "visible" it should be added to "explored".
         self.game_map.explored |= self.game_map.visible
+
 
     def render(self, console: Console) -> None:
         self.game_map.render(console)

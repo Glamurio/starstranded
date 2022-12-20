@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Optional, Tuple, Type, TypeVar, TYPE_CHECKING, Union
+from typing import Optional, List, Tuple, Type, TypeVar, TYPE_CHECKING, Union
 
 from render_order import RenderOrder
 
@@ -34,6 +34,7 @@ class Entity:
         color: Tuple[int, int, int] = (255, 255, 255),
         name: Optional[str] = None,
         type: str = "<Unnamed>",
+        attributes: List[str] = [],
         blocks_movement: bool = False,
         render_order: RenderOrder = RenderOrder.CORPSE,
     ):
@@ -43,6 +44,7 @@ class Entity:
         self.color = color
         self.name = name
         self.type = type
+        self.attributes = attributes
         self.blocks_movement = blocks_movement
         self.render_order = render_order
         if parent:
@@ -80,9 +82,26 @@ class Entity:
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
     def move(self, dx: int, dy: int) -> None:
-        # Move the entity by a given amount
+        """Move the entity by a given amount.""" 
         self.x += dx
         self.y += dy
+
+    def set_name(self, name: str) -> str:
+        """Sets the entity name."""
+        self.name = name
+
+    def get_title(self) -> str:
+        """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
+        return f'{self.name}, the {" ".join(self.attributes)}{self.type}' if self.name else self.type
+
+    def add_attribute(self, attribute: str) -> None:
+        """Adds attribute to list of attributes."""
+        self.attributes.append(attribute)
+
+    def remove_attribute(self, attribute: str) -> None:
+        """Removes attribute from list of attributes."""
+        self.attributes.remove(attribute)
+
 
 class Actor(Entity):
     def __init__(
@@ -96,9 +115,11 @@ class Actor(Entity):
         type: str = "<Unnamed>",
         ai_cls: Type[BaseAI],
         equipment: Equipment,
+        attributes: List[str] = [],
         unit: Unit,
         inventory: Inventory,
         level: Level,
+        is_alive: bool = True,
     ):
         super().__init__(
             x=x,
@@ -107,6 +128,7 @@ class Actor(Entity):
             color=color,
             name=name,
             type=type,
+            attributes=attributes,
             blocks_movement=True,
             render_order=RenderOrder.ACTOR,
         )
@@ -125,14 +147,24 @@ class Actor(Entity):
         self.level = level
         self.level.parent = self
 
+        self.is_alive = is_alive
+
     @property
-    def is_alive(self) -> bool:
+    def has_ai(self) -> bool:
         """Returns True as long as this actor can perform actions."""
         return bool(self.ai)
 
-    def set_name(self, name: str) -> str:
-        """Sets the entity name."""
-        self.name = name
+    def get_title(self) -> str:
+        """Returns the entity name. If entity is unnamed, returns type."""
+        remains = 'remains of ' if not self.is_alive else ''
+        name = self.name if self.name else self.type
+        return remains + name
+
+    def get_title(self) -> str:
+        """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
+        if not self.is_alive:
+            return f'remains of {self.name}' if self.name else f'{self.type} remains'
+        return f'{self.name}, the {" ".join(self.attributes)}{self.type}' if self.name else self.type
 
 class Item(Entity):
     def __init__(
@@ -144,6 +176,7 @@ class Item(Entity):
         color: Tuple[int, int, int] = (255, 255, 255),
         name: Optional[str] = None,
         type: str = "<Unnamed>",
+        attributes: List[str] = [],
         consumable: Optional[Consumable] = None,
         equippable: Optional[Equippable] = None,
     ):
@@ -154,6 +187,7 @@ class Item(Entity):
             color=color,
             name=name,
             type=type,
+            attributes=attributes,
             blocks_movement=False,
             render_order=RenderOrder.ITEM,
         )

@@ -51,7 +51,7 @@ class PickupAction(Action):
                 item.parent = self.entity.inventory
                 inventory.items.append(item)
 
-                self.engine.message_log.add_message(f"You picked up the {item.type}!")
+                self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
                 return
 
         raise exceptions.Impossible("There is nothing here to pick up.")
@@ -172,7 +172,7 @@ class MeleeAction(ActionWithDirection):
 
         damage = self.entity.unit.power - target.unit.defense
 
-        attack_desc = f"{self.entity.type.capitalize()} attacks {target.type}"
+        attack_desc = f"{self.entity.get_title().capitalize()} attacks {target.get_title()}"
         if self.entity is self.engine.player:
             attack_color = color.player_atk
         else:

@@ -386,7 +386,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 item_key = chr(ord("a") + i)
                 is_equipped = self.engine.player.equipment.item_is_equipped(item)
 
-                item_string = f"({item_key}) {item.type}"
+                item_string = f"({item_key}) {item.get_title()}"
 
                 if is_equipped:
                     item_string = f"{item_string} (E)"

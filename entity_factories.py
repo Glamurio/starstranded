@@ -6,11 +6,13 @@ from components.inventory import Inventory
 from components.level import Level
 from entity import Actor, Item
 
+import color
+
 # Actors
 player = Actor(
     char="@",
     color=(255, 255, 255),
-    name="Player",
+    name="Ardan",
     type="Player",
     ai_cls=HostileEnemy,
     equipment=Equipment(),
@@ -41,10 +43,10 @@ troll = Actor(
 
 # Items
 meat = Item(
-    char="!",
-    color=(127, 0, 255),
-    type="Health Potion",
-    consumable=consumable.HealingConsumable(amount=4),
+    char="d",
+    color=color.red,
+    type="Meat",
+    consumable=consumable.FoodConsumable(hunger_amount=10),
 )
 confusion_scroll = Item(
     char="~",
