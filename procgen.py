@@ -6,6 +6,11 @@ from world import GameMap, GameWorld
 import tile_types
 import random
 import tcod
+
+import numpy as np  # type: ignore
+import matplotlib.pyplot as plt #just for visual
+
+import color
 import entity_factories
 
 if TYPE_CHECKING:
@@ -164,7 +169,8 @@ def generate_map(
 ) -> GameMap:
     """Generate a new dungeon map."""
     player = engine.player
-    dungeon = GameMap(world, engine, map_width, map_height, entities=[player])
+    landscape = np.full((map_width, map_height), fill_value=tile_types.wall, order="F")
+    dungeon = GameMap(world, landscape, engine, map_width, map_height, entities=[player])
 
     rooms: List[RectangularRoom] = []
     center_of_last_room = (0, 0)
@@ -206,3 +212,53 @@ def generate_map(
         rooms.append(new_room)
 
     return dungeon
+
+
+def generate_noise(
+    max_rooms: int,
+    room_min_size: int,
+    room_max_size: int,
+    map_width: int,
+    map_height: int,
+    engine: Engine,
+    world: GameWorld,
+) -> GameMap:
+
+    noise = tcod.noise.Noise(
+        dimensions=2,
+        algorithm=tcod.noise.Algorithm.PERLIN,
+    )
+    samples = noise[tcod.noise.grid(shape=(map_width, map_height), scale=0.05, origin=(0, 0))]
+    noise = tcod.noise.Noise(
+            dimensions=2,
+            algorithm=tcod.noise.Algorithm.PERLIN,
+    )
+    samples = (samples + noise[tcod.noise.grid(shape=(map_width, map_height), scale=0.25, origin=(0, 0))])/2
+
+    def value_range(a, low, high):
+        return np.logical_and(a>low , a<=high)
+
+    def construct_landscape(limits, tiles, samples: np.ndarray):
+        assert(len(limits) == len(tiles)+1)
+        out_shape = list(samples.shape)
+        landscape = np.full(out_shape, fill_value=tile_types.wall, order="F", dtype=tile_types.tile_dt)
+        for i in range(len(limits)-1):
+            landscape[value_range(samples, limits[i], limits[i+1])] = tiles[i]
+        return landscape
+
+    colors = [np.array([0, 0, 0.5]), np.array([0, 0, 1]), np.array([0, 1., 0]), np.array([0.5, 0.5, 0.5]), np.array([1., 1., 1.])]
+    color_limits = [-1.1, -0.4, -0.2, 0.1, 0.3, 1.1]
+    tiles = [tile_types.water, tile_types.floor, tile_types.wall]
+    tile_limits = [-1.1, -0.2, 0.3, 1.1]
+    
+    # landscape = construct_landscape(color_limits, colors, samples)
+    landscape = construct_landscape(tile_limits, tiles, samples)
+
+    player = engine.player
+    map = GameMap(world, landscape, engine, map_width, map_height, entities=[player])
+    player.place(0, 0, map)
+
+    return map
+    
+    plt.imshow(landscape, vmin=0, vmax=255)
+    plt.savefig('figure.jpg')

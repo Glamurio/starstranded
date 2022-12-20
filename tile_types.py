@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import numpy as np  # type: ignore
+import color
 
 # Tile graphics structured type compatible with Console.tiles_rgb.
 graphic_dt = np.dtype(
@@ -40,6 +41,12 @@ floor = new_tile(
     transparent=True,
     dark=(ord(" "), (255, 255, 255), (50, 50, 150)),
     light=(ord(" "), (255, 255, 255), (200, 180, 50)),
+)
+water = new_tile(
+    walkable=False,
+    transparent=True,
+    dark=(ord(" "), (255, 255, 255), color.dark_blue),
+    light=(ord(" "), (255, 255, 255), color.blue),
 )
 wall = new_tile(
     walkable=False,

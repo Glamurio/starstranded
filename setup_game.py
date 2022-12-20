@@ -14,6 +14,7 @@ import color
 from engine import Engine
 from entity import Actor
 import entity_factories
+from procgen import generate_noise
 from world import GameWorld
 import input_handlers
 
@@ -40,8 +41,8 @@ def create_player() -> Actor:
 
 def new_game(player: Actor) -> Engine:
     """Return a brand new game session as an Engine instance."""
-    map_width = 30
-    map_height = 30
+    map_width = 80
+    map_height = 80
 
     room_max_size = 10
     room_min_size = 6
@@ -63,7 +64,7 @@ def new_game(player: Actor) -> Engine:
 
     engine.game_world.generate_floor()
     engine.update_fov()
-
+    
     engine.message_log.add_message(
         f"Hello and welcome, {player.name}, to yet another dungeon!", color.welcome_text
     )
@@ -128,6 +129,8 @@ class MainMenu(input_handlers.BaseEventHandler):
                 return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
         elif event.sym == tcod.event.K_n:
             return CharacterCreation()
+        elif event.sym == tcod.event.K_m:
+            generate_noise()
 
         return None
 

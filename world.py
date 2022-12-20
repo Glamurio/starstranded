@@ -29,13 +29,13 @@ def distance(p1, p2, diag=True, euclidean=False):
 
 class GameMap:
     def __init__(
-        self, world: GameWorld, engine: Engine, width: int, height: int, entities: Iterable[Entity] = ()
+        self, world: GameWorld, landscape: np.ndarray, engine: Engine, width: int, height: int, entities: Iterable[Entity] = ()
     ):  
         self.world = world
         self.engine = engine
         self.width, self.height = width, height
         self.entities = set(entities)
-        self.tiles = np.full((width, height), fill_value=tile_types.wall, order="F")
+        self.tiles = landscape
 
         self.visible = np.full(
             (width, height), fill_value=False, order="F"
@@ -145,11 +145,11 @@ class GameWorld:
         self.game_maps = []
 
     def generate_floor(self) -> None:
-        from procgen import generate_map
+        from procgen import generate_noise
 
         self.current_floor += 1
 
-        self.engine.game_map = generate_map(
+        self.engine.game_map = generate_noise(
             max_rooms=self.max_rooms,
             room_min_size=self.room_min_size,
             room_max_size=self.room_max_size,
