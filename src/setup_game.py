@@ -18,15 +18,10 @@ import entity_factories
 from world import GameWorld
 import input_handlers
 
+from utilities import is_mouse_in_rectangle
 
 # Load the background image and remove the alpha channel.
 background_image = tcod.image.load("menu_background.png")[:, :, :3]
-
-def is_mouse_in_rectangle(mouse: tcod.event.MouseState, rectangle: tcod.event.Point, width: int, height: int):
-    mouse_pt = mouse.pixel
-
-    return (rectangle.x - width / 2) < (mouse_pt.x / 10) and (rectangle.x + width / 2) > (mouse_pt.x / 10) \
-        and (rectangle.y - height / 2) < (mouse_pt.y // 10) and (rectangle.y + height / 2) > (mouse_pt.y // 10)
 
 def create_player() -> Actor:
     player = copy.deepcopy(entity_factories.player)
