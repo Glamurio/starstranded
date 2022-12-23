@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     from entity import Entity
 
 
-Point = namedtuple("Point", "x y")
-
 def distance(p1, p2, diag=True, euclidean=False):
     if diag:
         return max(abs(p1.x - p2.x), abs(p1.y - p2.y))

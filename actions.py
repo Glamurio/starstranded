@@ -40,19 +40,43 @@ class PickupAction(Action):
     def perform(self) -> None:
         actor_location_x = self.entity.x
         actor_location_y = self.entity.y
-        inventory = self.entity.inventory
+        actor_inventory = self.entity.inventory
+
+        if len(actor_inventory.items) >= actor_inventory.capacity:
+            raise exceptions.Impossible("Your inventory is full.")
+
+        for entity in self.engine.game_map.entities:
+            if entity.type == "Player":
+                continue
+            
+            if not (actor_location_x == entity.x and actor_location_y == entity.y):
+                continue
+
+            if not entity.inventory:
+                continue
+                
+            for item in entity.inventory.items:
+
+                #TODO: Inventory Screen for looting
+
+                entity.inventory.items.remove(item)
+                item.parent = self.entity.inventory
+                actor_inventory.items.append(item)
+
+                self.engine.message_log.add_message(f"You looted {item.get_title()} from {entity.get_title()} !")
+            return
 
         for item in self.engine.game_map.items:
-            if actor_location_x == item.x and actor_location_y == item.y:
-                if len(inventory.items) >= inventory.capacity:
-                    raise exceptions.Impossible("Your inventory is full.")
 
-                self.engine.game_map.entities.remove(item)
-                item.parent = self.entity.inventory
-                inventory.items.append(item)
+            if not (actor_location_x == item.x and actor_location_y == item.y):
+                continue
 
-                self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
-                return
+            self.engine.game_map.entities.remove(item)
+            item.parent = self.entity.inventory
+            actor_inventory.items.append(item)
+
+            self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
+            return
 
         raise exceptions.Impossible("There is nothing here to pick up.")
 

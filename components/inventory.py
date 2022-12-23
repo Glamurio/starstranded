@@ -5,11 +5,11 @@ from typing import List, TYPE_CHECKING
 from components.base_component import BaseComponent
 
 if TYPE_CHECKING:
-    from entity import Actor, Item
+    from entity import Entity, Item
 
 
 class Inventory(BaseComponent):
-    parent: Actor
+    parent: Entity
 
     def __init__(self, capacity: int):
         self.capacity = capacity

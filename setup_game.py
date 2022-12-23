@@ -14,13 +14,19 @@ import color
 from engine import Engine
 from entity import Actor
 import entity_factories
-from procgen import generate_noise
+
 from world import GameWorld
 import input_handlers
 
 
 # Load the background image and remove the alpha channel.
 background_image = tcod.image.load("menu_background.png")[:, :, :3]
+
+def is_mouse_in_rectangle(mouse: tcod.event.MouseState, rectangle: tcod.event.Point, width: int, height: int):
+    mouse_pt = mouse.pixel
+
+    return (rectangle.x - width / 2) < (mouse_pt.x / 10) and (rectangle.x + width / 2) > (mouse_pt.x / 10) \
+        and (rectangle.y - height / 2) < (mouse_pt.y // 10) and (rectangle.y + height / 2) > (mouse_pt.y // 10)
 
 def create_player() -> Actor:
     player = copy.deepcopy(entity_factories.player)
@@ -81,8 +87,19 @@ def load_game(filename: str) -> Engine:
 class MainMenu(input_handlers.BaseEventHandler):
     """Handle the main menu rendering and input."""
 
+    console_height: int
+    console_width: int
+    menu_width = 12
+    menu_height = 2
+    menu_i: int
+    button_names = ["New Game", "Continue", "Quit"]
+    buttons = {}
+    cur_highlight: str = None
+
     def on_render(self, console: tcod.Console) -> None:
         """Render the main menu on a background image."""
+        self.console_height = console.height
+        self.console_width = console.width
         console.draw_semigraphics(background_image, 0, 0)
 
         console.print(
@@ -100,16 +117,24 @@ class MainMenu(input_handlers.BaseEventHandler):
             alignment=tcod.CENTER,
         )
 
-        menu_width = 24
-        for i, text in enumerate(
-            ["[N] Play a new game", "[C] Continue last game", "[Q] Quit"]
-        ):
+        # Iterate over menu buttons, save their position for highlighting
+        for i, text in enumerate(self.button_names):
+
+            button_width = console.width // 2
+            button_height = console.height // 2 - 2 + (i*2)
+
+            if not self.buttons.get(text):
+                self.buttons[text]: dict = {
+                    'width': button_width,
+                    'height': button_height,
+                }
+        
             console.print(
-                console.width // 2,
-                console.height // 2 - 2 + i,
-                text.ljust(menu_width),
-                fg=color.menu_text,
-                bg=color.black,
+                button_width,
+                button_height,
+                text.center(self.menu_width),
+                fg=color.menu_text_inverse if text == self.cur_highlight else color.menu_text,
+                bg=color.white if text == self.cur_highlight else color.black,
                 alignment=tcod.CENTER,
                 bg_blend=tcod.BKGND_ALPHA(64),
             )
@@ -117,22 +142,78 @@ class MainMenu(input_handlers.BaseEventHandler):
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
+
+        if event.sym == tcod.event.K_UP:
+            if not self.cur_highlight:
+                self.menu_i = 0
+            else:
+                self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.button_names)-1
+        elif event.sym == tcod.event.K_DOWN:
+            if not self.cur_highlight:
+                self.menu_i = 0
+            else:
+                self.menu_i = self.menu_i+1 if not self.menu_i == len(self.button_names)-1 else 0
+        self.cur_highlight = self.button_names[self.menu_i] if type(self.menu_i) == int else self.cur_highlight
+
+        if event.sym in input_handlers.CONFIRM_KEYS:
+            if self.cur_highlight == 'New Game':
+                # New Game
+                return CharacterCreation()
+            elif self.cur_highlight == 'Continue':
+                # Continue Game
+                try:
+                    return input_handlers.MainGameEventHandler(load_game("savegame.sav"))
+                except FileNotFoundError:
+                    return input_handlers.PopupMessage(self, "No saved game to load.")
+                except Exception as exc:
+                    traceback.print_exc()  # Print to stderr.
+                    return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
+            elif self.cur_highlight == 'Quit':
+                # Quit
+                raise SystemExit()
+
         if event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
             raise SystemExit()
-        elif event.sym == tcod.event.K_c:
-            try:
-                return input_handlers.MainGameEventHandler(load_game("savegame.sav"))
-            except FileNotFoundError:
-                return input_handlers.PopupMessage(self, "No saved game to load.")
-            except Exception as exc:
-                traceback.print_exc()  # Print to stderr.
-                return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
-        elif event.sym == tcod.event.K_n:
-            return CharacterCreation()
-        elif event.sym == tcod.event.K_m:
-            generate_noise()
 
         return None
+
+    def ev_mousebuttondown(
+        self, event: tcod.event.MouseButtonDown
+    ) -> Optional[input_handlers.ActionOrHandler]:
+        """Left click confirms a selection."""
+
+        for text in self.button_names:
+            button_pt = tcod.event.Point(self.buttons[text]['width'], self.buttons[text]['height'])
+            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height)
+            self.cur_highlight = text if in_rect else self.cur_highlight
+
+            if in_rect:
+                if self.cur_highlight == 'New Game':
+                    # New Game
+                    return CharacterCreation()
+                elif self.cur_highlight == 'Continue':
+                    # Continue Game
+                    try:
+                        return input_handlers.MainGameEventHandler(load_game("savegame.sav"))
+                    except FileNotFoundError:
+                        return input_handlers.PopupMessage(self, "No saved game to load.")
+                    except Exception as exc:
+                        traceback.print_exc()  # Print to stderr.
+                        return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
+                elif self.cur_highlight == 'Quit':
+                    # Quit
+                    raise SystemExit()
+
+    def ev_mousemotion(
+        self, event: tcod.event.MouseMotion
+    ) -> Optional[input_handlers.ActionOrHandler]:
+        """Tracks mouse movement"""
+
+        for text in self.button_names:
+            button_pt = tcod.event.Point(self.buttons[text]['width'], self.buttons[text]['height'])
+            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height)
+            self.cur_highlight = text if in_rect else self.cur_highlight
+
 
 class CharacterCreation(input_handlers.BaseEventHandler):
     TITLE = "What is your name?"

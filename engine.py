@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING
 from collections import namedtuple
 import tcod
 
-import numpy as np  # type: ignore
-
 from tcod.console import Console
 from tcod.map import compute_fov
 
@@ -16,14 +14,12 @@ import exceptions
 from message_log import MessageLog
 import render_functions
 import color
-from world import Point, distance
+from world import distance
 
 if TYPE_CHECKING:
     from entity import Actor
     from world import GameMap, GameWorld
 
-# Global convenience methods borrows from Rift Wizard
-Point = namedtuple("Point", "x y")
 
 class Engine:
     game_map: GameMap
@@ -58,7 +54,7 @@ class Engine:
 
     def can_see(self, x1, y1, x2, y2, radius: int):
 
-        if distance(Point(x1, y1), Point(x2, y2)) > radius:
+        if distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius:
             return False
 
         for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():

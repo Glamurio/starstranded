@@ -35,6 +35,7 @@ class Entity:
         name: Optional[str] = None,
         type: str = "<Unnamed>",
         attributes: List[str] = [],
+        inventory: Inventory = None,
         blocks_movement: bool = False,
         render_order: RenderOrder = RenderOrder.CORPSE,
     ):
@@ -45,6 +46,7 @@ class Entity:
         self.name = name
         self.type = type
         self.attributes = attributes
+        self.inventory = inventory
         self.blocks_movement = blocks_movement
         self.render_order = render_order
         if parent:
@@ -56,6 +58,7 @@ class Entity:
     def gamemap(self) -> GameMap:
         return self.parent.gamemap
 
+
     def spawn(self: T, gamemap: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
         clone = copy.deepcopy(self)
@@ -65,15 +68,22 @@ class Entity:
         gamemap.entities.add(clone)
         return clone
 
+
     def place(self, x: int, y: int, gamemap: Optional[GameMap] = None) -> None:
         """Place this entity at a new location.  Handles moving across GameMaps."""
         self.x = x
         self.y = y
-        if gamemap:
-            if hasattr(self, "parent"):  # Possibly uninitialized.
-                if self.parent is self.gamemap:
-                    self.gamemap.entities.remove(self)
-            self.parent = gamemap
+
+        if not gamemap:
+            return
+            
+        if hasattr(self, "parent"):  # Possibly uninitialized.
+            if self.parent is self.gamemap:
+                self.gamemap.entities.remove(self)
+
+        self.parent = gamemap
+        self.parent.entities.add(self)
+
 
     def distance(self, x: int, y: int) -> float:
         """
@@ -81,22 +91,27 @@ class Entity:
         """
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
+
     def move(self, dx: int, dy: int) -> None:
         """Move the entity by a given amount.""" 
         self.x += dx
         self.y += dy
 
+
     def set_name(self, name: str) -> str:
         """Sets the entity name."""
         self.name = name
+
 
     def get_title(self) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         return f'{self.name}, the {" ".join(self.attributes)}{self.type}' if self.name else self.type
 
+
     def add_attribute(self, attribute: str) -> None:
         """Adds attribute to list of attributes."""
         self.attributes.append(attribute)
+
 
     def remove_attribute(self, attribute: str) -> None:
         """Removes attribute from list of attributes."""
@@ -116,8 +131,8 @@ class Actor(Entity):
         ai_cls: Type[BaseAI],
         equipment: Equipment,
         attributes: List[str] = [],
+        inventory: Inventory = None,
         unit: Unit,
-        inventory: Inventory,
         level: Level,
         is_alive: bool = True,
     ):
@@ -128,6 +143,7 @@ class Actor(Entity):
             color=color,
             name=name,
             type=type,
+            inventory=inventory,
             attributes=attributes,
             blocks_movement=True,
             render_order=RenderOrder.ACTOR,
@@ -176,6 +192,7 @@ class Item(Entity):
         color: Tuple[int, int, int] = (255, 255, 255),
         name: Optional[str] = None,
         type: str = "<Unnamed>",
+        inventory: Inventory = None,
         attributes: List[str] = [],
         consumable: Optional[Consumable] = None,
         equippable: Optional[Equippable] = None,
@@ -188,6 +205,7 @@ class Item(Entity):
             name=name,
             type=type,
             attributes=attributes,
+            inventory=inventory,
             blocks_movement=False,
             render_order=RenderOrder.ITEM,
         )

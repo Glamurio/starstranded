@@ -18,15 +18,15 @@ if TYPE_CHECKING:
     from entity import Entity
 
 max_items_by_floor = [
-    (1, 1),
-    (4, 2),
+    (1, 4),
+    (4, 8),
 ]
 
 
 max_monsters_by_floor = [
-    (1, 2),
-    (4, 3),
-    (6, 5),
+    (1, 6),
+    (4, 12),
+    (6, 18),
 ]
 
 
@@ -115,7 +115,7 @@ class RectangularRoom:
         )
 
 
-def place_entities(room: RectangularRoom, map: GameMap, floor_number: int,) -> None:
+def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None) -> None:
     number_of_monsters = random.randint(
         0, get_max_value_for_floor(max_monsters_by_floor, floor_number)
     )
@@ -131,8 +131,12 @@ def place_entities(room: RectangularRoom, map: GameMap, floor_number: int,) -> N
     )
 
     for entity in monsters + items:
-        x = random.randint(room.x1 + 1, room.x2 - 1)
-        y = random.randint(room.y1 + 1, room.y2 - 1)
+        if room:
+            x = random.randint(room.x1 + 1, room.x2 - 1)
+            y = random.randint(room.y1 + 1, room.y2 - 1)
+        else:
+            x = random.randint(0, map.width)
+            y = random.randint(0, map.height)
 
         if not any(entity.x == x and entity.y == y for entity in map.entities):
             entity.spawn(map, x, y)
@@ -203,7 +207,7 @@ def generate_map(
 
             center_of_last_room = new_room.center
 
-        place_entities(new_room, dungeon, engine.game_world.current_floor)
+        place_entities(dungeon, engine.game_world.current_floor, room = new_room)
 
         dungeon.tiles[center_of_last_room] = tile_types.down_stairs
         dungeon.downstairs_location = center_of_last_room
@@ -256,7 +260,9 @@ def generate_noise(
 
     player = engine.player
     map = GameMap(world, landscape, engine, map_width, map_height, entities=[player])
+
     player.place(0, 0, map)
+    place_entities(map, engine.game_world.current_floor)
 
     return map
     
