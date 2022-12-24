@@ -4,7 +4,7 @@ import os
 
 from typing import Callable, Optional, Tuple, TYPE_CHECKING, Union
 
-import tcod.event
+import tcod
 
 import actions
 from actions import (
@@ -15,6 +15,7 @@ from actions import (
 )
 import color
 import exceptions
+from utilities import is_mouse_in_rectangle
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -174,11 +175,11 @@ class AskUserEventHandler(EventHandler):
             return None
         return self.on_exit()
 
-    def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
-    ) -> Optional[ActionOrHandler]:
-        """By default any mouse click exits this input handler."""
-        return self.on_exit()
+    # def ev_mousebuttondown(
+    #     self, event: tcod.event.MouseButtonDown
+    # ) -> Optional[ActionOrHandler]:
+    #     """By default any mouse click exits this input handler."""
+    #     return self.on_exit()
 
     def on_exit(self) -> Optional[ActionOrHandler]:
         """Called when the user is trying to exit or cancel an action.
@@ -277,14 +278,12 @@ class LevelUpEventHandler(AskUserEventHandler):
     def on_render(self, console: tcod.Console) -> None:
         super().on_render(console)
 
-        if self.engine.player.x <= 30:
-            x = 40
-        else:
-            x = 0
+        x = 0
+        y = 0
 
         console.draw_frame(
             x=x,
-            y=0,
+            y=y,
             width=35,
             height=8,
             title=self.TITLE,
@@ -347,6 +346,15 @@ class InventoryEventHandler(AskUserEventHandler):
     """
 
     TITLE = "<missing title>"
+    
+    console_height: int
+    console_width: int
+    menu_width: int = 0
+    menu_height: int = 0
+    menu_height_offset: int = 4
+    menu_i: int = 0
+    buttons = {}
+    button_highlight: str = None
 
     def on_render(self, console: tcod.Console) -> None:
         """Render an inventory menu, which displays the items in the inventory, and the letter to select them.
@@ -356,42 +364,48 @@ class InventoryEventHandler(AskUserEventHandler):
         super().on_render(console)
         number_of_items_in_inventory = len(self.engine.player.inventory.items)
 
-        height = number_of_items_in_inventory + 2
+        self.menu_height = number_of_items_in_inventory + self.menu_height_offset
 
-        if height <= 3:
-            height = 3
+        if self.menu_height <= 3:
+            self.menu_height = 3
 
-        if self.engine.player.x <= 30:
-            x = 40
-        else:
-            x = 0
+        x = console.width // 2
+        y = 1
 
-        y = 0
-
-        width = len(self.TITLE) + 4
+        self.menu_width = len(self.TITLE) + 4
 
         console.draw_frame(
             x=x,
             y=y,
-            width=width,
-            height=height,
+            width=self.menu_width,
+            height=self.menu_height,
             title=self.TITLE,
             clear=True,
-            fg=(255, 255, 255),
-            bg=(0, 0, 0),
+            fg=color.menu_text,
+            bg=color.black,
         )
 
         if number_of_items_in_inventory > 0:
             for i, item in enumerate(self.engine.player.inventory.items):
-                item_key = chr(ord("a") + i)
+
+                button_x = x + 1
+                button_y = y + (i*2) + 2
+
                 is_equipped = self.engine.player.equipment.item_is_equipped(item)
+                item_title = item.get_title()
 
-                item_string = f"({item_key}) {item.get_title()}"
+                self.buttons[item_title]: dict = {
+                    'x': button_x,
+                    'y': button_y,
+                }
 
-                if is_equipped:
-                    item_string = f"{item_string} (E)"
-
-                console.print(x + 1, y + i + 1, item_string)
+                console.print(
+                    button_x,
+                    button_y,
+                    f"{item_title} (E)" if is_equipped else item_title,
+                    fg=color.menu_text_inverse if item_title == self.button_highlight else color.menu_text,
+                    bg=color.white if item_title == self.button_highlight else color.black
+                )
         else:
             console.print(x + 1, y + 1, "(Empty)")
 
@@ -400,18 +414,40 @@ class InventoryEventHandler(AskUserEventHandler):
         key = event.sym
         index = key - tcod.event.K_a
 
-        if 0 <= index <= 26:
-            try:
-                selected_item = player.inventory.items[index]
-            except IndexError:
-                self.engine.message_log.add_message("Invalid entry.", color.invalid)
-                return None
-            return self.on_item_selected(selected_item)
+        # if 0 <= index <= 26:
+        #     try:
+        #         selected_item = player.inventory.items[index]
+        #     except IndexError:
+        #         self.engine.message_log.add_message("Invalid entry.", color.invalid)
+        #         return None
+        #     return self.on_item_selected(selected_item)
         return super().ev_keydown(event)
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Called when the user selects a valid item."""
         raise NotImplementedError()
+
+    def ev_mousebuttondown(
+        self, event: tcod.event.MouseButtonDown
+    ) -> Optional[ActionOrHandler]:
+        """Left click confirms a selection."""
+        
+        items = self.engine.player.inventory.items
+        for item in items:
+            if self.button_highlight == item.get_title():
+                return self.on_item_selected(item)
+
+    def ev_mousemotion(
+        self, event: tcod.event.MouseMotion
+    ) -> Optional[ActionOrHandler]:
+        """Tracks mouse movement"""
+
+        for i, key in enumerate(self.buttons):
+            button_pt = tcod.event.Point(self.buttons[key]['x'], self.buttons[key]['y'])
+            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height - self.menu_height_offset)
+
+            if in_rect:
+                self.button_highlight = key
 
 
 class InventoryActivateHandler(InventoryEventHandler):
@@ -468,9 +504,9 @@ class SelectIndexHandler(AskUserEventHandler):
                 modifier *= 20
 
             x, y = self.engine.mouse_location
-            dx, dy = MOVE_KEYS[key]
-            x += dx * modifier
-            y += dy * modifier
+            dest_x, dest_y = MOVE_KEYS[key]
+            x += dest_x * modifier
+            y += dest_y * modifier
             # Clamp the cursor index to the map size.
             x = max(0, min(x, self.engine.game_map.width - 1))
             y = max(0, min(y, self.engine.game_map.height - 1))
@@ -499,8 +535,10 @@ class LookHandler(SelectIndexHandler):
 
     def on_index_selected(self, x: int, y: int) -> MainGameEventHandler:
         """Return to main handler."""
-        return MainGameEventHandler(self.engine)
+        player = self.engine.player
+        x, y = self.engine.mouse_location
 
+        return BumpAction(player, x, y)
 
 class SingleRangedAttackHandler(SelectIndexHandler):
     """Handles targeting a single enemy. Only the enemy selected will be affected."""
@@ -551,6 +589,10 @@ class AreaRangedAttackHandler(SelectIndexHandler):
 
 class MainGameEventHandler(EventHandler):
 
+    def ev_mousebuttondown(self, event: tcod.event.MouseMotion) -> Optional[ActionOrHandler]:
+        if event.button == tcod.event.BUTTON_RIGHT:
+            return LookHandler(self.engine)
+
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
         action: Optional[Action] = None
 
@@ -566,8 +608,8 @@ class MainGameEventHandler(EventHandler):
             pass
 
         if key in MOVE_KEYS:
-            dx, dy = MOVE_KEYS[key]
-            action = BumpAction(player, dx, dy)
+            dest_x, dest_y = MOVE_KEYS[key][0] + player.x, MOVE_KEYS[key][1] + player.y
+            action = BumpAction(player, dest_x, dest_y)
         elif key in WAIT_KEYS:
             action = WaitAction(player)
 

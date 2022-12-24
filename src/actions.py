@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
+from utilities import get_path_to
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -147,16 +148,16 @@ class TakeStairsAction(Action):
 
 
 class ActionWithDirection(Action):
-    def __init__(self, entity: Actor, dx: int, dy: int):
+    def __init__(self, entity: Actor, dest_x: int, dest_y: int):
         super().__init__(entity)
 
-        self.dx = dx
-        self.dy = dy
+        self.dest_x = dest_x
+        self.dest_y = dest_y
 
     @property
     def dest_xy(self) -> Tuple[int, int]:
-        """Returns this actions destination."""
-        return self.entity.x + self.dx, self.entity.y + self.dy
+        """Returns this action's destination."""
+        return self.dest_x, self.dest_y
 
     @property
     def blocking_entity(self) -> Optional[Entity]:
@@ -215,7 +216,7 @@ class MeleeAction(ActionWithDirection):
 class MovementAction(ActionWithDirection):
     def perform(self) -> None:
         if self.can_move():
-            self.entity.move(self.dx, self.dy)
+            self.entity.move(self.dest_x, self.dest_y)
         else:
             raise exceptions.Impossible("That way is blocked.")
 
@@ -223,8 +224,16 @@ class MovementAction(ActionWithDirection):
 class BumpAction(ActionWithDirection):
     def perform(self) -> None:
         self.engine.game_world.pass_time(actor=self.entity, time=1)
+        path: List[Tuple] = get_path_to(self.entity.ai, self.dest_x, self.dest_y)
+
+        distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.
+        
+        if self.target_actor and distance <= 1:
+            print("yay")
+            return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
             
-        if self.target_actor:
-            return MeleeAction(self.entity, self.dx, self.dy).perform()
-        else:
-            return MovementAction(self.entity, self.dx, self.dy).perform()
+        if path:
+            dest_x, dest_y = path[0]
+            return MovementAction(self.entity, dest_x, dest_y).perform()
+
+        return MovementAction(self.entity, self.dest_x, self.dest_y).perform()

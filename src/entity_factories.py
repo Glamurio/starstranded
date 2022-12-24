@@ -23,6 +23,7 @@ player = Actor(
 orc = Actor(
     char="o",
     color=(63, 127, 63),
+    name="Grugg",
     type="Orc",
     ai_cls=HostileEnemy,
     equipment=Equipment(),

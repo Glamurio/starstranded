@@ -92,10 +92,10 @@ class Entity:
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
 
-    def move(self, dx: int, dy: int) -> None:
+    def move(self, dest_x: int, dest_y: int) -> None:
         """Move the entity by a given amount.""" 
-        self.x += dx
-        self.y += dy
+        self.x = dest_x
+        self.y = dest_y
 
 
     def set_name(self, name: str) -> str:
@@ -105,7 +105,7 @@ class Entity:
 
     def get_title(self) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
-        return f'{self.name}, the {" ".join(self.attributes)}{self.type}' if self.name else self.type
+        return f'{self.name}, the {" ".join(self.attributes)}{self.type.capitalize()}' if self.name else self.type
 
 
     def add_attribute(self, attribute: str) -> None:
@@ -169,12 +169,6 @@ class Actor(Entity):
     def has_ai(self) -> bool:
         """Returns True as long as this actor can perform actions."""
         return bool(self.ai)
-
-    def get_title(self) -> str:
-        """Returns the entity name. If entity is unnamed, returns type."""
-        remains = 'remains of ' if not self.is_alive else ''
-        name = self.name if self.name else self.type
-        return remains + name
 
     def get_title(self) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""

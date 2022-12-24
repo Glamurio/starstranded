@@ -134,18 +134,17 @@ class MainMenu(input_handlers.BaseEventHandler):
         # Iterate over menu buttons, save their position for highlighting
         for i, text in enumerate(self.button_names):
 
-            button_width = console.width // 2
-            button_height = console.height // 2 - 2 + (i*2)
+            button_x = console.width // 2
+            button_y = console.height // 2 - 2 + (i*2)
 
-            if not self.buttons.get(text):
-                self.buttons[text]: dict = {
-                    'width': button_width,
-                    'height': button_height,
-                }
+            self.buttons[text]: dict = {
+                'x': button_x,
+                'y': button_y,
+            }
         
             console.print(
-                button_width,
-                button_height,
+                button_x,
+                button_y,
                 text.center(self.menu_width),
                 fg=color.menu_text_inverse if text == self.button_highlight else color.menu_text,
                 bg=color.white if text == self.button_highlight else color.black,
@@ -183,7 +182,7 @@ class MainMenu(input_handlers.BaseEventHandler):
         """Left click confirms a selection."""
 
         for text in self.button_names:
-            button_pt = tcod.event.Point(self.buttons[text]['width'], self.buttons[text]['height'])
+            button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height)
 
             if in_rect:
@@ -195,7 +194,7 @@ class MainMenu(input_handlers.BaseEventHandler):
         """Tracks mouse movement"""
 
         for i, text in enumerate(self.button_names):
-            button_pt = tcod.event.Point(self.buttons[text]['width'], self.buttons[text]['height'])
+            button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height)
             if in_rect:
                 self.menu_i = i
@@ -210,23 +209,20 @@ class CharacterCreation(input_handlers.BaseEventHandler):
     def on_render(self, console: tcod.Console) -> None:
 
         width = len(self.TITLE) + 4
-        x = 20
-        y = 40
+        x = console.width // 2 - width // 2
+        y = console.height // 2 - 4
 
         console.draw_frame(
-            x=x,
-            y=y,
+            x,
+            y,
             width=width,
-            height=20,
+            height=5,
             title=self.TITLE,
             clear=True,
             fg=(255, 255, 255),
             bg=(0, 0, 0),
         )
 
-        console.print(
-            x=x + 2, y=y + 1, string=f"Name: "
-        )
         console.print(
             x=x  + 2, y=y + 2, string=f"{self.PLAYER.name}"
         )

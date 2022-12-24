@@ -89,7 +89,7 @@ class HealingConsumable(Consumable):
             )
             self.consume()
         else:
-            raise Impossible(f"Your health is already full.")
+            raise Impossible(f"Your health is alreadest_y full.")
 
 class FoodConsumable(Consumable):
     def __init__(self, hunger_amount: int = 0, thirst_amount: int = 0):

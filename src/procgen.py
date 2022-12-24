@@ -135,8 +135,8 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
             x = random.randint(room.x1 + 1, room.x2 - 1)
             y = random.randint(room.y1 + 1, room.y2 - 1)
         else:
-            x = random.randint(0, map.width)
-            y = random.randint(0, map.height)
+            x = random.randint(0, map.width - 1)
+            y = random.randint(0, map.height - 1)
 
         if not any(entity.x == x and entity.y == y for entity in map.entities):
             entity.spawn(map, x, y)
