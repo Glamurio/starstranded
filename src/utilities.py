@@ -3,6 +3,8 @@ import tcod
 import numpy as np # type: ignore
 from typing import List, Tuple
 
+from components.ai import BaseAI
+from engine import Engine
 
 def clamp(n, smallest, largest): return max(smallest, min(n, largest))
 
@@ -17,11 +19,13 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
     return (point.x - width // 2) < (mouse_pt.x // 10) and (point.x + width // 2) > (mouse_pt.x // 10) \
         and (point.y - height // 2) < (mouse_pt.y // 10) and (point.y + height // 2) > (mouse_pt.y // 10)
 
-def get_path_to(ai, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
-    """Compute and return a path to the target position.
+def get_path_to(ai: BaseAI, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
+    """
+    Compute and return a path to the target position.
 
     If there is no valid path then returns an empty list.
     """
+
     # Copy the walkable array.
     cost = np.array(ai.entity.gamemap.tiles["walkable"], dtype=np.int8)
 
@@ -45,3 +49,18 @@ def get_path_to(ai, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
 
     # Convert from List[List[int]] to List[Tuple[int, int]].
     return [(index[0], index[1]) for index in path]
+
+def can_move(engine: Engine, dest_x, dest_y ) -> bool:
+    """Return True if actor can move to target location."""
+
+    if not engine.game_map.in_bounds(dest_x, dest_y):
+        # Destination is out of bounds.
+        return False
+    if not engine.game_map.tiles["walkable"][dest_x, dest_y]:
+        # Destination is blocked by a tile.
+        return False
+    if engine.game_map.get_blocking_entity_at_location(dest_x, dest_y):
+        # Destination is blocked by an entity.
+        return False
+
+    return True

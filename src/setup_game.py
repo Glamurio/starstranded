@@ -85,9 +85,10 @@ class MainMenu(input_handlers.BaseEventHandler):
     console_height: int
     console_width: int
     menu_width = 12
-    menu_height = 2
     menu_i: int = 0
+
     buttons = {}
+    button_height = 2
     button_names = ["New Game", "Continue", "Quit"]
     button_highlight = button_names[menu_i]
 
@@ -183,7 +184,7 @@ class MainMenu(input_handlers.BaseEventHandler):
 
         for text in self.button_names:
             button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
-            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height)
+            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
 
             if in_rect:
                 return self.resolve_menu(event)
@@ -195,7 +196,7 @@ class MainMenu(input_handlers.BaseEventHandler):
 
         for i, text in enumerate(self.button_names):
             button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
-            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.menu_height)
+            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
             if in_rect:
                 self.menu_i = i
                 self.button_highlight = self.button_names[i]

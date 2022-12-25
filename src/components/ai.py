@@ -6,7 +6,6 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 import numpy as np  # type: ignore
 
 from actions import Action, BumpAction, MeleeAction, MovementAction, WaitAction
-from utilities import get_path_to
 
 if TYPE_CHECKING:
     from entity import Actor
@@ -19,6 +18,8 @@ class BaseAI(Action):
 
     def do_move(self, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
         """Perform movement action"""
+        from utilities import get_path_to
+        
         return get_path_to(self, dest_x, dest_y)
 
 class ConfusedEnemy(BaseAI):

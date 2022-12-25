@@ -1,9 +1,9 @@
 from __future__ import annotations
+from time import sleep
 
 from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
-from utilities import get_path_to
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -169,21 +169,10 @@ class ActionWithDirection(Action):
         """Return the actor at this actions destination."""
         return self.engine.game_map.get_actor_at_location(*self.dest_xy)
 
-    def can_move(self) -> bool:
-        """Return True if actor can move to target location."""
-        dest_x, dest_y = self.dest_xy
+    def get_path(self, ai, x: int, y: int) -> List[Tuple]:
+        from utilities import get_path_to
 
-        if not self.engine.game_map.in_bounds(dest_x, dest_y):
-            # Destination is out of bounds.
-            return False
-        if not self.engine.game_map.tiles["walkable"][dest_x, dest_y]:
-            # Destination is blocked by a tile.
-            return False
-        if self.engine.game_map.get_blocking_entity_at_location(dest_x, dest_y):
-            # Destination is blocked by an entity.
-            return False
-
-        return True
+        return get_path_to(ai, x, y)
 
     def perform(self) -> None:
         raise NotImplementedError()
@@ -214,26 +203,38 @@ class MeleeAction(ActionWithDirection):
 
 
 class MovementAction(ActionWithDirection):
+
+    def __init__(self, entity: Actor, dest_x: int, dest_y: int, path: List[Tuple] = []):
+        super().__init__(entity, dest_x, dest_y)
+
+        self.dest_x = dest_x
+        self.dest_y = dest_y
+        self.path = path
+
     def perform(self) -> None:
-        if self.can_move():
+        from utilities import can_move
+
+        if self.path:
+            x, y = self.path.pop()
+            return MovementAction(self.entity, x, y, self.path).perform()
+
+        if can_move(self.engine, self.dest_x, self.dest_y):
             self.entity.move(self.dest_x, self.dest_y)
+        
         else:
             raise exceptions.Impossible("That way is blocked.")
 
 
 class BumpAction(ActionWithDirection):
+
     def perform(self) -> None:
+        
         self.engine.game_world.pass_time(actor=self.entity, time=1)
-        path: List[Tuple] = get_path_to(self.entity.ai, self.dest_x, self.dest_y)
+        path: List[Tuple] = self.get_path(self.entity.ai, self.dest_x, self.dest_y)
 
         distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.
         
         if self.target_actor and distance <= 1:
-            print("yay")
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
-            
-        if path:
-            dest_x, dest_y = path[0]
-            return MovementAction(self.entity, dest_x, dest_y).perform()
 
-        return MovementAction(self.entity, self.dest_x, self.dest_y).perform()
+        return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()
