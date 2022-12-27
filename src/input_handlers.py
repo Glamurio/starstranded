@@ -17,9 +17,10 @@ import color
 import exceptions
 from utilities import is_mouse_in_rectangle
 
+from entity import Item, Entity, Actor
+
 if TYPE_CHECKING:
     from engine import Engine
-    from entity import Item
 
 MOVE_KEYS = {
     # Arrow keys.
@@ -187,18 +188,7 @@ class AskUserEventHandler(EventHandler):
         By default this returns to the main event handler.
         """
         return MainGameEventHandler(self.engine)
-
-def text_input(buffer: str = "") -> str:
-    for event in tcod.event.wait():
-        match event:
-            case tcod.event.KeyDown(sym=tcod.eventKeySym.KeySym.RETURN):
-                return buffer
-            case tcod.event.KeyDown(sym=tcod.eventKeySym.BACKSPACE):
-                buffer = buffer[:-1]
-                print(buffer)
-            case tcod.event.TextInput(text=text):
-                buffer += text
-                print(buffer)
+        
 
 # class TextInputEventHandler(AskUserEventHandler):
 
@@ -357,63 +347,73 @@ class InventoryEventHandler(AskUserEventHandler):
     button_height: int = 2
     button_highlight: str = None
 
+    def __init__(self, engine: Engine, entity: Entity):
+        super().__init__(engine)
+
+        self.entity = entity
+
     def on_render(self, console: tcod.Console) -> None:
         """Render an inventory menu, which displays the items in the inventory, and the letter to select them.
         Will move to a different position based on where the player is located, so the player can always see where
         they are.
         """
         super().on_render(console)
-        self.items = self.engine.player.inventory.items
-        number_of_items_in_inventory = len(self.items)
+        
+        if self.entity:
+            self.items = self.entity.inventory.items
+            number_of_items_in_inventory = len(self.items)
 
-        self.menu_height = self.height_per_item * number_of_items_in_inventory + 2
+            self.menu_height = self.height_per_item * number_of_items_in_inventory + 2
 
-        x = console.width // 2
-        y = 1
+            x = console.width // 2
+            y = 1
 
-        if self.menu_height <= 4:
-            self.menu_height = 4
+            if self.menu_height <= 4:
+                self.menu_height = 4
 
-        self.menu_width = 24
+            self.menu_width = 24
 
-        console.draw_frame(
-            x=x,
-            y=y,
-            width=self.menu_width,
-            height=self.menu_height,
-            title=self.TITLE,
-            clear=True,
-            fg=color.menu_text,
-            bg=color.black,
-        )
+            console.draw_frame(
+                x=x,
+                y=y,
+                width=self.menu_width,
+                height=self.menu_height,
+                title=self.TITLE,
+                clear=True,
+                fg=color.menu_text,
+                bg=color.black,
+            )
 
-        if number_of_items_in_inventory > 0:
-            for i, item in enumerate(self.items):
+            if number_of_items_in_inventory > 0:
+                for i, item in enumerate(self.items):
 
-                button_x = x + 2
-                button_y = y + (i*2) + 2
+                    button_x = x + 2
+                    button_y = y + (i*2) + 2
 
-                is_equipped = self.engine.player.equipment.item_is_equipped(item)
-                item_title = item.get_title()
+                    if isinstance(self.entity, Actor):
+                        actor: Actor = self.entity
+                        is_equipped = actor.equipment.item_is_equipped(item)
+                    item_title = item.get_title()
 
-                self.buttons[i]: dict = {
-                    'x': button_x + self.menu_width // 2 - 2,
-                    'y': button_y,
-                }
+                    self.buttons[i]: dict = {
+                        'x': button_x + self.menu_width // 2 - 2,
+                        'y': button_y,
+                    }
 
-                button_string = f"{item_title} (E)" if is_equipped else item_title
+                    button_string = f"{item_title} (E)" if is_equipped else item_title
 
-                console.print(
-                    button_x,
-                    button_y,
-                    button_string,
-                    fg=color.menu_text_inverse if i == self.button_highlight else color.menu_text,
-                    bg=color.white if i == self.button_highlight else color.black,
-                )
-        else:
-            console.print(x + 1, y + 1, "(Empty)")
+                    console.print(
+                        button_x,
+                        button_y,
+                        button_string,
+                        fg=color.menu_text_inverse if i == self.button_highlight else color.menu_text,
+                        bg=color.white if i == self.button_highlight else color.black,
+                    )
+            else:
+                console.print(x + 1, y + 2, "(Empty)")
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+        print(event)
         player = self.engine.player
         key = event.sym
         index = key - tcod.event.K_a
@@ -461,9 +461,9 @@ class InventoryActivateHandler(InventoryEventHandler):
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         if item.consumable:
             # Return the action for the selected item.
-            return item.consumable.get_action(self.engine.player)
+            return item.consumable.get_action(self.entity)
         elif item.equippable:
-            return actions.EquipAction(self.engine.player, item)
+            return actions.EquipAction(self.entity, item)
         else:
             return None
 
@@ -475,8 +475,47 @@ class InventoryDropHandler(InventoryEventHandler):
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Drop this item."""
-        return actions.DropItem(self.engine.player, item)
+        return actions.DropItem(self.entity, item)
 
+
+class InventoryLootHandler(InventoryEventHandler):
+    """Handle looting an item."""
+
+    def __init__(self, engine: Engine, entity: Entity, looter: Entity):
+        super().__init__(engine, entity)
+
+        self.looter = looter
+
+    def on_render(self, console: tcod.Console) -> None:
+        """Render an inventory menu, which displays the items in the inventory, and the letter to select them.
+        Will move to a different position based on where the player is located, so the player can always see where
+        they are.
+        """
+        
+        self.TITLE = f"{self.entity.get_title()}"
+        super().on_render(console)
+
+        # for map_entity in self.engine.game_map.entities:
+
+        #     if not (self.looter.x == map_entity.x and self.looter.y == map_entity.y):
+        #         continue
+
+        #     if map_entity == self.looter or map_entity.type == "Player":
+        #         continue
+
+        #     if isinstance(map_entity, Item):
+        #         item: Item = map_entity
+        #         return self.on_item_selected(item)
+            
+        #     if isinstance(map_entity, Actor):
+        #         self.entity = map_entity
+        #         self.TITLE = f"{self.entity.get_title()}"
+        #         return MainGameEventHandler(self.engine)
+
+
+    def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
+        PickupAction(self.looter, item).perform()
+        return self.on_exit()
 
 class SelectIndexHandler(AskUserEventHandler):
     """Handles asking the user for an index on the map."""
@@ -624,8 +663,8 @@ class MainGameEventHandler(EventHandler):
         elif key in WAIT_KEYS:
             action = WaitAction(player)
 
-        elif key == tcod.event.K_ESCAPE:
-            raise SystemExit()
+        # elif key == tcod.event.K_ESCAPE:
+        #     raise SystemExit()
 
         elif key == tcod.event.K_l:
             return actions.TakeStairsAction(player)
@@ -634,12 +673,13 @@ class MainGameEventHandler(EventHandler):
             return HistoryViewer(self.engine)
 
         elif key == tcod.event.K_g:
-            action = PickupAction(player)
-
+            return self.get_action_or_event(player)
+            # return InventoryLootHandler(self.engine, player)
         elif key == tcod.event.K_i:
-            return InventoryActivateHandler(self.engine)
+            return InventoryActivateHandler(self.engine, player)
         elif key == tcod.event.K_d:
-            return InventoryDropHandler(self.engine)
+            return InventoryDropHandler(self.engine, player)
+
         elif key == tcod.event.K_c:
             return CharacterScreenEventHandler(self.engine)
 
@@ -649,6 +689,21 @@ class MainGameEventHandler(EventHandler):
         # No valid key was pressed
         return action
 
+    def get_action_or_event(self, entity: Entity):
+        for map_entity in self.engine.game_map.entities:
+
+            if not (entity.x == map_entity.x and entity.y == map_entity.y):
+                continue
+
+            if map_entity == entity or map_entity.type == "Player":
+                continue
+
+            if isinstance(map_entity, Item):
+                item: Item = map_entity
+                return PickupAction(entity, item)
+            
+            if isinstance(map_entity, Actor):
+                return InventoryLootHandler(self.engine, map_entity, entity)
 
 class GameOverEventHandler(EventHandler):
     def on_quit(self) -> None:

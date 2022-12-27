@@ -77,6 +77,7 @@ lightning_scroll = Item(
 dagger = Item(
     char="/",
     color=(0, 191, 255),
+    material="Bronze",
     type="Dagger",
     equippable=equippable.Dagger()
 )
@@ -84,19 +85,22 @@ dagger = Item(
 sword = Item(
     char="/",
     color=(0, 191, 255),
+    material="Iron",
     type="Sword",
     equippable=equippable.Sword()
 )
 
 leather_armor = Item(
     char="[",
-    color=(139, 69, 19),
-    type="Leather Armor",
+    color=color.brown,
+    material="Leather",
+    type="Armor",
     equippable=equippable.LeatherArmor(),
 )
 
 chain_mail = Item(
     char="[", color=(139, 69, 19),
+    material="Iron",
     type="Chain Mail",
     equippable=equippable.ChainMail()
 )

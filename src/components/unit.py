@@ -74,8 +74,9 @@ class Unit(BaseComponent):
         self.parent.render_order = RenderOrder.CORPSE
 
         meat = copy.deepcopy(entity_factories.meat)
-        meat.add_attribute(self.parent.type)
-        self.parent.inventory.items.append(meat)
+        meat.material = self.parent.type
+        meat.parent = self.parent.inventory
+        meat.parent.items.append(meat)
 
         self.engine.message_log.add_message(death_message, death_message_color)
 

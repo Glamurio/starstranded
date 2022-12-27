@@ -103,9 +103,11 @@ class Entity:
         self.name = name
 
 
-    def get_title(self) -> str:
+    def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
-        return f'{self.name}, the {" ".join(self.attributes)}{self.type.capitalize()}' if self.name else self.type
+        attributes = [] if exclude_attributes else self.attributes
+        description = f'{" ".join(attributes)} {self.type}' if attributes else self.type
+        return f'{self.name}, the {description}' if self.name else description
 
 
     def add_attribute(self, attribute: str) -> None:
@@ -170,11 +172,13 @@ class Actor(Entity):
         """Returns True as long as this actor can perform actions."""
         return bool(self.ai)
 
-    def get_title(self) -> str:
+    def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
+        attributes = [] if exclude_attributes else self.attributes
+        description = f'{" ".join(attributes)} {self.type}' if attributes else self.type
         if not self.is_alive:
             return f'remains of {self.name}' if self.name else f'{self.type} remains'
-        return f'{self.name}, the {" ".join(self.attributes)}{self.type}' if self.name else self.type
+        return f'{self.name}, the {description}' if self.name else description
 
 class Item(Entity):
     def __init__(
@@ -188,6 +192,7 @@ class Item(Entity):
         type: str = "<Unnamed>",
         inventory: Inventory = None,
         attributes: List[str] = [],
+        material: str = None,
         consumable: Optional[Consumable] = None,
         equippable: Optional[Equippable] = None,
     ):
@@ -204,6 +209,7 @@ class Item(Entity):
             render_order=RenderOrder.ITEM,
         )
 
+        self.material = material
         self.consumable = consumable
 
         if self.consumable:
@@ -213,3 +219,10 @@ class Item(Entity):
 
         if self.equippable:
             self.equippable.parent = self
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
+        attributes = [] if exclude_attributes else self.attributes
+        material_type = f'{self.material} {self.type}' if self.material else  self.type
+        description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
+        return f'{self.name}, the {description}' if self.name else description

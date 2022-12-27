@@ -101,11 +101,11 @@ class FoodConsumable(Consumable):
         consumer.unit.handle_hunger(self.hunger_amount)
         consumer.unit.handle_thirst(self.thirst_amount)
 
-        hunger_restore = f'and lose {self.hunger_amount}' if self.hunger_amount >= 0 else f'and restore {self.hunger_amount}'
-        thirst_restore = f'and lose {self.thirst_amount}' if self.thirst_amount >= 0 else f'and restore {self.thirst_amount}'
+        hunger_restore = f' and lose {self.hunger_amount} hunger' if self.hunger_amount < 0 else f' and restore {self.hunger_amount} hunger' if self.hunger_amount > 0 else ''
+        thirst_restore = f' and lose {self.thirst_amount} thirst' if self.thirst_amount < 0 else f' and restore {self.thirst_amount} thirst' if self.thirst_amount > 0 else ''
 
         self.engine.message_log.add_message(
-            f"You consume {self.parent.get_title()} {hunger_restore if hunger_restore else ''} {thirst_restore if thirst_restore else ''}",
+            f"You consume {self.parent.get_title()}{hunger_restore if hunger_restore else ''}{thirst_restore if thirst_restore else ''}.",
             color.health_recovered,
         )
         self.consume()

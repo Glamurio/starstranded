@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, TYPE_CHECKING
 
 from components.base_component import BaseComponent
+from world import GameMap
 
 if TYPE_CHECKING:
     from entity import Entity, Item
@@ -14,6 +15,21 @@ class Inventory(BaseComponent):
     def __init__(self, capacity: int):
         self.capacity = capacity
         self.items: List[Item] = []
+
+    def loot(self, item: Item) -> None:
+        """
+        Adds an item to the inventory and removes it from the original location.
+        """
+
+        if isinstance(item.parent, GameMap):
+            self.gamemap.entities.remove(item)
+        elif isinstance(item.parent, Inventory):
+            item.parent.items.remove(item)
+
+        item.parent = self.parent.inventory
+        self.items.append(item)
+
+        # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
 
     def drop(self, item: Item) -> None:
         """

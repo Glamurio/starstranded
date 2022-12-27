@@ -64,3 +64,15 @@ def can_move(engine: Engine, dest_x, dest_y ) -> bool:
         return False
 
     return True
+
+def text_input(buffer: str = "") -> str:
+    for event in tcod.event.wait():
+        match event:
+            case tcod.event.KeyDown(sym=tcod.eventKeySym.KeySym.RETURN):
+                return buffer
+            case tcod.event.KeyDown(sym=tcod.eventKeySym.BACKSPACE):
+                buffer = buffer[:-1]
+                print(buffer)
+            case tcod.event.TextInput(text=text):
+                buffer += text
+                print(buffer)
