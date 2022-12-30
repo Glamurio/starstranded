@@ -3,9 +3,6 @@ import tcod
 import numpy as np # type: ignore
 from typing import List, Tuple
 
-from components.ai import BaseAI
-from engine import Engine
-
 def clamp(n, smallest, largest): return max(smallest, min(n, largest))
 
 def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point, width: int, height: int) -> bool:
@@ -14,12 +11,12 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
 
     `point` indicates the center of the rectangle.
     """
-    mouse_pt = mouse.pixel
+    mouse_pt = mouse.tile
 
-    return (point.x - width // 2) < (mouse_pt.x // 10) and (point.x + width // 2) > (mouse_pt.x // 10) \
-        and (point.y - height // 2) < (mouse_pt.y // 10) and (point.y + height // 2) > (mouse_pt.y // 10)
+    return (point.x - width // 2) < (mouse_pt.x) and (point.x + width // 2) > (mouse_pt.x) \
+        and (point.y - height // 2) < (mouse_pt.y) and (point.y + height // 2) > (mouse_pt.y)
 
-def get_path_to(ai: BaseAI, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
+def get_path_to(ai, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
     """
     Compute and return a path to the target position.
 
@@ -50,7 +47,7 @@ def get_path_to(ai: BaseAI, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
     # Convert from List[List[int]] to List[Tuple[int, int]].
     return [(index[0], index[1]) for index in path]
 
-def can_move(engine: Engine, dest_x, dest_y ) -> bool:
+def can_move(engine, dest_x, dest_y ) -> bool:
     """Return True if actor can move to target location."""
 
     if not engine.game_map.in_bounds(dest_x, dest_y):

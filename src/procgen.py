@@ -174,7 +174,7 @@ def generate_map(
     """Generate a new dungeon map."""
     player = engine.player
     landscape = np.full((map_width, map_height), fill_value=tile_types.wall, order="F")
-    dungeon = GameMap(world, landscape, engine, map_width, map_height, entities=[player])
+    dungeon = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
 
     rooms: List[RectangularRoom] = []
     center_of_last_room = (0, 0)
@@ -219,25 +219,21 @@ def generate_map(
 
 
 def generate_noise(
-    max_rooms: int,
-    room_min_size: int,
-    room_max_size: int,
     map_width: int,
     map_height: int,
     engine: Engine,
     world: GameWorld,
 ) -> GameMap:
-
     noise = tcod.noise.Noise(
         dimensions=2,
         algorithm=tcod.noise.Algorithm.PERLIN,
     )
-    samples = noise[tcod.noise.grid(shape=(map_width, map_height), scale=0.05, origin=(0, 0))]
+    samples = noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
     noise = tcod.noise.Noise(
             dimensions=2,
             algorithm=tcod.noise.Algorithm.PERLIN,
     )
-    samples = (samples + noise[tcod.noise.grid(shape=(map_width, map_height), scale=0.25, origin=(0, 0))])/2
+    samples = (samples + noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
 
     def value_range(a, low, high):
         return np.logical_and(a>low , a<=high)
@@ -259,7 +255,7 @@ def generate_noise(
     landscape = construct_landscape(tile_limits, tiles, samples)
 
     player = engine.player
-    map = GameMap(world, landscape, engine, map_width, map_height, entities=[player])
+    map = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
 
     player.place(0, 0, map)
     place_entities(map, engine.game_world.current_floor)

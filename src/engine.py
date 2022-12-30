@@ -4,7 +4,6 @@ import lzma
 import pickle
 
 from typing import TYPE_CHECKING
-from collections import namedtuple
 import tcod
 
 from tcod.console import Console
@@ -14,12 +13,20 @@ import exceptions
 from message_log import MessageLog
 import render_functions
 import color
-from world import distance
+import math
 
 if TYPE_CHECKING:
     from entity import Actor
     from world import GameMap, GameWorld
 
+
+def distance(p1, p2, diag=True, euclidean=False):
+    if diag:
+        return max(abs(p1.x - p2.x), abs(p1.y - p2.y))
+    if euclidean:
+        return math.sqrt(math.pow((p1.x - p2.x), 2) + math.pow((p1.y - p2.y), 2))
+    
+    return abs(p1.x - p2.x) + abs(p1.y - p2.y)
 
 class Engine:
     game_map: GameMap
@@ -78,14 +85,14 @@ class Engine:
     def render(self, console: Console) -> None:
         self.game_map.render(console)
 
-        self.message_log.render(console=console, x=21, y=89, width=40, height=5)
+        self.message_log.render(console=console, x=21, y=49, width=40, height=5)
         
         # HP
         render_functions.render_bar(
             console=console,
             current_value=self.player.unit.hp,
             maximum_value=self.player.unit.max_hp,
-            x=0, y=89,
+            x=0, y=40,
             total_width=20,
             bg_full=color.hp_bar_filled,
             bg_empty=color.hp_bar_empty,
@@ -98,7 +105,7 @@ class Engine:
             console=console,
             current_value=self.player.unit.hunger,
             maximum_value=self.player.unit.max_hunger,
-            x=0, y=91,
+            x=0, y=42,
             total_width=20,
             bg_full=color.hunger_bar_filled,
             bg_empty=color.hunger_bar_empty,
@@ -111,7 +118,7 @@ class Engine:
             console=console,
             current_value=self.player.unit.thirst,
             maximum_value=self.player.unit.max_thirst,
-            x=0, y=93,
+            x=0, y=44,
             total_width=20,
             bg_full=color.thirst_bar_filled,
             bg_empty=color.thirst_bar_empty,
@@ -119,11 +126,10 @@ class Engine:
             fg_text="Thirst"
         )
 
-
         render_functions.render_dungeon_level(
             console=console,
             dungeon_level=self.game_world.current_floor,
-            location=(0, 87),
+            location=(0, 47),
         )
 
         render_functions.render_names_at_mouse_location(

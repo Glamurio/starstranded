@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 
 from typing import Iterable, Iterator, Optional, TYPE_CHECKING
-from collections import namedtuple
 
 import numpy as np  # type: ignore
 from tcod.console import Console
@@ -148,9 +147,6 @@ class GameWorld:
         self.current_floor += 1
 
         self.engine.game_map = generate_noise(
-            max_rooms=self.max_rooms,
-            room_min_size=self.room_min_size,
-            room_max_size=self.room_max_size,
             map_width=self.map_width,
             map_height=self.map_height,
             engine=self.engine,

@@ -42,8 +42,8 @@ def create_player() -> Actor:
 
 def new_game(player: Actor) -> Engine:
     """Return a brand new game session as an Engine instance."""
-    map_width = 80
-    map_height = 80
+    map_width = 70
+    map_height = 40
 
     room_max_size = 10
     room_min_size = 6
@@ -193,7 +193,6 @@ class MainMenu(input_handlers.BaseEventHandler):
         self, event: tcod.event.MouseMotion
     ) -> Optional[input_handlers.ActionOrHandler]:
         """Tracks mouse movement"""
-
         for i, text in enumerate(self.button_names):
             button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
