@@ -38,52 +38,65 @@ def main() -> None:
 
     handler: input_handlers.BaseEventHandler = setup_game.MainMenu()
 
-    # root_console = tcod.Console(screen_width, screen_height)
-    # sdl_window = tcod.sdl.video.new_window(
-    #     root_console.width * tileset.tile_width,
-    #     root_console.height * tileset.tile_height,
-    #     flags=tcod.lib.SDL_WINDOW_RESIZABLE,
-    # )
-    # sdl_renderer = tcod.sdl.render.new_renderer(sdl_window, target_textures=True)
-    # atlas = tcod.render.SDLTilesetAtlas(sdl_renderer, tileset)
-    # console_render = tcod.render.SDLConsoleRender(atlas)
-    
-    with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
+    root_console = tcod.Console(screen_width, screen_height, order="F")
+    logical_size = (root_console.width * tileset.tile_width, root_console.height * tileset.tile_height)
+    sdl_window = tcod.sdl.video.new_window(
+        width=logical_size[0],
+        height=logical_size[1],
         title="Starstranded",
-        vsync=True,
-    ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
-        try:
-            while True:
-                root_console.clear()
-                handler.on_render(console=root_console)
-                # sdl_renderer.copy(console_render.render(root_console))
-                # sdl_renderer.present()
-                
-                context.present(root_console)
+        flags=tcod.lib.SDL_WINDOW_RESIZABLE,
+    )
+    sdl_renderer = tcod.sdl.render.new_renderer(sdl_window, target_textures=True)
+    sdl_renderer.logical_size = logical_size
+    atlas = tcod.render.SDLTilesetAtlas(sdl_renderer, tileset)
+    console_render = tcod.render.SDLConsoleRender(atlas)
+    
+    # with tcod.context.new(
+    #     columns=screen_width,
+    #     rows=screen_height,
+    #     tileset=tileset,
+    #     title="Starstranded",
+    #     vsync=True,
+    # ) as context:
+    #     root_console = tcod.Console(screen_width, screen_height, order="F")
+    try:
+        while True:
+            root_console.clear()
+            handler.on_render(console=root_console)
+            sdl_renderer.copy(console_render.render(root_console))
+            sdl_renderer.present()
+            
+            # context.present(root_console)
 
-                try:
-                    for event in tcod.event.wait():
-                        context.convert_event(event)
-                        handler = handler.handle_events(event)
-                except Exception:  # Handle exceptions in game.
-                    traceback.print_exc()  # Print error to stderr.
-                    # Then print the error to the message log.
-                    if isinstance(handler, input_handlers.EventHandler):
-                        handler.engine.message_log.add_message(
-                            traceback.format_exc(), color.error
+            try:
+                for event in tcod.event.wait():
+                    # Manual handing of tile coordinates since context.present is skipped.
+                    if isinstance(event, (tcod.event.MouseState, tcod.event.MouseMotion)):
+                        event.tile = tcod.event.Point(event.pixel.x // tileset.tile_width, event.pixel.y // tileset.tile_height)
+                    if isinstance(event, tcod.event.MouseMotion):
+                        prev_tile = (
+                            (event.pixel[0] - event.pixel_motion[0]) // tileset.tile_width,
+                            (event.pixel[1] - event.pixel_motion[1]) // tileset.tile_height,
                         )
-        except exceptions.QuitWithoutSaving:
-            raise
-        except SystemExit:  # Save and quit.
-            save_game(handler, "savegame.sav")
-            raise
-        except BaseException:  # Save on any other unexpected exception.
-            save_game(handler, "savegame.sav")
-            raise
+                        event.tile_motion = tcod.event.Point(event.tile[0] - prev_tile[0], event.tile[1] - prev_tile[1])
+
+                    # context.convert_event(event)
+                    handler = handler.handle_events(event)
+            except Exception:  # Handle exceptions in game.
+                traceback.print_exc()  # Print error to stderr.
+                # Then print the error to the message log.
+                if isinstance(handler, input_handlers.EventHandler):
+                    handler.engine.message_log.add_message(
+                        traceback.format_exc(), color.error
+                    )
+    except exceptions.QuitWithoutSaving:
+        raise
+    except SystemExit:  # Save and quit.
+        save_game(handler, "savegame.sav")
+        raise
+    except BaseException:  # Save on any other unexpected exception.
+        save_game(handler, "savegame.sav")
+        raise
 
 
 if __name__ == "__main__":
