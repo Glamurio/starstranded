@@ -10,7 +10,7 @@ import color
 
 # Actors
 player = Actor(
-    char="@",
+    char=0xE001,
     color=(255, 255, 255),
     name="Ardan",
     type="Player",
@@ -20,11 +20,10 @@ player = Actor(
     inventory=Inventory(capacity=26),
     level=Level(level_up_base=100, xp_given=50),
 )
-orc = Actor(
-    char="o",
+selenite = Actor(
+    char="T",
     color=(63, 127, 63),
-    name="Grugg",
-    type="Orc",
+    type="Selenite",
     ai_cls=HostileEnemy,
     equipment=Equipment(),
     unit=Unit(hp=10, base_defense=0, base_power=3),

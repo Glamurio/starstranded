@@ -155,7 +155,7 @@ class MeleeAction(ActionWithDirection):
 
         damage = self.entity.unit.power - target.unit.defense
 
-        attack_desc = f"{self.entity.get_title().capitalize()} attacks {target.get_title()}"
+        attack_desc = f"{self.entity.get_title()} attacks {target.get_title()}"
         if self.entity is self.engine.player:
             attack_color = color.player_atk
         else:

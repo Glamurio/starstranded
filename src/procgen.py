@@ -38,10 +38,10 @@ item_chances: Dict[int, List[Tuple[Entity, int]]] = {
 }
 
 enemy_chances: Dict[int, List[Tuple[Entity, int]]] = {
-    0: [(entity_factories.orc, 80)],
-    3: [(entity_factories.troll, 15)],
-    5: [(entity_factories.troll, 30)],
-    7: [(entity_factories.troll, 60)],
+    0: [(entity_factories.selenite, 80)],
+    # 3: [(entity_factories.troll, 15)],
+    # 5: [(entity_factories.troll, 30)],
+    # 7: [(entity_factories.troll, 60)],
 }
 
 
@@ -241,14 +241,14 @@ def generate_noise(
     def construct_landscape(limits, tiles, samples: np.ndarray):
         assert(len(limits) == len(tiles)+1)
         out_shape = list(samples.shape)
-        landscape = np.full(out_shape, fill_value=tile_types.wall, order="F", dtype=tile_types.tile_dt)
+        landscape = np.full(out_shape, fill_value=tile_types.wall.get_array(), order="F", dtype=tile_types.tile_dt)
         for i in range(len(limits)-1):
             landscape[value_range(samples, limits[i], limits[i+1])] = tiles[i]
         return landscape
 
     colors = [np.array([0, 0, 0.5]), np.array([0, 0, 1]), np.array([0, 1., 0]), np.array([0.5, 0.5, 0.5]), np.array([1., 1., 1.])]
     color_limits = [-1.1, -0.4, -0.2, 0.1, 0.3, 1.1]
-    tiles = [tile_types.water, tile_types.floor, tile_types.wall]
+    tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
     tile_limits = [-1.1, -0.2, 0.3, 1.1]
     
     # landscape = construct_landscape(color_limits, colors, samples)

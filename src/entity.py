@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import math
 from typing import Optional, List, Tuple, Type, TypeVar, TYPE_CHECKING, Union
+from utilities import generate_name
 
 from render_order import RenderOrder
 
@@ -155,6 +156,8 @@ class Actor(Entity):
 
         self.equipment: Equipment = equipment
         self.equipment.parent = self
+
+        self.name = name if name else generate_name(type)
 
         self.unit = unit
         self.unit.parent = self

@@ -22,41 +22,55 @@ tile_dt = np.dtype(
     ]
 )
 
+class Tile(object):
+    def __init__(
+        self,
+        *,
+        walkable: int = False,
+        transparent: int = False,
+        dark: Tuple[int, Tuple[int, int, int], Tuple[int, int, int]],
+        light: Tuple[int, Tuple[int, int, int], Tuple[int, int, int]],
+        dtype: np.dtype = tile_dt,
+    ):
 
-def new_tile(
-    *,  # Enforce the use of keywords, so that parameter order doesn't matter.
-    walkable: int,
-    transparent: int,
-    dark: Tuple[int, Tuple[int, int, int], Tuple[int, int, int]],
-    light: Tuple[int, Tuple[int, int, int], Tuple[int, int, int]],
-) -> np.ndarray:
-    """Helper function for defining individual tile types """
-    return np.array((walkable, transparent, dark, light), dtype=tile_dt)
+        self.walkable = walkable
+        self.transparent = transparent
+        self.dark = dark
+        self.light = light
+        self.dtype = dtype
+
+    def get_array(self) -> np.ndarray:
+        """Helper function for returning individual tile types"""
+        return np.array((self.walkable, self.transparent, self.dark, self.light), dtype=self.dtype)
 
 # SHROUD represents unexplored, unseen tiles
 SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
-floor = new_tile(
+floor = Tile(
     walkable=True,
     transparent=True,
     dark=(ord(" "), (255, 255, 255), (50, 50, 150)),
     light=(ord(" "), (255, 255, 255), (200, 180, 50)),
+    dtype=tile_dt
 )
-water = new_tile(
+water = Tile(
     walkable=False,
     transparent=True,
     dark=(ord(" "), (255, 255, 255), color.dark_blue),
     light=(ord(" "), (255, 255, 255), color.blue),
+    dtype=tile_dt
 )
-wall = new_tile(
+wall = Tile(
     walkable=False,
     transparent=False,
     dark=(ord(" "), (255, 255, 255), (0, 0, 100)),
     light=(ord(" "), (255, 255, 255), (130, 110, 50)),
+    dtype=tile_dt
 )
-down_stairs = new_tile(
+down_stairs = Tile(
     walkable=True,
     transparent=True,
     dark=(ord(">"), (0, 0, 100), (50, 50, 150)),
     light=(ord(">"), (255, 255, 255), (200, 180, 50)),
+    dtype=tile_dt
 )

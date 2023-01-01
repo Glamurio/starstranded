@@ -207,6 +207,7 @@ class CharacterCreation(input_handlers.BaseEventHandler):
     MAX_CHARS = 16
     
     def on_render(self, console: tcod.Console) -> None:
+        from utilities import generate_name
 
         width = len(self.TITLE) + 4
         x = console.width // 2 - width // 2

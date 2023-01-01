@@ -10,6 +10,8 @@ import input_handlers
 import setup_game
 import numpy as np # type: ignore
 
+from typing import List
+
 
 CHARMAP_URIZEN = np.arange(0xE000, 0xF8FF+1)
 """
@@ -22,19 +24,29 @@ def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
         handler.engine.save_as(filename)
         print("Game saved.")
 
+def merge_tileset(tileset: tcod.tileset.Tileset, incoming: tcod.tileset.Tileset, charmap: List[int]):
+    """Overwrite tiles for `charmap` in `tileset` with those from `incoming`."""
+    for i in charmap:
+        if i not in incoming:
+            continue
+        tile = incoming.get_tile(i)
+        if not tile.any():
+            continue
+        tileset.set_tile(i, tile)
+
 def main() -> None:
     screen_width = 80
     screen_height = 45
 
-    # tileset = tcod.tileset.load_tilesheet(
-    #     "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
-    # )
-    # tileset = tcod.tileset.load_tilesheet(
-    #     "urizen_nogrid.png", 50, 50, CHARMAP_URIZEN
-    # )
     tileset = tcod.tileset.load_tilesheet(
+        "urizen_nogrid.png", 50, 50, CHARMAP_URIZEN
+    )
+    text_tileset = tcod.tileset.load_tilesheet(
         "Zesty_curses_24x24.png", 16, 16, tcod.tileset.CHARMAP_CP437
     )
+
+    merge_tileset(tileset, text_tileset, tcod.tileset.CHARMAP_CP437)
+
 
     handler: input_handlers.BaseEventHandler = setup_game.MainMenu()
 
@@ -51,25 +63,22 @@ def main() -> None:
     atlas = tcod.render.SDLTilesetAtlas(sdl_renderer, tileset)
     console_render = tcod.render.SDLConsoleRender(atlas)
     
-    # with tcod.context.new(
-    #     columns=screen_width,
-    #     rows=screen_height,
-    #     tileset=tileset,
-    #     title="Starstranded",
-    #     vsync=True,
-    # ) as context:
-    #     root_console = tcod.Console(screen_width, screen_height, order="F")
     try:
         while True:
             root_console.clear()
             handler.on_render(console=root_console)
+            # tileset.remap(0xE001, 0, 9)
+            sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.NONE
             sdl_renderer.copy(console_render.render(root_console))
+
+            # sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.BLEND
+            # sdl_renderer.copy(console_render2.render(console2))
+
             sdl_renderer.present()
-            
-            # context.present(root_console)
 
             try:
                 for event in tcod.event.wait():
+
                     # Manual handing of tile coordinates since context.present is skipped.
                     if isinstance(event, (tcod.event.MouseState, tcod.event.MouseMotion)):
                         event.tile = tcod.event.Point(event.pixel.x // tileset.tile_width, event.pixel.y // tileset.tile_height)
@@ -79,9 +88,8 @@ def main() -> None:
                             (event.pixel[1] - event.pixel_motion[1]) // tileset.tile_height,
                         )
                         event.tile_motion = tcod.event.Point(event.tile[0] - prev_tile[0], event.tile[1] - prev_tile[1])
-
-                    # context.convert_event(event)
                     handler = handler.handle_events(event)
+                
             except Exception:  # Handle exceptions in game.
                 traceback.print_exc()  # Print error to stderr.
                 # Then print the error to the message log.

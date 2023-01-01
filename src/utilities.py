@@ -1,7 +1,19 @@
 # Utility functions
+
+import os
 import tcod
 import numpy as np # type: ignore
 from typing import List, Tuple
+from pathlib import Path
+
+def get_data(path: str) -> str:
+    """Return the path to a resource in the libtcod data directory,"""
+    SCRIPT_DIR = os.path.dirname(__file__)
+    DATA_DIR = os.path.join(SCRIPT_DIR, "../libtcod/data")
+    assert os.path.exists(DATA_DIR), (
+        "Data directory is missing," " did you forget to run `git submodule update --init`?"
+    )
+    return os.path.join(DATA_DIR, path)
 
 def clamp(n, smallest, largest): return max(smallest, min(n, largest))
 
@@ -73,3 +85,20 @@ def text_input(buffer: str = "") -> str:
             case tcod.event.TextInput(text=text):
                 buffer += text
                 print(buffer)
+
+def generate_name(origin: str):
+    path = Path("./data/namegen").resolve()
+    file_names = []
+    for file in os.listdir(path):
+        file_names.append(file)
+        if file.find(".cfg") > 0:
+            tcod.namegen_parse(os.path.join(path, file))
+
+    # get the sets list
+    name_sets = tcod.namegen_get_sets()
+    for name_set in name_sets:
+        if not origin.casefold() in name_set.casefold():
+            continue
+
+        return tcod.namegen_generate(name_set)
+    return tcod.namegen_generate(name_sets[0])
