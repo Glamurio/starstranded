@@ -2,6 +2,7 @@ from typing import Tuple
 
 import numpy as np  # type: ignore
 import color
+from utilities import map_sprite
 
 # Tile graphics structured type compatible with Console.rgb.
 graphic_dt = np.dtype(
@@ -23,20 +24,38 @@ tile_dt = np.dtype(
 )
 
 class Tile(object):
+    """
+    Tile sprite is controlled via `sprite_pos` on `global_tilesheet`
+
+    `dark_bg` and `dark_fg` are appearance when not on LoS.
+
+    `light_bg` and `light_fg` are appearance when in LoS.
+    """
     def __init__(
         self,
         *,
         walkable: int = False,
         transparent: int = False,
-        dark: Tuple[int, Tuple[int, int, int], Tuple[int, int, int]],
-        light: Tuple[int, Tuple[int, int, int], Tuple[int, int, int]],
+        sprite_pos: Tuple[int, int] = (0, 0),
+        dark_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
+        dark_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
+        light_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
+        light_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         dtype: np.dtype = tile_dt,
     ):
 
         self.walkable = walkable
         self.transparent = transparent
-        self.dark = dark
-        self.light = light
+        self.codepoint = map_sprite(sprite_pos[0], sprite_pos[1])
+
+        self.dark_bg = dark_bg
+        self.dark_fg = dark_fg
+        self.dark = (self.codepoint, dark_fg, dark_bg)
+
+        self.light_bg = dark_bg
+        self.light_fg = dark_fg
+        self.light = (self.codepoint, light_fg, light_bg)
+
         self.dtype = dtype
 
     def get_array(self) -> np.ndarray:
@@ -49,28 +68,32 @@ SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 floor = Tile(
     walkable=True,
     transparent=True,
-    dark=(ord(" "), (255, 255, 255), (50, 50, 150)),
-    light=(ord(" "), (255, 255, 255), (200, 180, 50)),
+    sprite_pos=(0, 2),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
     dtype=tile_dt
 )
 water = Tile(
     walkable=False,
     transparent=True,
-    dark=(ord(" "), (255, 255, 255), color.dark_blue),
-    light=(ord(" "), (255, 255, 255), color.blue),
+    sprite_pos=(9, 32),
+    dark_fg=color.dark_blue,
+    light_fg=color.blue,
     dtype=tile_dt
 )
 wall = Tile(
     walkable=False,
     transparent=False,
-    dark=(ord(" "), (255, 255, 255), (0, 0, 100)),
-    light=(ord(" "), (255, 255, 255), (130, 110, 50)),
+    sprite_pos=(1, 0),
+    dark_fg=color.dark_gray,
+    light_fg=color.gray,
     dtype=tile_dt
 )
 down_stairs = Tile(
-    walkable=True,
-    transparent=True,
-    dark=(ord(">"), (0, 0, 100), (50, 50, 150)),
-    light=(ord(">"), (255, 255, 255), (200, 180, 50)),
+    walkable=False,
+    transparent=False,
+    sprite_pos=(11, 0),
+    dark_fg=(50, 50, 150),
+    light_fg=(200, 180, 50),
     dtype=tile_dt
 )

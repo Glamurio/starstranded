@@ -413,7 +413,6 @@ class InventoryEventHandler(AskUserEventHandler):
                 console.print(x + 1, y + 2, "(Empty)")
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
-        print(event)
         player = self.engine.player
         key = event.sym
         index = key - tcod.event.K_a
@@ -495,20 +494,20 @@ class InventoryLootHandler(InventoryEventHandler):
         self.TITLE = f"{self.entity.get_title()}"
         super().on_render(console)
 
-        # for map_entity in self.engine.game_map.entities:
+        # for map_sprite in self.engine.game_map.entities:
 
-        #     if not (self.looter.x == map_entity.x and self.looter.y == map_entity.y):
+        #     if not (self.looter.x == map_sprite.x and self.looter.y == map_sprite.y):
         #         continue
 
-        #     if map_entity == self.looter or map_entity.type == "Player":
+        #     if map_sprite == self.looter or map_sprite.type == "Player":
         #         continue
 
-        #     if isinstance(map_entity, Item):
-        #         item: Item = map_entity
+        #     if isinstance(map_sprite, Item):
+        #         item: Item = map_sprite
         #         return self.on_item_selected(item)
             
-        #     if isinstance(map_entity, Actor):
-        #         self.entity = map_entity
+        #     if isinstance(map_sprite, Actor):
+        #         self.entity = map_sprite
         #         self.TITLE = f"{self.entity.get_title()}"
         #         return MainGameEventHandler(self.engine)
 
@@ -624,17 +623,17 @@ class AreaRangedAttackHandler(SelectIndexHandler):
 
 class MainGameEventHandler(EventHandler):
 
-    # def on_render(self, console: tcod.Console) -> None:
-    #     """Highlight the tile under the cursor."""
-    #     super().on_render(console)
-    #     from utilities import get_path_to
+    def on_render(self, console: tcod.Console) -> None:
+        """Highlight the tile under the cursor."""
+        super().on_render(console)
+        from utilities import get_path_to
 
-    #     player = self.engine.player
-    #     mouse_x, mouse_y = self.engine.mouse_location
-    #     path: List[Tuple] = get_path_to(player.ai, mouse_x, mouse_y)
-    #     for x, y in path:
-    #         console.rgb["bg"][x, y] = color.white
-    #         console.rgb["fg"][x, y] = color.black
+        player = self.engine.player
+        mouse_x, mouse_y = self.engine.mouse_location
+        path: List[Tuple] = get_path_to(self.engine, player.ai, mouse_x, mouse_y)
+        for x, y in path:
+            console.rgb["bg"][x, y] = color.white
+            console.rgb["fg"][x, y] = color.black
 
     def ev_mousebuttondown(self, event: tcod.event.MouseMotion) -> Optional[ActionOrHandler]:
         if event.button == tcod.event.BUTTON_LEFT:
@@ -690,20 +689,20 @@ class MainGameEventHandler(EventHandler):
         return action
 
     def get_action_or_event(self, entity: Entity):
-        for map_entity in self.engine.game_map.entities:
+        for map_sprite in self.engine.game_map.entities:
 
-            if not (entity.x == map_entity.x and entity.y == map_entity.y):
+            if not (entity.x == map_sprite.x and entity.y == map_sprite.y):
                 continue
 
-            if map_entity == entity or map_entity.type == "Player":
+            if map_sprite == entity or map_sprite.type == "Player":
                 continue
 
-            if isinstance(map_entity, Item):
-                item: Item = map_entity
+            if isinstance(map_sprite, Item):
+                item: Item = map_sprite
                 return PickupAction(entity, item)
             
-            if isinstance(map_entity, Actor):
-                return InventoryLootHandler(self.engine, map_entity, entity)
+            if isinstance(map_sprite, Actor):
+                return InventoryLootHandler(self.engine, map_sprite, entity)
 
 class GameOverEventHandler(EventHandler):
     def on_quit(self) -> None:

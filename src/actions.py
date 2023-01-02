@@ -4,8 +4,8 @@ from time import sleep
 from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
-from components.inventory import Inventory
-from world import GameMap
+
+from utilities import can_move
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -29,9 +29,11 @@ class Action:
 
         `self.entity` is the object performing the action.
 
-        This method must be overridden by Action subclasses.
+        If the action is supposed to pass time, it must be inherited via `super().perform()`.
         """
-        raise NotImplementedError()
+        # Always pass time when an action occurs
+        self.engine.game_world.pass_time(actor=self.entity, time=1)
+
 
 
 class PickupAction(Action):
@@ -43,6 +45,8 @@ class PickupAction(Action):
         self.item = item
 
     def perform(self) -> None:
+        super().perform()
+
         if len(self.entity.inventory.items) >= self.entity.inventory.capacity:
             raise exceptions.Impossible("Your inventory is full.")
 
@@ -68,6 +72,7 @@ class ItemAction(Action):
 
     def perform(self) -> None:
         """Invoke the items ability, this action will be given to provide context."""
+        super().perform()
 
         if self.item.consumable:
             self.item.consumable.activate(self)
@@ -75,7 +80,7 @@ class ItemAction(Action):
 
 class DropItem(ItemAction):
     def perform(self) -> None:
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
+        super().perform()
 
         if self.entity.equipment.item_is_equipped(self.item):
             self.entity.equipment.toggle_equip(self.item)
@@ -90,14 +95,12 @@ class EquipAction(Action):
         self.item = item
 
     def perform(self) -> None:
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
-
         self.entity.equipment.toggle_equip(self.item)
 
 
 class WaitAction(Action):
     def perform(self) -> None:
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
+        super().perform()
 
 
 class TakeStairsAction(Action):
@@ -105,7 +108,8 @@ class TakeStairsAction(Action):
         """
         Take the stairs, if any exist at the entity's location.
         """
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
+        # TODO: Rework into general transition action
+        super().perform()
 
         if (self.entity.x, self.entity.y) == self.engine.game_map.downstairs_location:
             self.engine.game_world.generate_floor()
@@ -141,17 +145,22 @@ class ActionWithDirection(Action):
     def get_path(self, ai, x: int, y: int) -> List[Tuple]:
         from utilities import get_path_to
 
-        return get_path_to(ai, x, y)
+        return get_path_to(self.engine, ai, x, y)
 
     def perform(self) -> None:
-        raise NotImplementedError()
+        super().perform()
 
 
 class MeleeAction(ActionWithDirection):
     def perform(self) -> None:
+        super().perform()
+
         target = self.target_actor
+
         if not target:
             raise exceptions.Impossible("Nothing to attack.")
+        if self.entity == target:
+            return WaitAction(self.entity).perform()
 
         damage = self.entity.unit.power - target.unit.defense
 
@@ -181,15 +190,16 @@ class MovementAction(ActionWithDirection):
         self.path = path
 
     def perform(self) -> None:
-        from utilities import can_move
 
-        if self.path:
-            x, y = self.path.pop()
-            return MovementAction(self.entity, x, y, self.path).perform()
+        if not self.path:
+            raise exceptions.Impossible("That way is blocked.")
+
+        self.dest_x, self.dest_y = self.path[0]
+        # return MovementAction(self.entity, x, y, self.path).perform()
 
         if can_move(self.engine, self.dest_x, self.dest_y):
+            self.engine.game_world.pass_time(actor=self.entity, time=1)
             self.entity.move(self.dest_x, self.dest_y)
-        
         else:
             raise exceptions.Impossible("That way is blocked.")
 
@@ -197,8 +207,6 @@ class MovementAction(ActionWithDirection):
 class BumpAction(ActionWithDirection):
 
     def perform(self) -> None:
-        
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
         path: List[Tuple] = self.get_path(self.entity.ai, self.dest_x, self.dest_y)
 
         distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.

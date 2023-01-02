@@ -53,12 +53,6 @@ class Engine:
                 except exceptions.Impossible:
                     pass  # Ignore impossible action exceptions from AI.
 
-
-    def in_bounds(self, x: int, y: int) -> bool:
-        """Return True if x and y are inside of the bounds of this map."""
-        return 0 <= x < self.width and 0 <= y < self.height
-
-
     def can_see(self, x1, y1, x2, y2, radius: int):
 
         if distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius:

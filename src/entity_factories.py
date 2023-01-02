@@ -10,7 +10,7 @@ import color
 
 # Actors
 player = Actor(
-    char=0xE001,
+    sprite_pos=(0, 9),
     color=(255, 255, 255),
     name="Ardan",
     type="Player",
@@ -21,8 +21,8 @@ player = Actor(
     level=Level(level_up_base=100, xp_given=50),
 )
 selenite = Actor(
-    char="T",
-    color=(63, 127, 63),
+    sprite_pos=(2, 37),
+    color=color.light_blue,
     type="Selenite",
     ai_cls=HostileEnemy,
     equipment=Equipment(),
@@ -31,7 +31,7 @@ selenite = Actor(
     level=Level(level_up_base=100, xp_given=35),
 )
 troll = Actor(
-    char="T",
+    sprite_pos=(0, 37),
     color=(0, 127, 0),
     type="Troll",
     ai_cls=HostileEnemy,

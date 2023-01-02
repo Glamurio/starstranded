@@ -6,19 +6,22 @@ import copy
 import lzma
 import pickle
 import traceback
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import tcod
 
 import color
 from engine import Engine
-from entity import Actor
+
 import entity_factories
 
 from world import GameWorld
 import input_handlers
 
 from utilities import is_mouse_in_rectangle
+
+if TYPE_CHECKING:
+    from entity import Actor
 
 # Load the background image and remove the alpha channel.
 background_image = tcod.image.load("menu_background.png")[:, :, :3]

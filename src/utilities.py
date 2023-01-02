@@ -1,10 +1,16 @@
 # Utility functions
+from __future__ import annotations
 
 import os
 import tcod
 import numpy as np # type: ignore
-from typing import List, Tuple
+import g
 from pathlib import Path
+from typing import TYPE_CHECKING, List, Tuple
+
+if TYPE_CHECKING:
+    from components.ai import BaseAI
+    from engine import Engine
 
 def get_data(path: str) -> str:
     """Return the path to a resource in the libtcod data directory,"""
@@ -28,18 +34,20 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
     return (point.x - width // 2) < (mouse_pt.x) and (point.x + width // 2) > (mouse_pt.x) \
         and (point.y - height // 2) < (mouse_pt.y) and (point.y + height // 2) > (mouse_pt.y)
 
-def get_path_to(ai, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
+def get_path_to(engine: Engine, ai: BaseAI, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
     """
     Compute and return a path to the target position.
 
     If there is no valid path then returns an empty list.
     """
+    if not engine.game_map.in_bounds(dest_x, dest_y):
+        return
 
     # Copy the walkable array.
     cost = np.array(ai.entity.gamemap.tiles["walkable"], dtype=np.int8)
 
     for entity in ai.entity.gamemap.entities:
-        # Check that an enitiy blocks movement and the cost isn't zero (blocking.)
+        # Check that an entity blocks movement and the cost isn't zero (blocking.)
         if entity.blocks_movement and cost[entity.x, entity.y]:
             # Add to the cost of a blocked position.
             # A lower number means more enemies will crowd behind each other in
@@ -55,11 +63,10 @@ def get_path_to(ai, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
 
     # Compute the path to the destination and remove the starting point.
     path: List[List[int]] = pathfinder.path_to((dest_x, dest_y))[1:].tolist()
-
     # Convert from List[List[int]] to List[Tuple[int, int]].
     return [(index[0], index[1]) for index in path]
 
-def can_move(engine, dest_x, dest_y ) -> bool:
+def can_move(engine: Engine, dest_x: int, dest_y: int) -> bool:
     """Return True if actor can move to target location."""
 
     if not engine.game_map.in_bounds(dest_x, dest_y):
@@ -81,10 +88,8 @@ def text_input(buffer: str = "") -> str:
                 return buffer
             case tcod.event.KeyDown(sym=tcod.eventKeySym.BACKSPACE):
                 buffer = buffer[:-1]
-                print(buffer)
             case tcod.event.TextInput(text=text):
                 buffer += text
-                print(buffer)
 
 def generate_name(origin: str):
     path = Path("./data/namegen").resolve()
@@ -102,3 +107,17 @@ def generate_name(origin: str):
 
         return tcod.namegen_generate(name_set)
     return tcod.namegen_generate(name_sets[0])
+
+def map_sprite(x: int, y: int) -> int:
+    """
+    Function, which remaps entity to sprite.
+    Returns the first vacant codepoint inside.
+    """
+    for i in range(0xE001, 0xF8FF+1):
+        if i in g.mapped_chars:
+            continue
+
+        g.mapped_chars.append(i)
+        g.global_tileset.remap(i, x, y)
+
+        return i

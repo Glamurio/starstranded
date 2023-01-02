@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import g
 import copy
 import math
 from typing import Optional, List, Tuple, Type, TypeVar, TYPE_CHECKING, Union
-from utilities import generate_name
+from utilities import generate_name, map_sprite
 
 from render_order import RenderOrder
+
 
 if TYPE_CHECKING:
     from components.ai import BaseAI
@@ -19,7 +21,6 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound="Entity")
 
-
 class Entity:
     """
     A generic object to represent players, enemies, items, etc.
@@ -31,7 +32,7 @@ class Entity:
         parent: Optional[GameMap] = None,
         x: int = 0,
         y: int = 0,
-        char: str = "?",
+        sprite_pos: tuple = (0, 0),
         color: Tuple[int, int, int] = (255, 255, 255),
         name: Optional[str] = None,
         type: str = "<Unnamed>",
@@ -42,7 +43,7 @@ class Entity:
     ):
         self.x = x
         self.y = y
-        self.char = char
+        self.char = map_sprite(sprite_pos[0], sprite_pos[1])
         self.color = color
         self.name = name
         self.type = type
@@ -55,10 +56,11 @@ class Entity:
             self.parent = parent
             parent.entities.add(self)
 
+
+
     @property
     def gamemap(self) -> GameMap:
         return self.parent.gamemap
-
 
     def spawn(self: T, gamemap: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
@@ -68,7 +70,6 @@ class Entity:
         clone.parent = gamemap
         gamemap.entities.add(clone)
         return clone
-
 
     def place(self, x: int, y: int, gamemap: Optional[GameMap] = None) -> None:
         """Place this entity at a new location.  Handles moving across GameMaps."""
@@ -85,24 +86,20 @@ class Entity:
         self.parent = gamemap
         self.parent.entities.add(self)
 
-
     def distance(self, x: int, y: int) -> float:
         """
         Return the distance between the current entity and the given (x, y) coordinate.
         """
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
-
     def move(self, dest_x: int, dest_y: int) -> None:
         """Move the entity by a given amount.""" 
         self.x = dest_x
         self.y = dest_y
 
-
     def set_name(self, name: str) -> str:
         """Sets the entity name."""
         self.name = name
-
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
@@ -110,11 +107,9 @@ class Entity:
         description = f'{" ".join(attributes)} {self.type}' if attributes else self.type
         return f'{self.name}, the {description}' if self.name else description
 
-
     def add_attribute(self, attribute: str) -> None:
         """Adds attribute to list of attributes."""
         self.attributes.append(attribute)
-
 
     def remove_attribute(self, attribute: str) -> None:
         """Removes attribute from list of attributes."""
@@ -122,12 +117,16 @@ class Entity:
 
 
 class Actor(Entity):
+    """
+    An object representing an acting `Entity`, such as a player or enemy
+    """
     def __init__(
         self,
         *,
         x: int = 0,
         y: int = 0,
         char: str = "?",
+        sprite_pos: tuple = (0, 0),
         color: Tuple[int, int, int] = (255, 255, 255),
         name: Optional[str] = None,
         type: str = "<Unnamed>",
@@ -142,7 +141,7 @@ class Actor(Entity):
         super().__init__(
             x=x,
             y=y,
-            char=char,
+            sprite_pos=sprite_pos,
             color=color,
             name=name,
             type=type,
@@ -190,6 +189,7 @@ class Item(Entity):
         x: int = 0,
         y: int = 0,
         char: str = "?",
+        sprite_pos: tuple = (0, 0),
         color: Tuple[int, int, int] = (255, 255, 255),
         name: Optional[str] = None,
         type: str = "<Unnamed>",
@@ -202,7 +202,7 @@ class Item(Entity):
         super().__init__(
             x=x,
             y=y,
-            char=char,
+            sprite_pos=sprite_pos,
             color=color,
             name=name,
             type=type,

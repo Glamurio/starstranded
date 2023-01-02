@@ -18,7 +18,7 @@ class BaseAI(Action):
         """Perform movement action"""
         from utilities import get_path_to
         
-        return get_path_to(self, dest_x, dest_y)
+        return get_path_to(self.engine, self, dest_x, dest_y)
 
 class ConfusedEnemy(BaseAI):
     """
@@ -80,9 +80,8 @@ class HostileEnemy(BaseAI):
             self.path = self.do_move(target.x, target.y)
 
         if self.path:
-            dest_x, dest_y = self.path.pop(0)
             return MovementAction(
-                self.entity, dest_x, dest_y,
+                self.entity, dest_x, dest_y, self.path
             ).perform()
 
         return WaitAction(self.entity).perform()
