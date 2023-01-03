@@ -1,8 +1,12 @@
 """Global module for all global variables"""
+from __future__ import annotations
 
 import tcod
 import numpy as np # type: ignore
-from typing import List
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from input_handlers import BaseEventHandler
 
 CHARMAP_URIZEN = np.arange(0xE000, 0xF8FF+1)
 """
@@ -31,3 +35,20 @@ sdl_renderer = tcod.sdl.render.new_renderer(sdl_window, target_textures=True)
 sdl_renderer.logical_size = logical_size
 atlas = tcod.render.SDLTilesetAtlas(sdl_renderer, global_tileset)
 console_render = tcod.render.SDLConsoleRender(atlas)
+
+def render(handler: BaseEventHandler) -> None:
+    """
+    Global render function
+    
+    Expects a `handler: BaseEventHandler` to render.
+    """
+    root_console.clear()
+    handler.on_render(console=root_console)
+
+    sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.NONE
+    sdl_renderer.copy(console_render.render(root_console))
+
+    # sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.BLEND
+    # sdl_renderer.copy(console_render2.render(console2))
+
+    sdl_renderer.present()

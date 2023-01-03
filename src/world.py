@@ -167,4 +167,5 @@ class GameWorld:
 
             self.engine.handle_enemy_turns()
             self.engine.update_fov()
+            
         return self.current_time
