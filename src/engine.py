@@ -16,7 +16,7 @@ import color
 import math
 
 if TYPE_CHECKING:
-    from entity import Actor
+    from entity import Unit
     from world import GameMap, GameWorld
 
 
@@ -32,7 +32,7 @@ class Engine:
     game_map: GameMap
     game_world: GameWorld
 
-    def __init__(self, player: Actor):
+    def __init__(self, player: Unit):
         self.message_log = MessageLog()
         self.mouse_location = (0, 0)
         self.player = player
@@ -46,7 +46,7 @@ class Engine:
 
 
     def handle_enemy_turns(self) -> None:
-        for entity in set(self.game_map.actors) - {self.player}:
+        for entity in set(self.game_map.units) - {self.player}:
             if entity.ai:
                 try:
                     entity.ai.perform()
@@ -84,8 +84,8 @@ class Engine:
         # HP
         render_functions.render_bar(
             console=console,
-            current_value=self.player.unit.hp,
-            maximum_value=self.player.unit.max_hp,
+            current_value=self.player.hp,
+            maximum_value=self.player.max_hp,
             x=0, y=40,
             total_width=20,
             bg_full=color.hp_bar_filled,
@@ -97,8 +97,8 @@ class Engine:
         # Hunger
         render_functions.render_bar(
             console=console,
-            current_value=self.player.unit.hunger,
-            maximum_value=self.player.unit.max_hunger,
+            current_value=self.player.hunger,
+            maximum_value=self.player.max_hunger,
             x=0, y=42,
             total_width=20,
             bg_full=color.hunger_bar_filled,
@@ -110,8 +110,8 @@ class Engine:
         # Thirst
         render_functions.render_bar(
             console=console,
-            current_value=self.player.unit.thirst,
-            maximum_value=self.player.unit.max_thirst,
+            current_value=self.player.thirst,
+            maximum_value=self.player.max_thirst,
             x=0, y=44,
             total_width=20,
             bg_full=color.thirst_bar_filled,

@@ -6,10 +6,10 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 from actions import Action, BumpAction, MeleeAction, MovementAction, WaitAction
 
 if TYPE_CHECKING:
-    from entity import Actor
+    from entity import Unit
 
 class BaseAI(Action):
-    entity: Actor
+    entity: Unit
 
     def perform(self) -> None:
         raise NotImplementedError()
@@ -23,11 +23,11 @@ class BaseAI(Action):
 class ConfusedEnemy(BaseAI):
     """
     A confused enemy will stumble around aimlessly for a given number of turns, then revert back to its previous AI.
-    If an actor occupies a tile it is randomly moving into, it will attack.
+    If a unit occupies a tile it is randomly moving into, it will attack.
     """
 
     def __init__(
-        self, entity: Actor, previous_ai: Optional[BaseAI], turns_remaining: int
+        self, entity: Unit, previous_ai: Optional[BaseAI], turns_remaining: int
     ):
         super().__init__(entity)
 
@@ -58,12 +58,12 @@ class ConfusedEnemy(BaseAI):
 
             self.turns_remaining -= 1
 
-            # The actor will either try to move or attack in the chosen random direction.
-            # Its possible the actor will just bump into the wall, wasting a turn.
+            # The unit will either try to move or attack in the chosen random direction.
+            # Its possible the unit will just bump into the wall, wasting a turn.
             return BumpAction(self.entity, direction_x, direction_y,).perform()
 
 class HostileEnemy(BaseAI):
-    def __init__(self, entity: Actor):
+    def __init__(self, entity: Unit):
         super().__init__(entity)
         self.path: List[Tuple[int, int]] = []
 

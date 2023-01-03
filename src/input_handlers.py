@@ -8,21 +8,17 @@ import tcod
 import g
 
 import actions
-from actions import (
-    Action,
-    BumpAction,
-    PickupAction,
-    WaitAction
-)
 import color
 import exceptions
 from utilities import is_mouse_in_rectangle
 import time
 
-from entity import Item, Entity, Actor
+from entity import Item, Entity
+from components.equippable import Equippable
 
 if TYPE_CHECKING:
     from engine import Engine
+    from components.unit import Unit
 
 MOVE_KEYS = {
     # Arrow keys.
@@ -65,7 +61,7 @@ WAIT_KEYS = {
     tcod.event.K_CLEAR,
 }
 
-ActionOrHandler = Union[Action, "BaseEventHandler"]
+ActionOrHandler = Union[actions.Action, "BaseEventHandler"]
 """An event handler return value which can trigger an action or switch active handlers.
 
 If a handler is returned then it will become the active handler for future events.
@@ -80,13 +76,13 @@ class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
         state = self.dispatch(event)
         if isinstance(state, BaseEventHandler):
             return state
-        assert not isinstance(state, Action), f"{self!r} can not handle actions."
+        assert not isinstance(state, actions.Action), f"{self!r} can not handle actions."
         return self
 
     def on_render(self, console: tcod.Console) -> None:
         raise NotImplementedError()
 
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
+    def ev_quit(self, event: tcod.event.Quit) -> Optional[actions.Action]:
         raise SystemExit()
 
 class PopupMessage(BaseEventHandler):
@@ -135,7 +131,7 @@ class EventHandler(BaseEventHandler):
             return MainGameEventHandler(self.engine)  # Return to the main handler.
         return self
 
-    def handle_action(self, action: Optional[Action]) -> bool:
+    def handle_action(self, action: Optional[actions.Action]) -> bool:
         """Handle actions returned from event methods.
 
         Returns True if the action will advance a turn.
@@ -259,10 +255,10 @@ class CharacterScreenEventHandler(AskUserEventHandler):
         )
 
         console.print(
-            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.unit.power}"
+            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.power}"
         )
         console.print(
-            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.unit.defense}"
+            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.defense}"
         )
 
 
@@ -292,17 +288,17 @@ class LevelUpEventHandler(AskUserEventHandler):
         console.print(
             x=x + 1,
             y=4,
-            string=f"a) Constitution (+20 HP, from {self.engine.player.unit.max_hp})",
+            string=f"a) Constitution (+20 HP, from {self.engine.player.max_hp})",
         )
         console.print(
             x=x + 1,
             y=5,
-            string=f"b) Strength (+1 attack, from {self.engine.player.unit.power})",
+            string=f"b) Strength (+1 attack, from {self.engine.player.power})",
         )
         console.print(
             x=x + 1,
             y=6,
-            string=f"c) Agility (+1 defense, from {self.engine.player.unit.defense})",
+            string=f"c) Agility (+1 defense, from {self.engine.player.defense})",
         )
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
@@ -393,10 +389,11 @@ class InventoryEventHandler(AskUserEventHandler):
 
                     button_x = x + 2
                     button_y = y + (i*2) + 2
-
-                    if isinstance(self.entity, Actor):
-                        actor: Actor = self.entity
-                        is_equipped = actor.equipment.item_is_equipped(item)
+                    is_equipped = False
+                    
+                    if isinstance(item, Equippable):
+                        item: Equippable = item
+                        is_equipped = item.equipped
                     item_title = item.get_title()
 
                     self.buttons[i]: dict = {
@@ -462,13 +459,12 @@ class InventoryActivateHandler(InventoryEventHandler):
     TITLE = "Inventory"
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
-        if item.consumable:
-            # Return the action for the selected item.
-            return item.consumable.get_action(self.entity)
-        elif item.equippable:
-            return actions.EquipAction(self.entity, item)
-        else:
-            return None
+        if item:
+            if hasattr(item, 'equipped'):
+                return actions.EquipAction(self.entity, item)
+            else:
+                return item.activate(self.entity)
+        return None
 
 
 class InventoryDropHandler(InventoryEventHandler):
@@ -510,14 +506,14 @@ class InventoryLootHandler(InventoryEventHandler):
         #         item: Item = map_sprite
         #         return self.on_item_selected(item)
             
-        #     if isinstance(map_sprite, Actor):
+        #     if isinstance(map_sprite, Unit):
         #         self.entity = map_sprite
         #         self.TITLE = f"{self.entity.get_title()}"
         #         return MainGameEventHandler(self.engine)
 
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
-        PickupAction(self.looter, item).perform()
+        actions.PickupAction(self.looter, item).perform()
         return self.on_exit()
 
 class SelectIndexHandler(AskUserEventHandler):
@@ -576,19 +572,19 @@ class LookHandler(SelectIndexHandler):
         player = self.engine.player
         x, y = self.engine.mouse_location
 
-        return BumpAction(player, x, y)
+        return actions.BumpAction(player, x, y)
 
 class SingleRangedAttackHandler(SelectIndexHandler):
     """Handles targeting a single enemy. Only the enemy selected will be affected."""
 
     def __init__(
-        self, engine: Engine, callback: Callable[[Tuple[int, int]], Optional[Action]]
+        self, engine: Engine, callback: Callable[[Tuple[int, int]], Optional[actions.Action]]
     ):
         super().__init__(engine)
 
         self.callback = callback
 
-    def on_index_selected(self, x: int, y: int) -> Optional[Action]:
+    def on_index_selected(self, x: int, y: int) -> Optional[actions.Action]:
         return self.callback((x, y))
 
 
@@ -599,7 +595,7 @@ class AreaRangedAttackHandler(SelectIndexHandler):
         self,
         engine: Engine,
         radius: int,
-        callback: Callable[[Tuple[int, int]], Optional[Action]],
+        callback: Callable[[Tuple[int, int]], Optional[actions.Action]],
     ):
         super().__init__(engine)
 
@@ -622,7 +618,7 @@ class AreaRangedAttackHandler(SelectIndexHandler):
             clear=False,
         )
 
-    def on_index_selected(self, x: int, y: int) -> Optional[Action]:
+    def on_index_selected(self, x: int, y: int) -> Optional[actions.Action]:
         return self.callback((x, y))
 
 class MainGameEventHandler(EventHandler):
@@ -644,10 +640,10 @@ class MainGameEventHandler(EventHandler):
             player = self.engine.player
             x, y = self.engine.mouse_location
 
-            return BumpAction(player, x, y)
+            return actions.BumpAction(player, x, y)
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
-        action: Optional[Action] = None
+        action: Optional[actions.Action] = None
 
         key = event.sym
         modifier = event.mod
@@ -662,9 +658,9 @@ class MainGameEventHandler(EventHandler):
 
         if key in MOVE_KEYS:
             dest_x, dest_y = MOVE_KEYS[key][0] + player.x, MOVE_KEYS[key][1] + player.y
-            action = BumpAction(player, dest_x, dest_y)
+            action = actions.BumpAction(player, dest_x, dest_y)
         elif key in WAIT_KEYS:
-            action = WaitAction(player)
+            action = actions.WaitAction(player)
 
         # elif key == tcod.event.K_ESCAPE:
         #     raise SystemExit()
@@ -692,21 +688,21 @@ class MainGameEventHandler(EventHandler):
         # No valid key was pressed
         return action
 
-    def get_action_or_event(self, entity: Entity):
+    def get_action_or_event(self, unit: Unit):
         for map_sprite in self.engine.game_map.entities:
 
-            if not (entity.x == map_sprite.x and entity.y == map_sprite.y):
+            if not (unit.x == map_sprite.x and unit.y == map_sprite.y):
                 continue
 
-            if map_sprite == entity or map_sprite.type == "Player":
+            if map_sprite == unit or map_sprite.type == "Player":
                 continue
 
             if isinstance(map_sprite, Item):
                 item: Item = map_sprite
-                return PickupAction(entity, item)
+                return actions.PickupAction(unit, item)
             
-            if isinstance(map_sprite, Actor):
-                return InventoryLootHandler(self.engine, map_sprite, entity)
+            # if isinstance(map_sprite, Unit):
+            return InventoryLootHandler(self.engine, map_sprite, unit)
 
 class GameOverEventHandler(EventHandler):
     def on_quit(self) -> None:

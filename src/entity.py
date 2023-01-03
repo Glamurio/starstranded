@@ -3,21 +3,15 @@ from __future__ import annotations
 import g
 import copy
 import math
-from typing import Optional, List, Tuple, Type, TypeVar, TYPE_CHECKING, Union
-from utilities import generate_name, map_sprite
+from typing import Optional, List, Tuple, TypeVar, TYPE_CHECKING, Union
 
 from render_order import RenderOrder
 
-
 if TYPE_CHECKING:
-    from components.ai import BaseAI
-    from components.consumable import Consumable
-    from components.equipment import Equipment
-    from components.equippable import Equippable
-    from components.unit import Unit
     from components.inventory import Inventory
-    from components.level import Level
+    from components.unit import Unit
     from world import GameMap
+    from engine import Engine
 
 T = TypeVar("T", bound="Entity")
 
@@ -27,63 +21,60 @@ class Entity:
     """
     parent: Union[GameMap, Inventory]
 
-    def __init__(
-        self,
-        parent: Optional[GameMap] = None,
-        x: int = 0,
-        y: int = 0,
-        sprite_pos: tuple = (0, 0),
-        color: Tuple[int, int, int] = (255, 255, 255),
-        name: Optional[str] = None,
-        type: str = "<Unnamed>",
-        attributes: List[str] = [],
-        inventory: Inventory = None,
-        blocks_movement: bool = False,
-        render_order: RenderOrder = RenderOrder.CORPSE,
-    ):
-        self.x = x
-        self.y = y
-        self.char = map_sprite(sprite_pos[0], sprite_pos[1])
-        self.color = color
-        self.name = name
-        self.type = type
-        self.attributes = attributes
-        self.inventory = inventory
-        self.blocks_movement = blocks_movement
-        self.render_order = render_order
-        if parent:
+    def __init__(self):
+        self.parent: Optional[GameMap] = None
+        self.x: int = 0
+        self.y: int = 0
+        self.sprite_pos: Tuple[int, int] = (0, 0)
+        self.char = None
+        self.color: Tuple[int, int, int] = (255, 255, 255)
+        self.name: Optional[str] = None
+        self.type: str = "<Unnamed>"
+        self.attributes: List[str] = []
+        self.inventory: Inventory = None
+        self.blocks_movement: bool = False
+        self.blocks_sight: bool = False
+        self.render_order: RenderOrder = RenderOrder.CORPSE
+
+        if self.parent:
             # If parent isn't provided now then it will be set later.
-            self.parent = parent
-            parent.entities.add(self)
-
-
+            self.parent.entities.add(self)
+        self.on_init()
 
     @property
     def game_map(self) -> GameMap:
         return self.parent.game_map
 
-    def spawn(self: T, gamemap: GameMap, x: int, y: int) -> T:
+    @property
+    def engine(self) -> Engine:
+        return self.game_map.engine
+
+    def on_init(self):
+        """Gets called after initialization of the object."""
+        pass
+
+    def spawn(self: T, game_map: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
         clone = copy.deepcopy(self)
         clone.x = x
         clone.y = y
-        clone.parent = gamemap
-        gamemap.entities.add(clone)
+        clone.parent = game_map
+        game_map.entities.add(clone)
         return clone
 
-    def place(self, x: int, y: int, gamemap: Optional[GameMap] = None) -> None:
+    def place(self, x: int, y: int, game_map: Optional[GameMap] = None) -> None:
         """Place this entity at a new location.  Handles moving across GameMaps."""
         self.x = x
         self.y = y
 
-        if not gamemap:
+        if not game_map:
             return
             
         if hasattr(self, "parent"):  # Possibly uninitialized.
-            if self.parent is self.game_map:
+            if self.parent and self.parent is self.game_map:
                 self.game_map.entities.remove(self)
 
-        self.parent = gamemap
+        self.parent = game_map
         self.parent.entities.add(self)
 
     def distance(self, x: int, y: int) -> float:
@@ -116,112 +107,18 @@ class Entity:
         self.attributes.remove(attribute)
 
 
-class Actor(Entity):
-    """
-    An object representing an acting `Entity`, such as a player or enemy
-    """
-    def __init__(
-        self,
-        *,
-        x: int = 0,
-        y: int = 0,
-        char: str = "?",
-        sprite_pos: tuple = (0, 0),
-        color: Tuple[int, int, int] = (255, 255, 255),
-        name: Optional[str] = None,
-        type: str = "<Unnamed>",
-        ai_cls: Type[BaseAI],
-        equipment: Equipment,
-        attributes: List[str] = [],
-        inventory: Inventory = None,
-        unit: Unit,
-        level: Level,
-        is_alive: bool = True,
-    ):
-        super().__init__(
-            x=x,
-            y=y,
-            sprite_pos=sprite_pos,
-            color=color,
-            name=name,
-            type=type,
-            inventory=inventory,
-            attributes=attributes,
-            blocks_movement=True,
-            render_order=RenderOrder.ACTOR,
-        )
-
-        self.ai: Optional[BaseAI] = ai_cls(self)
-
-        self.equipment: Equipment = equipment
-        self.equipment.parent = self
-
-        self.name = name if name else generate_name(type)
-
-        self.unit = unit
-        self.unit.parent = self
-
-        self.inventory = inventory
-        self.inventory.parent = self
-
-        self.level = level
-        self.level.parent = self
-
-        self.is_alive = is_alive
-
-    @property
-    def has_ai(self) -> bool:
-        """Returns True as long as this actor can perform actions."""
-        return bool(self.ai)
-
-    def get_title(self, exclude_attributes: bool = False) -> str:
-        """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
-        attributes = [] if exclude_attributes else self.attributes
-        description = f'{" ".join(attributes)} {self.type}' if attributes else self.type
-        if not self.is_alive:
-            return f'remains of {self.name}' if self.name else f'{self.type} remains'
-        return f'{self.name}, the {description}' if self.name else description
-
 class Item(Entity):
-    def __init__(
-        self,
-        *,
-        x: int = 0,
-        y: int = 0,
-        char: str = "?",
-        sprite_pos: tuple = (0, 0),
-        color: Tuple[int, int, int] = (255, 255, 255),
-        name: Optional[str] = None,
-        type: str = "<Unnamed>",
-        inventory: Inventory = None,
-        attributes: List[str] = [],
-        material: str = None,
-        consumable: Optional[Consumable] = None,
-        equippable: Optional[Equippable] = None,
-    ):
-        super().__init__(
-            x=x,
-            y=y,
-            sprite_pos=sprite_pos,
-            color=color,
-            name=name,
-            type=type,
-            attributes=attributes,
-            inventory=inventory,
-            blocks_movement=False,
-            render_order=RenderOrder.ITEM,
-        )
+    def __init__(self):
+        Entity.__init__(self)
+        self.render_order = RenderOrder.ITEM
+        self.material = None
 
-        self.material = material
-        self.consumable = consumable
+    def activate(self, user: Unit) -> None:
+        """Invoke this items ability.
 
-        if self.consumable:
-            self.consumable.parent = self
-
-        self.equippable = equippable
-
-        if self.equippable:
-            self.equippable.parent = self
+        `action` is the context for this activation.
+        """
+        raise NotImplementedError()
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
