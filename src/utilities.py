@@ -50,7 +50,7 @@ def get_path_to(engine: Engine, ai: BaseAI, dest_x: int, dest_y: int) -> List[Tu
 
     # Set up the cost so that unexplored tiles do not factor in the terrain that they have
     # This prevents the player from knowing if an unexplored terrain is walkable or not
-    cost = np.logical_or(walkable, unexplored)
+    cost = np.logical_or(walkable, unexplored, dtype=np.int8)
 
     for entity in ai.entity.game_map.entities:
         # Check that an entity blocks movement and the cost isn't zero (blocking.)

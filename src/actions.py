@@ -209,12 +209,12 @@ class MovementAction(ActionWithDirection):
 
         # Move player until an enemy is visible
         for enemy in self.engine.game_map.entities:
-            if isinstance(enemy, Actor) and enemy.is_alive():
+            if not isinstance(enemy, Actor):
                 continue
-
             if self.entity == enemy:
                 continue
-
+            if not enemy.has_ai:
+                continue
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
                 return
 

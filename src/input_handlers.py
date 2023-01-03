@@ -16,6 +16,7 @@ from actions import (
 import color
 import exceptions
 from utilities import is_mouse_in_rectangle
+import time
 
 from entity import Item, Entity, Actor
 
@@ -142,6 +143,7 @@ class EventHandler(BaseEventHandler):
             return False
 
         try:
+            # time.sleep(1)
             action.perform()
         except exceptions.Impossible as exc:
             self.engine.message_log.add_message(exc.args[0], color.impossible)
