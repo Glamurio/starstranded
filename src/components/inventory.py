@@ -22,7 +22,7 @@ class Inventory(BaseComponent):
         """
 
         if isinstance(item.parent, GameMap):
-            self.gamemap.entities.remove(item)
+            self.game_map.entities.remove(item)
         elif isinstance(item.parent, Inventory):
             item.parent.items.remove(item)
 
@@ -36,6 +36,6 @@ class Inventory(BaseComponent):
         Removes an item from the inventory and restores it to the game map, at the player's current location.
         """
         self.items.remove(item)
-        item.place(self.parent.x, self.parent.y, self.gamemap)
+        item.place(self.parent.x, self.parent.y, self.game_map)
 
         self.engine.message_log.add_message(f"You dropped {item.get_title()}.")

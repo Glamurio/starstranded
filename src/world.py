@@ -44,7 +44,7 @@ class GameMap:
         self.downstairs_location = (0, 0)
 
     @property
-    def gamemap(self) -> GameMap:
+    def game_map(self) -> GameMap:
         return self
 
     @property
@@ -157,10 +157,14 @@ class GameWorld:
 
     def pass_time(self, actor: Actor, time: int) -> int:
         """Passes game time in minutes after every player turn. Returns current game time"""
+
         if actor.type == "Player":
             self.current_time += time
             if self.current_time % 4 == 0:
                 actor.unit.handle_hunger(-1)
             if self.current_time % 2 == 0:
                 actor.unit.handle_thirst(-1)
+
+            self.engine.handle_enemy_turns()
+            self.engine.update_fov()
         return self.current_time

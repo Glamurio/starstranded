@@ -9,7 +9,6 @@ import input_handlers
 
 import setup_game
 import g
-
 from typing import List
 
 def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
@@ -39,6 +38,7 @@ def main() -> None:
     
     try:
         while True:
+
             g.root_console.clear()
             handler.on_render(console=g.root_console)
 

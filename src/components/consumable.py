@@ -157,7 +157,7 @@ class LightningDamageConsumable(Consumable):
         closest_distance = self.maximum_range + 1.0
 
         for actor in self.engine.game_map.actors:
-            if actor is not consumer and self.parent.gamemap.visible[actor.x, actor.y]:
+            if actor is not consumer and self.parent.game_map.visible[actor.x, actor.y]:
                 distance = consumer.distance(actor.x, actor.y)
 
                 if distance < closest_distance:

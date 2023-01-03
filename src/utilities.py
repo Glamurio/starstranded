@@ -44,9 +44,15 @@ def get_path_to(engine: Engine, ai: BaseAI, dest_x: int, dest_y: int) -> List[Tu
         return
 
     # Copy the walkable array.
-    cost = np.array(ai.entity.gamemap.tiles["walkable"], dtype=np.int8)
+    walkable = np.array(ai.entity.game_map.tiles["walkable"])
+    # Copy an array of all unexplored tile
+    unexplored = np.logical_not(ai.entity.game_map.explored)
 
-    for entity in ai.entity.gamemap.entities:
+    # Set up the cost so that unexplored tiles do not factor in the terrain that they have
+    # This prevents the player from knowing if an unexplored terrain is walkable or not
+    cost = np.logical_or(walkable, unexplored)
+
+    for entity in ai.entity.game_map.entities:
         # Check that an entity blocks movement and the cost isn't zero (blocking.)
         if entity.blocks_movement and cost[entity.x, entity.y]:
             # Add to the cost of a blocked position.

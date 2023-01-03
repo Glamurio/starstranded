@@ -18,7 +18,6 @@ global_tileset = tcod.tileset.load_tilesheet(
 """Global tileset, referenced when adding additional tiles"""
 
 screen_width = 80
-""""""
 screen_height = 45
 root_console = tcod.Console(screen_width, screen_height, order="F")
 logical_size = (root_console.width * global_tileset.tile_width, root_console.height * global_tileset.tile_height)

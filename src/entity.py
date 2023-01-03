@@ -59,8 +59,8 @@ class Entity:
 
 
     @property
-    def gamemap(self) -> GameMap:
-        return self.parent.gamemap
+    def game_map(self) -> GameMap:
+        return self.parent.game_map
 
     def spawn(self: T, gamemap: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
@@ -80,8 +80,8 @@ class Entity:
             return
             
         if hasattr(self, "parent"):  # Possibly uninitialized.
-            if self.parent is self.gamemap:
-                self.gamemap.entities.remove(self)
+            if self.parent is self.game_map:
+                self.game_map.entities.remove(self)
 
         self.parent = gamemap
         self.parent.entities.add(self)

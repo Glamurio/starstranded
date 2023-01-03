@@ -4,12 +4,14 @@ from time import sleep
 from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
+import time
 
 from utilities import can_move
+from entity import Actor
 
 if TYPE_CHECKING:
     from engine import Engine
-    from entity import Actor, Entity, Item
+    from entity import Entity, Item
 
 
 class Action:
@@ -20,7 +22,7 @@ class Action:
     @property
     def engine(self) -> Engine:
         """Return the engine this action belongs to."""
-        return self.entity.gamemap.engine
+        return self.entity.game_map.engine
 
     def perform(self) -> None:
         """Perform this action with the objects needed to determine its scope.
@@ -194,14 +196,30 @@ class MovementAction(ActionWithDirection):
         if not self.path:
             raise exceptions.Impossible("That way is blocked.")
 
-        self.dest_x, self.dest_y = self.path[0]
-        # return MovementAction(self.entity, x, y, self.path).perform()
+        self.dest_x, self.dest_y = self.path.pop(0)
 
-        if can_move(self.engine, self.dest_x, self.dest_y):
-            self.engine.game_world.pass_time(actor=self.entity, time=1)
-            self.entity.move(self.dest_x, self.dest_y)
-        else:
+        if not can_move(self.engine, self.dest_x, self.dest_y):
             raise exceptions.Impossible("That way is blocked.")
+
+        self.entity.move(self.dest_x, self.dest_y)
+        self.engine.game_world.pass_time(actor=self.entity, time=1)
+
+        if not self.entity.type == "Player":
+            return
+
+        # Move player until an enemy is visible
+        for enemy in self.engine.game_map.entities:
+            if isinstance(enemy, Actor) and enemy.is_alive():
+                continue
+
+            if self.entity == enemy:
+                continue
+
+            if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
+                return
+
+        # TODO: Stagger player movement
+        self.perform()
 
 
 class BumpAction(ActionWithDirection):
