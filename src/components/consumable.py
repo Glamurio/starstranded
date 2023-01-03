@@ -5,7 +5,7 @@ from typing import Optional, TYPE_CHECKING, Union
 import actions
 import color
 import components.ai
-import components.inventory
+from components.inventory import Inventory
 from entity import Item
 
 from exceptions import Impossible
@@ -18,7 +18,6 @@ from input_handlers import (
 if TYPE_CHECKING:
     from entity import Unit
     from world import GameMap
-    from components.inventory import Inventory
 
 
 class Consumable(Item):
@@ -35,8 +34,8 @@ class Consumable(Item):
     def deplete(self) -> None:
         """Remove the consumed item from its containing inventory."""
         entity = self
-        inventory = entity
-        if isinstance(inventory, components.inventory.Inventory):
+        inventory: Inventory = entity.parent
+        if isinstance(inventory, Inventory):
             inventory.items.remove(entity)
 
 
@@ -80,9 +79,8 @@ class HealingConsumable(Consumable):
         Consumable.__init__(self)
         self.amount: int = 0
 
-    def activate(self, action: actions.ItemAction) -> None:
-        consumer = action.entity
-        amount_recovered = consumer.heal(self.amount)
+    def activate(self, user: Unit) -> None:
+        amount_recovered = user.heal(self.amount)
 
         if amount_recovered > 0:
             self.engine.message_log.add_message(
