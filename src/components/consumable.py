@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Union
 
 import actions
 import color
 import components.ai
 import components.inventory
-from components.base_component import BaseComponent
+from entity import Item
+
 from exceptions import Impossible
 from input_handlers import (
     ActionOrHandler,
@@ -15,47 +16,47 @@ from input_handlers import (
 )
 
 if TYPE_CHECKING:
-    from entity import Actor, Item
+    from entity import Unit
+    from world import GameMap
+    from components.inventory import Inventory
 
 
-class Consumable(BaseComponent):
-    parent: Item
+class Consumable(Item):
+    def __init__(self):
+        Item.__init__(self)
 
-    def get_action(self, consumer: Actor) -> Optional[ActionOrHandler]:
-        """Try to return the action for this item."""
-        return actions.ItemAction(consumer, self.parent)
-
-    def activate(self, action: actions.ItemAction) -> None:
+    def activate(self) -> None:
         """Invoke this items ability.
 
         `action` is the context for this activation.
         """
-        raise NotImplementedError()
+        self.deplete()
 
-    def consume(self) -> None:
+    def deplete(self) -> None:
         """Remove the consumed item from its containing inventory."""
-        entity = self.parent
-        inventory = entity.parent
+        entity = self
+        inventory = entity
         if isinstance(inventory, components.inventory.Inventory):
             inventory.items.remove(entity)
 
 
 class ConfusionConsumable(Consumable):
-    def __init__(self, number_of_turns: int):
-        self.number_of_turns = number_of_turns
+    def __init__(self):
+        Consumable.__init__(self)
+        self.number_of_turns: int = 0
 
-    def get_action(self, consumer: Actor) -> Optional[ActionOrHandler]:
+    def get_action(self, consumer: Unit) -> Optional[ActionOrHandler]:
         self.engine.message_log.add_message(
             "Select a target location.", color.needs_target
         )
         return SingleRangedAttackHandler(
             self.engine,
-            callback=lambda xy: actions.ItemAction(consumer, self.parent, xy),
+            callback=lambda xy: actions.ItemAction(consumer, self, xy),
         )
 
     def activate(self, action: actions.ItemAction) -> None:
         consumer = action.entity
-        target = action.target_actor
+        target = action.target_unit
 
         if not self.engine.game_map.visible[action.target_xy]:
             raise Impossible("You cannot target an area that you cannot see.")
@@ -71,59 +72,81 @@ class ConfusionConsumable(Consumable):
         target.ai = components.ai.ConfusedEnemy(
             entity=target, previous_ai=target.ai, turns_remaining=self.number_of_turns,
         )
-        self.consume()
+        self.deplete()
 
 
 class HealingConsumable(Consumable):
-    def __init__(self, amount: int):
-        self.amount = amount
+    def __init__(self):
+        Consumable.__init__(self)
+        self.amount: int = 0
 
     def activate(self, action: actions.ItemAction) -> None:
         consumer = action.entity
-        amount_recovered = consumer.unit.heal(self.amount)
+        amount_recovered = consumer.heal(self.amount)
 
         if amount_recovered > 0:
             self.engine.message_log.add_message(
-                f"You consume {self.parent.get_title()}, and recover {amount_recovered} HP!",
+                f"You use {self.get_title()}, and recover {amount_recovered} HP!",
                 color.health_recovered,
             )
-            self.consume()
+            self.deplete()
         else:
             raise Impossible(f"Your health is alreadest_y full.")
 
-class FoodConsumable(Consumable):
-    def __init__(self, hunger_amount: int = 0, thirst_amount: int = 0):
-        self.hunger_amount = hunger_amount
-        self.thirst_amount = thirst_amount
+class HealthPotion(HealingConsumable):
+    def __init__(self):
+        HealingConsumable.__init__(self)
+        self.amount = 4
+        self.color = (127, 0, 255)
+        self.type = "Health Potion"
+        self.char = "!"
 
-    def activate(self, action: actions.ItemAction) -> None:
-        consumer = action.entity
-        consumer.unit.handle_hunger(self.hunger_amount)
-        consumer.unit.handle_thirst(self.thirst_amount)
+class FoodConsumable(Consumable):
+    def __init__(self):
+        Consumable.__init__(self)
+        self.hunger_amount: int = 0
+        self.thirst_amount: int = 0
+
+    def activate(self, user: Unit) -> None:
+        self.consume(user)
+
+    def consume(self, user: Unit) -> None:
+        user.handle_hunger(self.hunger_amount)
+        user.handle_thirst(self.thirst_amount)
 
         hunger_restore = f' and lose {self.hunger_amount} hunger' if self.hunger_amount < 0 else f' and restore {self.hunger_amount} hunger' if self.hunger_amount > 0 else ''
         thirst_restore = f' and lose {self.thirst_amount} thirst' if self.thirst_amount < 0 else f' and restore {self.thirst_amount} thirst' if self.thirst_amount > 0 else ''
 
         self.engine.message_log.add_message(
-            f"You consume {self.parent.get_title()}{hunger_restore if hunger_restore else ''}{thirst_restore if thirst_restore else ''}.",
+            f"You consume {self.get_title()}{hunger_restore if hunger_restore else ''}{thirst_restore if thirst_restore else ''}.",
             color.health_recovered,
         )
-        self.consume()
+        self.deplete()
 
+class Meat(FoodConsumable):
+    def __init__(self, material: str, parent: Union[GameMap, Inventory]):
+        FoodConsumable.__init__(self)
+        self.char = "d"
+        self.hunger_amount = 10
+        self.type = "Meat"
+        self.color = color.red
+        self.material = material
+        self.parent = parent
 
 class FireballDamageConsumable(Consumable):
-    def __init__(self, damage: int, radius: int):
-        self.damage = damage
-        self.radius = radius
+    def __init__(self):
+        Consumable.__init__(self)
+        self.damage: int = 0
+        self.radius: int = 0
 
-    def get_action(self, consumer: Actor) -> AreaRangedAttackHandler:
+    def get_action(self, consumer: Unit) -> AreaRangedAttackHandler:
         self.engine.message_log.add_message(
             "Select a target location.", color.needs_target
         )
         return AreaRangedAttackHandler(
             self.engine,
             radius=self.radius,
-            callback=lambda xy: actions.ItemAction(consumer, self.parent, xy),
+            callback=lambda xy: actions.ItemAction(consumer, self, xy),
         )
 
     def activate(self, action: actions.ItemAction) -> None:
@@ -133,42 +156,43 @@ class FireballDamageConsumable(Consumable):
             raise Impossible("You cannot target an area that you cannot see.")
 
         targets_hit = False
-        for actor in self.engine.game_map.actors:
-            if actor.distance(*target_xy) <= self.radius:
+        for unit in self.engine.game_map.units:
+            if unit.distance(*target_xy) <= self.radius:
                 self.engine.message_log.add_message(
-                    f"{actor.get_title()} is engulfed in a fiery explosion, taking {self.damage} damage!"
+                    f"{unit.get_title()} is engulfed in a fiery explosion, taking {self.damage} damage!"
                 )
-                actor.unit.take_damage(self.damage)
+                unit.take_damage(self.damage)
                 targets_hit = True
 
         if not targets_hit:
             raise Impossible("There are no targets in the radius.")
-        self.consume()
+        self.deplete()
 
 
 class LightningDamageConsumable(Consumable):
-    def __init__(self, damage: int, maximum_range: int):
-        self.damage = damage
-        self.maximum_range = maximum_range
+    def __init__(self):
+        Consumable.__init__(self)
+        self.damage: int = 0
+        self.maximum_range: int = 0
 
     def activate(self, action: actions.ItemAction) -> None:
         consumer = action.entity
         target = None
         closest_distance = self.maximum_range + 1.0
 
-        for actor in self.engine.game_map.actors:
-            if actor is not consumer and self.parent.game_map.visible[actor.x, actor.y]:
-                distance = consumer.distance(actor.x, actor.y)
+        for unit in self.engine.game_map.units:
+            if unit is not consumer and self.game_map.visible[unit.x, unit.y]:
+                distance = consumer.distance(unit.x, unit.y)
 
                 if distance < closest_distance:
-                    target = actor
+                    target = unit
                     closest_distance = distance
 
         if target:
             self.engine.message_log.add_message(
                 f"A lighting bolt strikes {target.get_title()} with a loud thunder, for {self.damage} damage!"
             )
-            target.unit.take_damage(self.damage)
-            self.consume()
+            target.take_damage(self.damage)
+            self.deplete()
         else:
             raise Impossible("No enemy is close enough to strike.")

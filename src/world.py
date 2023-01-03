@@ -7,12 +7,13 @@ from typing import Iterable, Iterator, Optional, TYPE_CHECKING
 import numpy as np  # type: ignore
 from tcod.console import Console
 
-from entity import Actor, Item
+from entity import Item
 import tile_types
 
 if TYPE_CHECKING:
     from engine import Engine
     from entity import Entity
+    from components.unit import Unit
 
 
 def distance(p1, p2, diag=True, euclidean=False):
@@ -48,12 +49,12 @@ class GameMap:
         return self
 
     @property
-    def actors(self) -> Iterator[Actor]:
-        """Iterate over this maps living actors."""
+    def units(self) -> Iterator[Unit]:
+        """Iterate over this maps living units."""
         yield from (
             entity
             for entity in self.entities
-            if isinstance(entity, Actor) and entity.is_alive
+            if hasattr(entity, "is_alive")
         )
 
     @property
@@ -73,10 +74,10 @@ class GameMap:
 
         return None
 
-    def get_actor_at_location(self, x: int, y: int) -> Optional[Actor]:
-        for actor in self.actors:
-            if actor.x == x and actor.y == y:
-                return actor
+    def get_actor_at_location(self, x: int, y: int) -> Optional[Unit]:
+        for unit in self.units:
+            if unit.x == x and unit.y == y:
+                return unit
 
         return None
 
@@ -155,15 +156,15 @@ class GameWorld:
             world=self
         )
 
-    def pass_time(self, actor: Actor, time: int) -> int:
+    def pass_time(self, unit: Unit, time: int) -> int:
         """Passes game time in minutes after every player turn. Returns current game time"""
 
-        if actor.type == "Player":
+        if unit.type == "Player":
             self.current_time += time
             if self.current_time % 4 == 0:
-                actor.unit.handle_hunger(-1)
+                unit.handle_hunger(-1)
             if self.current_time % 2 == 0:
-                actor.unit.handle_thirst(-1)
+                unit.handle_thirst(-1)
 
             self.engine.handle_enemy_turns()
             self.engine.update_fov()

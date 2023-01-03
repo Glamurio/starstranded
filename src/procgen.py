@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterator, List, Tuple, TYPE_CHECKING
+from typing import Dict, Iterator, List, Tuple, TYPE_CHECKING, Callable
 from world import GameMap, GameWorld
 
 import tile_types
@@ -10,8 +10,9 @@ import tcod
 import numpy as np  # type: ignore
 import matplotlib.pyplot as plt #just for visual
 
-import color
-import entity_factories
+import components.unit as units
+import components.consumable as consumables
+from utilities import generate_name
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -22,7 +23,6 @@ max_items_by_floor = [
     (4, 8),
 ]
 
-
 max_monsters_by_floor = [
     (1, 6),
     (4, 12),
@@ -30,18 +30,18 @@ max_monsters_by_floor = [
 ]
 
 
-item_chances: Dict[int, List[Tuple[Entity, int]]] = {
-    0: [(entity_factories.health_potion, 35)],
-    2: [(entity_factories.confusion_scroll, 10)],
-    4: [(entity_factories.lightning_scroll, 25), (entity_factories.sword, 5)],
-    6: [(entity_factories.fireball_scroll, 25), (entity_factories.chain_mail, 15)],
+item_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
+    0: [(consumables.HealthPotion, 35)],
+    # 2: [(entity_funities.confusion_scroll, 10)],
+    # 4: [(entity_funities.lightning_scroll, 25), (entity_funities.sword, 5)],
+    # 6: [(entity_funities.fireball_scroll, 25), (entity_funities.chain_mail, 15)],
 }
 
-enemy_chances: Dict[int, List[Tuple[Entity, int]]] = {
-    0: [(entity_factories.selenite, 80)],
-    # 3: [(entity_factories.troll, 15)],
-    # 5: [(entity_factories.troll, 30)],
-    # 7: [(entity_factories.troll, 60)],
+enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
+    0: [(units.Selenite, 80)],
+    # 3: [(entity_funities.troll, 15)],
+    # 5: [(entity_funities.troll, 30)],
+    # 7: [(entity_funities.troll, 60)],
 }
 
 
@@ -60,14 +60,14 @@ def get_max_value_for_floor(
 
 
 def get_entities_at_random(
-    weighted_chances_by_floor: Dict[int, List[Tuple[Entity, int]]],
+    weighted_chances_by_floor: Dict[int, List[Tuple[Callable[[], Entity], int]]],
     number_of_entities: int,
-    floor: int,
+    cur_floor: int,
 ) -> List[Entity]:
     entity_weighted_chances = {}
 
-    for key, values in weighted_chances_by_floor.items():
-        if key > floor:
+    for floor_id, values in weighted_chances_by_floor.items():
+        if floor_id > cur_floor:
             break
         else:
             for value in values:
@@ -75,14 +75,14 @@ def get_entities_at_random(
                 weighted_chance = value[1]
 
                 entity_weighted_chances[entity] = weighted_chance
-
+    
     entities = list(entity_weighted_chances.keys())
     entity_weighted_chance_values = list(entity_weighted_chances.values())
 
     chosen_entities = random.choices(
         entities, weights=entity_weighted_chance_values, k=number_of_entities
     )
-
+    chosen_entities = [e() for e in chosen_entities]
     return chosen_entities
 
 
@@ -129,7 +129,6 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
     items: List[Entity] = get_entities_at_random(
         item_chances, number_of_items, floor_number
     )
-
     for entity in monsters + items:
         if room:
             x = random.randint(room.x1 + 1, room.x2 - 1)
@@ -138,7 +137,8 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
             x = random.randint(0, map.width - 1)
             y = random.randint(0, map.height - 1)
 
-        if not any(entity.x == x and entity.y == y for entity in map.entities):
+        unwalkable = np.logical_not(map.tiles[x, y]["walkable"])
+        if not any(unwalkable and entity.x == x and entity.y == y for entity in map.entities):
             entity.spawn(map, x, y)
 
 
@@ -257,7 +257,15 @@ def generate_noise(
     player = engine.player
     map = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
 
-    player.place(0, 0, map)
+    x = random.randint(0, map.width - 1)
+    y = random.randint(0, map.height - 1)
+    walkable = map.tiles[x, y]["walkable"]
+    while not walkable:
+        x = random.randint(0, map.width - 1)
+        y = random.randint(0, map.height - 1)
+        walkable = map.tiles[x, y]["walkable"]
+        
+    player.place(x, y, map)
     place_entities(map, engine.game_world.current_floor)
 
     return map

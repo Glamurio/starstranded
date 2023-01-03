@@ -73,7 +73,7 @@ def get_path_to(engine: Engine, ai: BaseAI, dest_x: int, dest_y: int) -> List[Tu
     return [(index[0], index[1]) for index in path]
 
 def can_move(engine: Engine, dest_x: int, dest_y: int) -> bool:
-    """Return True if actor can move to target location."""
+    """Return True if unit can move to target location."""
 
     if not engine.game_map.in_bounds(dest_x, dest_y):
         # Destination is out of bounds.
@@ -110,7 +110,6 @@ def generate_name(origin: str):
     for name_set in name_sets:
         if not origin.casefold() in name_set.casefold():
             continue
-
         return tcod.namegen_generate(name_set)
     return tcod.namegen_generate(name_sets[0])
 

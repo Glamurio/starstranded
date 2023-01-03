@@ -13,24 +13,24 @@ import tcod
 import color
 from engine import Engine
 
-import entity_factories
-
-from world import GameWorld
 import input_handlers
 
 from utilities import is_mouse_in_rectangle
 
 if TYPE_CHECKING:
-    from entity import Actor
+    from components.unit import Unit
 
 # Load the background image and remove the alpha channel.
 background_image = tcod.image.load("menu_background.png")[:, :, :3]
 
-def create_player() -> Actor:
-    player = copy.deepcopy(entity_factories.player)
+def create_player() -> Unit:
+    from components.unit import Player
+    import components.equippable as equip
 
-    dagger = copy.deepcopy(entity_factories.dagger)
-    leather_armor = copy.deepcopy(entity_factories.leather_armor)
+    player = Player()
+
+    dagger = equip.Dagger()
+    leather_armor = equip.LeatherArmor()
 
     dagger.parent = player.inventory
     leather_armor.parent = player.inventory
@@ -43,8 +43,10 @@ def create_player() -> Actor:
 
     return player
 
-def new_game(player: Actor) -> Engine:
+def new_game(player: Unit) -> Engine:
     """Return a brand new game session as an Engine instance."""
+    from world import GameWorld
+    
     map_width = 70
     map_height = 40
 

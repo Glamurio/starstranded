@@ -1,21 +1,19 @@
 from __future__ import annotations
-from time import sleep
 
 from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
-import time
 
 from utilities import can_move
-from entity import Actor
 
 if TYPE_CHECKING:
+    from components.unit import Unit
     from engine import Engine
     from entity import Entity, Item
 
 
 class Action:
-    def __init__(self, entity: Actor) -> None:
+    def __init__(self, entity: Unit) -> None:
         super().__init__()
         self.entity = entity
 
@@ -36,7 +34,7 @@ class Action:
         If the action is supposed to repeat, return `True`.
         """
         # Always pass time when an action occurs
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
+        self.engine.game_world.pass_time(unit=self.entity, time=1)
 
         return False
 
@@ -44,7 +42,7 @@ class Action:
 class PickupAction(Action):
     """Pickup an item and add it to the inventory, if there is room for it."""
 
-    def __init__(self, entity: Actor, item: Item):
+    def __init__(self, entity: Unit, item: Item):
         super().__init__(entity)
 
         self.item = item
@@ -62,7 +60,7 @@ class PickupAction(Action):
 
 class ItemAction(Action):
     def __init__(
-        self, entity: Actor, item: Item, target_xy: Optional[Tuple[int, int]] = None
+        self, entity: Unit, item: Item, target_xy: Optional[Tuple[int, int]] = None
     ):
         super().__init__(entity)
         self.item = item
@@ -71,32 +69,31 @@ class ItemAction(Action):
         self.target_xy = target_xy
 
     @property
-    def target_actor(self) -> Optional[Actor]:
-        """Return the actor at this actions destination."""
+    def target_unit(self) -> Optional[Unit]:
+        """Return the unit at this actions destination."""
         return self.engine.game_map.get_actor_at_location(*self.target_xy)
 
     def perform(self) -> None:
         """Invoke the items ability, this action will be given to provide context."""
         super().perform()
 
-        if self.item.consumable:
-            self.item.consumable.activate(self)
+        if self.item:
+            self.item.activate()
 
 
 class DropItem(ItemAction):
     def perform(self) -> None:
         super().perform()
 
-        if self.entity.equipment.item_is_equipped(self.item):
+        if hasattr(self.item, 'equipped') and self.item.equipped:
             self.entity.equipment.toggle_equip(self.item)
 
         self.entity.inventory.drop(self.item)
 
 
 class EquipAction(Action):
-    def __init__(self, entity: Actor, item: Item):
+    def __init__(self, entity: Unit, item: Item):
         super().__init__(entity)
-
         self.item = item
 
     def perform(self) -> None:
@@ -126,7 +123,7 @@ class TakeStairsAction(Action):
 
 
 class ActionWithDirection(Action):
-    def __init__(self, entity: Actor, dest_x: int, dest_y: int):
+    def __init__(self, entity: Unit, dest_x: int, dest_y: int):
         super().__init__(entity)
 
         self.dest_x = dest_x
@@ -143,8 +140,8 @@ class ActionWithDirection(Action):
         return self.engine.game_map.get_blocking_entity_at_location(*self.dest_xy)
 
     @property
-    def target_actor(self) -> Optional[Actor]:
-        """Return the actor at this actions destination."""
+    def target_unit(self) -> Optional[Unit]:
+        """Return the unit at this actions destination."""
         return self.engine.game_map.get_actor_at_location(*self.dest_xy)
 
     def get_path(self, ai, x: int, y: int) -> List[Tuple]:
@@ -160,17 +157,18 @@ class MeleeAction(ActionWithDirection):
     def perform(self) -> None:
         super().perform()
 
-        target = self.target_actor
+        attacker: Unit = self.entity
+        target: Unit = self.target_unit
 
         if not target:
             raise exceptions.Impossible("Nothing to attack.")
-        if self.entity == target:
+        if attacker == target:
             return WaitAction(self.entity).perform()
 
-        damage = self.entity.unit.power - target.unit.defense
+        damage = attacker.power - target.defense
 
-        attack_desc = f"{self.entity.get_title()} attacks {target.get_title()}"
-        if self.entity is self.engine.player:
+        attack_desc = f"{attacker.get_title()} attacks {target.get_title()}"
+        if attacker is self.engine.player:
             attack_color = color.player_atk
         else:
             attack_color = color.enemy_atk
@@ -178,7 +176,10 @@ class MeleeAction(ActionWithDirection):
             self.engine.message_log.add_message(
                 f"{attack_desc} for {damage} hit points.", attack_color
             )
-            target.unit.hp -= damage
+            target.handle_health(-damage, attacker)
+            self.engine.message_log.add_message(
+                f"{target.get_title()} has {target.hp} hit points left.", attack_color
+            )
         else:
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
@@ -187,7 +188,7 @@ class MeleeAction(ActionWithDirection):
 
 class MovementAction(ActionWithDirection):
 
-    def __init__(self, entity: Actor, dest_x: int, dest_y: int, path: List[Tuple] = []):
+    def __init__(self, entity: Unit, dest_x: int, dest_y: int, path: List[Tuple] = []):
         super().__init__(entity, dest_x, dest_y)
 
         self.dest_x = dest_x
@@ -205,23 +206,23 @@ class MovementAction(ActionWithDirection):
             raise exceptions.Impossible("That way is blocked.")
 
         self.entity.move(self.dest_x, self.dest_y)
-        self.engine.game_world.pass_time(actor=self.entity, time=1)
+        self.engine.game_world.pass_time(unit=self.entity, time=1)
 
-        if not self.entity.type == "Player":
+        if not self.entity == self.engine.player:
             return
 
         # Move player until an enemy is visible
         for enemy in self.engine.game_map.entities:
-            if not isinstance(enemy, Actor):
-                continue
             if self.entity == enemy:
                 continue
-            if not enemy.has_ai:
+            if hasattr(enemy, "material"):
                 continue
+            if hasattr(enemy, "has_ai") and not enemy.has_ai:
+                continue
+            
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
                 return False
 
-        # TODO: Stagger player movement
         return True
 
 
@@ -232,7 +233,7 @@ class BumpAction(ActionWithDirection):
 
         distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.
         
-        if self.target_actor and distance <= 1:
+        if self.target_unit and self.target_unit.is_alive and distance <= 1:
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
 
         return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()

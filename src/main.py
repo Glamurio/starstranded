@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import traceback
 
 import g
@@ -6,13 +8,15 @@ import tcod
 import color
 
 import exceptions
-import input_handlers
 
-import setup_game
-from typing import List
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import input_handlers
 
 def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
     """If the current event handler has an active Engine then save it."""
+    import input_handlers
     if isinstance(handler, input_handlers.EventHandler):
         handler.engine.save_as(filename)
         print("Game saved.")
@@ -28,7 +32,8 @@ def merge_tileset(tileset: tcod.tileset.Tileset, incoming: tcod.tileset.Tileset,
         tileset.set_tile(i, tile)
 
 def main() -> None:
-
+    import setup_game
+    
     text_tileset = tcod.tileset.load_tilesheet(
         "Zesty_curses_24x24.png", 16, 16, tcod.tileset.CHARMAP_CP437
     )
