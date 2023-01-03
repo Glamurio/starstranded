@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import traceback
 
+import g
 import tcod
 import color
 
@@ -8,7 +9,6 @@ import exceptions
 import input_handlers
 
 import setup_game
-import g
 from typing import List
 
 def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
@@ -38,20 +38,10 @@ def main() -> None:
     
     try:
         while True:
-
-            g.root_console.clear()
-            handler.on_render(console=g.root_console)
-
-            g.sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.NONE
-            g.sdl_renderer.copy(g.console_render.render(g.root_console))
-
-            # sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.BLEND
-            # sdl_renderer.copy(console_render2.render(console2))
-
-            g.sdl_renderer.present()
+            g.render(handler)
 
             try:
-                for event in tcod.event.wait():
+                for event in tcod.event.get():
 
                     # Manual handing of tile coordinates since context.present is skipped.
                     if isinstance(event, (tcod.event.MouseState, tcod.event.MouseMotion)):

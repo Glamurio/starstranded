@@ -24,7 +24,7 @@ class Action:
         """Return the engine this action belongs to."""
         return self.entity.game_map.engine
 
-    def perform(self) -> None:
+    def perform(self) -> bool:
         """Perform this action with the objects needed to determine its scope.
 
         `self.engine` is the scope this action is being performed in.
@@ -32,10 +32,13 @@ class Action:
         `self.entity` is the object performing the action.
 
         If the action is supposed to pass time, it must be inherited via `super().perform()`.
+
+        If the action is supposed to repeat, return `True`.
         """
         # Always pass time when an action occurs
         self.engine.game_world.pass_time(actor=self.entity, time=1)
 
+        return False
 
 
 class PickupAction(Action):
@@ -191,7 +194,7 @@ class MovementAction(ActionWithDirection):
         self.dest_y = dest_y
         self.path = path
 
-    def perform(self) -> None:
+    def perform(self) -> bool:
 
         if not self.path:
             raise exceptions.Impossible("That way is blocked.")
@@ -216,10 +219,10 @@ class MovementAction(ActionWithDirection):
             if not enemy.has_ai:
                 continue
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
-                return
+                return False
 
         # TODO: Stagger player movement
-        self.perform()
+        return True
 
 
 class BumpAction(ActionWithDirection):

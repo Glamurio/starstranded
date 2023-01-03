@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 
-from typing import Callable, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Callable, List, Dict, Optional, Tuple, TYPE_CHECKING, Union
 
 import tcod
+import g
 
 import actions
 from actions import (
@@ -140,11 +141,15 @@ class EventHandler(BaseEventHandler):
         Returns True if the action will advance a turn.
         """
         if action is None:
-            return False
+            return None
 
         try:
-            # time.sleep(1)
-            action.perform()
+            # Actions return `True` for repeat
+            repeat = action.perform()
+            while repeat:
+                repeat = action.perform()
+                time.sleep(0.05)
+                g.render(self)
         except exceptions.Impossible as exc:
             self.engine.message_log.add_message(exc.args[0], color.impossible)
             return False  # Skip enemy turn on exceptions.
