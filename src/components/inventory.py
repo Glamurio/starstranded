@@ -4,6 +4,7 @@ from typing import List, TYPE_CHECKING
 
 from components.base_component import BaseComponent
 from world import GameMap
+import exceptions
 
 if TYPE_CHECKING:
     from entity import Entity, Item
@@ -26,14 +27,13 @@ class Inventory(BaseComponent):
         """
         Adds an item to the inventory and removes it from the original location.
         """
-        self.parent
         if isinstance(item.parent, GameMap):
             self.game_map.entities.remove(item)
         elif isinstance(item.parent, Inventory):
             item.parent.items.remove(item)
 
         item.parent = self.parent.inventory
-        self.items.append(item)
+        self.add(item)
 
         # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
 
@@ -47,4 +47,13 @@ class Inventory(BaseComponent):
 
         self.engine.message_log.add_message(f"You dropped {item.get_title()}.")
 
-    # TODO: Add `add_item` function that checks `capacity`
+    def add(self, item: Item, placeholder: bool = False) -> None:
+        contents = self.items + self.placeholders
+        if len(contents) >= self.capacity:
+            if self.parent == self.engine.player:
+                raise exceptions.Impossible("Your Inventory is full.")
+            return
+        if placeholder:
+            self.placeholders.append(item)
+        else:
+            self.items.append(item)

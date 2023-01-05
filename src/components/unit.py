@@ -11,7 +11,7 @@ from components.equipment import Equipment
 from components.level import Level
 from components.consumable import Meat
 
-from utilities import clamp, map_codepoints, generate_name, get_shade
+from utilities import clamp, map_codepoints, generate_name, get_gaussian_shade
 
 class Unit(Entity):
     def __init__(self):
@@ -87,7 +87,7 @@ class Unit(Entity):
         self.render_order = RenderOrder.CORPSE
 
         meat = Meat(self.kind, self.inventory)
-        self.inventory.items.append(meat)
+        self.inventory.add(meat)
 
         self.engine.message_log.add_message(death_message, death_message_color)
 
@@ -134,12 +134,13 @@ class Player(Unit):
         self.hp = self.max_hp
         self.base_defense = 1
         self.base_power = 2
-        self.color=(255, 255, 255)
+        self.color = (255, 255, 255)
+        self.shade = (255, 255, 255)
         self.name="Ardan"
         self.kind="Player"
         self.race="Human"
         self.ai=HostileEnemy(self)
-        self.inventory=Inventory(self, capacity=26)
+        self.inventory=Inventory(self, capacity=10)
         self.level=Level(self, level_up_base=100, xp_given=50)
         self.equipment=Equipment(self)
         self.sprite_pos=(0, 9)
@@ -157,12 +158,13 @@ class Selenite(Unit):
         self.hp = self.max_hp
         self.base_defense = 0
         self.base_power = 3
-        self.color = get_shade(color.light_blue)
+        self.color = color.light_blue
+        self.shade = get_gaussian_shade(self.color)
         self.name = name if name else generate_name("selenite")
         self.kind="Selenite"
         self.race="Selenite"
         self.ai=HostileEnemy(self)
-        self.inventory=Inventory(self, capacity=26)
+        self.inventory=Inventory(self, capacity=10)
         self.level=Level(self, level_up_base=100, xp_given=35)
         self.equipment=Equipment(self)
         self.sprite_pos=(2, 37)

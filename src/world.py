@@ -114,7 +114,7 @@ class GameMap:
                     if entity.mirrored:
                         char = chr(entity.char_right)
                 console.print(
-                    x=entity.x, y=entity.y, string=char, fg=entity.color
+                    x=entity.x, y=entity.y, string=char, fg=entity.shade
                 )
 
 class GameWorld:

@@ -48,9 +48,6 @@ class PickupAction(Action):
     def perform(self) -> None:
         super().perform()
 
-        if len(self.entity.inventory.items) >= self.entity.inventory.capacity:
-            raise exceptions.Impossible("Your inventory is full.")
-
         self.entity.inventory.loot(self.item)
 
         self.engine.message_log.add_message(f"You picked up {self.item.get_title()}!")
@@ -209,6 +206,8 @@ class MovementAction(ActionWithDirection):
             if self.entity == enemy:
                 continue
             if hasattr(enemy, "material"):
+                continue
+            if hasattr(enemy, "growth_cycle"):
                 continue
             if hasattr(enemy, "ai") and not enemy.ai:
                 continue

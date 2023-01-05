@@ -165,14 +165,18 @@ class AskUserEventHandler(EventHandler):
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
         """By default any key exits this input handler."""
-        if event.sym in {  # Ignore modifier keys.
+        if event.sym in {  # Ignore specific keys
             tcod.event.K_LSHIFT,
             tcod.event.K_RSHIFT,
             tcod.event.K_LCTRL,
             tcod.event.K_RCTRL,
             tcod.event.K_LALT,
             tcod.event.K_RALT,
+            tcod.event.K_UP,
+            tcod.event.K_DOWN
         }:
+            return None
+        if event.sym in CONFIRM_KEYS:
             return None
         return self.on_exit()
 
@@ -350,7 +354,7 @@ class LevelUpEventHandler(AskUserEventHandler):
         """
         return None
 
-
+# TODO: Create a semi-inventory for tiles to pick up items that share the space with other inventories
 class InventoryEventHandler(AskUserEventHandler):
     """
     This handler lets the user select an item.
@@ -363,6 +367,7 @@ class InventoryEventHandler(AskUserEventHandler):
     console_height: int
     console_width: int
     menu_width: int = 0
+    menu_i: int = None
     height_per_item: int = 2
 
     items: List[Item] = []
@@ -388,6 +393,7 @@ class InventoryEventHandler(AskUserEventHandler):
         inventory = self.entity.inventory
         if not inventory:
             return
+        self.items = inventory.items
 
         # Instantiate placeholders
         placeholders = inventory.placeholders
@@ -395,7 +401,6 @@ class InventoryEventHandler(AskUserEventHandler):
             self.items.append(placeholder(inventory))
             placeholders.remove(placeholder)
 
-        self.items = inventory.items
         number_of_items_in_inventory = len(self.items)
 
         self.menu_height = self.height_per_item * number_of_items_in_inventory + 2
@@ -446,18 +451,20 @@ class InventoryEventHandler(AskUserEventHandler):
                     bg=color.white if i == self.button_highlight else color.black,
                 )
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
-        player = self.engine.player
-        key = event.sym
-        index = key - tcod.event.K_a
+    def ev_keydown(
+        self, event: tcod.event.KeyDown
+    ) -> Optional[BaseEventHandler]:
+        if event.sym == tcod.event.K_UP:
+            self.menu_i = 0 if self.menu_i is None else self.menu_i
+            self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.buttons)-1
+        elif event.sym == tcod.event.K_DOWN:
+            self.menu_i = -1 if self.menu_i is None else self.menu_i
+            self.menu_i = self.menu_i+1 if not self.menu_i == len(self.buttons)-1 else 0
+        self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
 
-        # if 0 <= index <= 26:
-        #     try:
-        #         selected_item = player.inventory.items[index]
-        #     except IndexError:
-        #         self.engine.message_log.add_message("Invalid entry.", color.invalid)
-        #         return None
-        #     return self.on_item_selected(selected_item)
+        if event.sym in CONFIRM_KEYS:
+            return self.on_item_selected(self.items[self.menu_i])
+
         return super().ev_keydown(event)
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:

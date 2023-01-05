@@ -32,6 +32,7 @@ class Entity:
         self.char_right: int = 0xE000
         self.char_corpse: int  = 0xE000
         self.color: Tuple[int, int, int] = (255, 255, 255)
+        self.shade: Tuple[int, int, int] = (255, 255, 255)
         self.name: Optional[str] = None
         self.kind: str = None
         self.attributes: List[str] = []

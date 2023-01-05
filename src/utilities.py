@@ -5,10 +5,10 @@ import os
 import tcod
 import g
 import random
-import matplotlib.pyplot as plt
+
 import numpy as np # type: ignore
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Tuple
 
 if TYPE_CHECKING:
     pass
@@ -26,7 +26,17 @@ def clamp(n: int, smallest: int, largest: int):
     """Clamps `n` to `smallest` or `largest`"""
     return max(smallest, min(n, largest))
 
-def get_shade(color: tuple[float, float, float], sigma: float = 20):
+def get_random_color(threshold: int = 30) -> Tuple(int, int, int):
+    """Gets random color, excluding colors that exceed `threshold`"""
+    return (max((255 * random.random()), threshold), max((255 * random.random()), threshold), max((255 * random.random()), threshold))
+
+def get_shade(color: tuple[float, float, float], factor: float = -0.5):
+    """Get shade reduced or increased by `factor`"""
+    N = 1 + factor
+    shade = (color[0] * N, color[1] * N, color[2] * N)
+    return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))
+
+def get_gaussian_shade(color: tuple[float, float, float], sigma: float = 20):
     """Get gaussian average of `color` as a shade, with a deviation of `sigma`"""
     shade = (int(random.gauss(color[0], sigma)), int(random.gauss(color[1], sigma)), int(random.gauss(color[2], sigma)))
     return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))

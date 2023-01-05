@@ -94,8 +94,7 @@ class Engine:
         return abs(p1.x - p2.x) + abs(p1.y - p2.y)
 
     def can_see(self, x1, y1, x2, y2, radius: int):
-
-        if self.distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius:
+        if self.distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius-2:
             return False
 
         for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():

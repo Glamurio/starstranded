@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np  # type: ignore
 import color
-from utilities import map_codepoints
+from utilities import map_codepoints, get_random_color, get_shade
 
 # Tile graphics structured type compatible with Console.rgb.
 graphic_dt = np.dtype(
@@ -80,13 +80,16 @@ floor = Tile(
     dark_fg=color.gray,
     dtype=tile_dt
 )
+water_color = get_random_color()
 water = Tile(
     kind="Water",
     walkable=False,
     transparent=True,
     sprite_pos=(9, 32),
-    dark_fg=color.dark_blue,
-    light_fg=color.blue,
+    dark_fg=get_shade(water_color),
+    light_fg=water_color,
+    light_bg=color.white,
+    dark_bg=color.gray,
     dtype=tile_dt
 )
 roots = Tile(

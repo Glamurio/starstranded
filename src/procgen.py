@@ -6,14 +6,14 @@ from world import GameMap, GameWorld
 import tile_types
 import random
 import tcod
-import math
+import g
 
 import numpy as np  # type: ignore
 import matplotlib.pyplot as plt #just for visual
 
 import components.unit as units
 import components.consumable as consumables
-from components.plant import Tree
+import components.plant
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -43,7 +43,7 @@ enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     # 7: [(entity_funities.troll, 60)],
 }
 plant_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(Tree, 100)],
+    0: [(components.plant.Tree, 100)],
     # 3: [(entity_funities.troll, 15)],
     # 5: [(entity_funities.troll, 30)],
     # 7: [(entity_funities.troll, 60)],
@@ -145,12 +145,6 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
         unwalkable = np.logical_not(map.tiles[x, y]["walkable"])
         if not any(unwalkable and entity.x == x and entity.y == y for entity in map.entities):
             entity.spawn(map, x, y)
-    
-    # for tile in map.tiles:
-    #     tile: tile_types.Tile
-    #     if tile.tile_type == tile_types.roots.tile_type:
-    #         Tree().spawn(map, tile[0], tile[1])
-        
 
 
 def tunnel_between(
@@ -228,6 +222,13 @@ def generate_map(
 
     return dungeon
 
+def spawn_vegetation(tree: components.plant.Tree, shrub: components.plant.Shrub, map: GameMap, tree_map: np.ndarray):
+    """Spawns trees and shrubs `map` via `tree_map`"""
+    for x, row in enumerate(tree_map):
+        for y, tile in enumerate(row):
+            if tile:
+                plant = tree if random.random() > 0.2 else shrub
+                plant.spawn(map, x, y)
 
 def generate_noise(
     map_width: int,
@@ -235,6 +236,7 @@ def generate_noise(
     engine: Engine,
     world: GameWorld,
 ) -> GameMap:
+
     height_noise = tcod.noise.Noise(
         dimensions=2,
         algorithm=tcod.noise.Algorithm.PERLIN,
@@ -309,11 +311,8 @@ def generate_noise(
     player = engine.player
     map = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
 
-    tree_map = landscape == tile_types.roots.get_array()
-    for x, row in enumerate(tree_map):
-        for y, tile in enumerate(row):
-            if tile:
-                Tree().spawn(map, x, y)
+    tree_map: np.ndarray = landscape == tile_types.roots.get_array()
+    spawn_vegetation(components.plant.Tree(), components.plant.Shrub(), map, tree_map)
 
     # Get random player position
     x = random.randint(0, map.width - 1)

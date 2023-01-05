@@ -3,10 +3,12 @@ from __future__ import annotations
 import color
 from entity import Item
 from equipment_types import EquipmentType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from components.unit import Unit
+    from world import GameMap
+    from components.inventory import Inventory
 
 # TODO: Rename Equippable to "Equipment" once I refactored that
 class Equippable(Item):
@@ -29,8 +31,9 @@ class Equippable(Item):
         self.equipped = not self.equipped
 
 class Dagger(Equippable):
-    def __init__(self) -> None:
+    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
         Equippable.__init__(self)
+        self.parent = parent
         self.equipment_type = EquipmentType.WEAPON
         self.power_bonus = 2
         self.char="/"
@@ -40,8 +43,9 @@ class Dagger(Equippable):
 
 
 class Sword(Equippable):
-    def __init__(self) -> None:
+    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
         Equippable.__init__(self)
+        self.parent = parent
         self.equipment_type = EquipmentType.WEAPON
         self.power_bonus = 4
         self.char="\\"
@@ -50,8 +54,9 @@ class Sword(Equippable):
         self.kind="Sword"
 
 class LeatherArmor(Equippable):
-    def __init__(self) -> None:
+    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
         Equippable.__init__(self)
+        self.parent = parent
         self.equipment_type = EquipmentType.ARMOR
         self.defense_bonus = 1
         self.char="["
@@ -60,8 +65,9 @@ class LeatherArmor(Equippable):
         self.kind="Armor"
 
 class ChainMail(Equippable):
-    def __init__(self) -> None:
+    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
         Equippable.__init__(self)
+        self.parent = parent
         self.equipment_type = EquipmentType.ARMOR
         self.defense_bonus = 3
         self.char="]"
