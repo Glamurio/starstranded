@@ -6,13 +6,14 @@ from world import GameMap, GameWorld
 import tile_types
 import random
 import tcod
+import math
 
 import numpy as np  # type: ignore
 import matplotlib.pyplot as plt #just for visual
 
 import components.unit as units
 import components.consumable as consumables
-from utilities import generate_name
+from components.plant import Tree
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -22,7 +23,6 @@ max_items_by_floor = [
     (1, 4),
     (4, 8),
 ]
-
 max_monsters_by_floor = [
     (1, 6),
     (4, 12),
@@ -36,9 +36,14 @@ item_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     # 4: [(entity_funities.lightning_scroll, 25), (entity_funities.sword, 5)],
     # 6: [(entity_funities.fireball_scroll, 25), (entity_funities.chain_mail, 15)],
 }
-
 enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     0: [(units.Selenite, 80)],
+    # 3: [(entity_funities.troll, 15)],
+    # 5: [(entity_funities.troll, 30)],
+    # 7: [(entity_funities.troll, 60)],
+}
+plant_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
+    0: [(Tree, 100)],
     # 3: [(entity_funities.troll, 15)],
     # 5: [(entity_funities.troll, 30)],
     # 7: [(entity_funities.troll, 60)],
@@ -140,6 +145,12 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
         unwalkable = np.logical_not(map.tiles[x, y]["walkable"])
         if not any(unwalkable and entity.x == x and entity.y == y for entity in map.entities):
             entity.spawn(map, x, y)
+    
+    # for tile in map.tiles:
+    #     tile: tile_types.Tile
+    #     if tile.tile_type == tile_types.roots.tile_type:
+    #         Tree().spawn(map, tile[0], tile[1])
+        
 
 
 def tunnel_between(
@@ -224,21 +235,33 @@ def generate_noise(
     engine: Engine,
     world: GameWorld,
 ) -> GameMap:
-    noise = tcod.noise.Noise(
+    height_noise = tcod.noise.Noise(
         dimensions=2,
         algorithm=tcod.noise.Algorithm.PERLIN,
     )
-    samples = noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
-    noise = tcod.noise.Noise(
+    height_samples = height_noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
+    height_noise = tcod.noise.Noise(
             dimensions=2,
             algorithm=tcod.noise.Algorithm.PERLIN,
     )
-    samples = (samples + noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
+    height_samples = (height_samples + height_noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
+
+    vegetation_noise = tcod.noise.Noise(
+        dimensions=2,
+        algorithm=tcod.noise.Algorithm.PERLIN,
+    )
+    vegetation_samples = vegetation_noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
+    vegetation_noise = tcod.noise.Noise(
+        dimensions=2,
+        algorithm=tcod.noise.Algorithm.PERLIN,
+    )
+    vegetation_samples = vegetation_noise[tcod.noise.grid(shape=(map_height, map_width), scale=0.1, origin=(0, 0))]
 
     def value_range(a, low, high):
         return np.logical_and(a>low , a<=high)
 
     def construct_landscape(limits, tiles, samples: np.ndarray):
+        """Function to generate height map"""
         assert(len(limits) == len(tiles)+1)
         out_shape = list(samples.shape)
         landscape = np.full(out_shape, fill_value=tile_types.wall.get_array(), order="F", dtype=tile_types.tile_dt)
@@ -246,17 +269,53 @@ def generate_noise(
             landscape[value_range(samples, limits[i], limits[i+1])] = tiles[i]
         return landscape
 
-    colors = [np.array([0, 0, 0.5]), np.array([0, 0, 1]), np.array([0, 1., 0]), np.array([0.5, 0.5, 0.5]), np.array([1., 1., 1.])]
-    color_limits = [-1.1, -0.4, -0.2, 0.1, 0.3, 1.1]
-    tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
-    tile_limits = [-1.1, -0.2, 0.3, 1.1]
-    
-    # landscape = construct_landscape(color_limits, colors, samples)
-    landscape = construct_landscape(tile_limits, tiles, samples)
+    def plant_trees(samples: np.ndarray, landscape: np.ndarray, adjust: float = 0.1):
+        """Function to generate map for vegetation"""
+        out_shape = list(samples.shape)
+        random_map = np.random.rand(out_shape[0], out_shape[1])
+        lake_map = landscape == tile_types.water.get_array()
+        tree_map = samples > random_map + adjust
+        tree_map = np.logical_and(tree_map, np.logical_not(lake_map))
+        landscape[tree_map] = tile_types.roots.get_array()
+        return landscape
+
+    def plant_trees_old(samples: np.ndarray, landscape: np.ndarray, adjust: float = 0.1):
+        """Function to generate map for vegetation"""
+        out_shape = list(samples.shape) + [3]
+        if not landscape:
+            landscape = np.zeros(out_shape, order="F")
+        random_map = np.random.rand(out_shape[0], out_shape[1])
+        tree_map = samples > random_map + adjust
+        landscape[tree_map] = np.array([0, 0.8, 0])
+        return landscape
+
+    def construct_old(limits, tiles, samples: np.ndarray):
+        assert(len(limits) == len(tiles)+1)
+        out_shape = list(samples.shape) + [3]
+        landscape = np.zeros(out_shape, order="F")
+        for i in range(len(limits)-1):
+            landscape[value_range(samples, limits[i], limits[i+1])] = tiles[i]
+        return landscape
+
+    # color_limits = [-1.1, 0, 1.1]
+    # colors = [np.array([0, 0, 0.5]), np.array([0, 0, 1])]
+
+    height_limits = [-1.1, -0.3, 0.3, 1.1]
+    height_tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
+    landscape = construct_landscape(height_limits, height_tiles, height_samples)
+
+    landscape = plant_trees(vegetation_samples, landscape)
 
     player = engine.player
     map = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
 
+    tree_map = landscape == tile_types.roots.get_array()
+    for x, row in enumerate(tree_map):
+        for y, tile in enumerate(row):
+            if tile:
+                Tree().spawn(map, x, y)
+
+    # Get random player position
     x = random.randint(0, map.width - 1)
     y = random.randint(0, map.height - 1)
     walkable = map.tiles[x, y]["walkable"]
@@ -267,8 +326,8 @@ def generate_noise(
         
     player.place(x, y, map)
     place_entities(map, engine.game_world.current_floor)
+    
+    # plt.imshow(vegetation, vmin=0, vmax=255)
+    # plt.savefig('figure.jpg')
 
     return map
-    
-    plt.imshow(landscape, vmin=0, vmax=255)
-    plt.savefig('figure.jpg')

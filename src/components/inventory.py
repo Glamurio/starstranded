@@ -10,17 +10,23 @@ if TYPE_CHECKING:
 
 
 class Inventory(BaseComponent):
-    parent: Entity
-
-    def __init__(self, capacity: int):
+    """
+    Component that represents an entity's inventory
+    
+    `self.items` are instantiated items
+    `self.placeholders` are uninstantiated items
+    """
+    def __init__(self, parent: Entity, capacity: int):
+        self.parent = parent
         self.capacity = capacity
         self.items: List[Item] = []
+        self.placeholders: List[Item] = []
 
     def loot(self, item: Item) -> None:
         """
         Adds an item to the inventory and removes it from the original location.
         """
-
+        self.parent
         if isinstance(item.parent, GameMap):
             self.game_map.entities.remove(item)
         elif isinstance(item.parent, Inventory):
@@ -33,9 +39,12 @@ class Inventory(BaseComponent):
 
     def drop(self, item: Item) -> None:
         """
-        Removes an item from the inventory and restores it to the game map, at the player's current location.
+        Removes an item from the inventory and restores it to the game map, at the unit's current location.
         """
-        self.items.remove(item)
+        if item in self.items:
+            self.items.remove(item)
         item.place(self.parent.x, self.parent.y, self.game_map)
 
         self.engine.message_log.add_message(f"You dropped {item.get_title()}.")
+
+    # TODO: Add `add_item` function that checks `capacity`

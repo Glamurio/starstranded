@@ -4,8 +4,6 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
 
-from utilities import can_move
-
 if TYPE_CHECKING:
     from components.unit import Unit
     from engine import Engine
@@ -71,14 +69,14 @@ class ItemAction(Action):
     @property
     def target_unit(self) -> Optional[Unit]:
         """Return the unit at this actions destination."""
-        return self.engine.game_map.get_actor_at_location(*self.target_xy)
+        return self.engine.game_map.get_unit_at_location(*self.target_xy)
 
     def perform(self) -> None:
         """Invoke the items ability, this action will be given to provide context."""
         super().perform()
 
         if self.item:
-            self.item.activate()
+            self.item.activate(self.entity)
 
 
 class DropItem(ItemAction):
@@ -137,17 +135,15 @@ class ActionWithDirection(Action):
     @property
     def blocking_entity(self) -> Optional[Entity]:
         """Return the blocking entity at this actions destination.."""
-        return self.engine.game_map.get_blocking_entity_at_location(*self.dest_xy)
+        return self.engine.game_map.get_entity_at_location(*self.dest_xy, True)
 
     @property
     def target_unit(self) -> Optional[Unit]:
         """Return the unit at this actions destination."""
-        return self.engine.game_map.get_actor_at_location(*self.dest_xy)
+        return self.engine.game_map.get_unit_at_location(*self.dest_xy)
 
     def get_path(self, ai, x: int, y: int) -> List[Tuple]:
-        from utilities import get_path_to
-
-        return get_path_to(self.engine, ai, x, y)
+        return self.engine.get_path_to(ai, x, y)
 
     def perform(self) -> None:
         super().perform()
@@ -177,9 +173,6 @@ class MeleeAction(ActionWithDirection):
                 f"{attack_desc} for {damage} hit points.", attack_color
             )
             target.handle_health(-damage, attacker)
-            self.engine.message_log.add_message(
-                f"{target.get_title()} has {target.hp} hit points left.", attack_color
-            )
         else:
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
@@ -202,7 +195,7 @@ class MovementAction(ActionWithDirection):
 
         self.dest_x, self.dest_y = self.path.pop(0)
 
-        if not can_move(self.engine, self.dest_x, self.dest_y):
+        if not self.engine.can_move(self.dest_x, self.dest_y):
             raise exceptions.Impossible("That way is blocked.")
 
         self.entity.move(self.dest_x, self.dest_y)
@@ -217,7 +210,7 @@ class MovementAction(ActionWithDirection):
                 continue
             if hasattr(enemy, "material"):
                 continue
-            if hasattr(enemy, "has_ai") and not enemy.has_ai:
+            if hasattr(enemy, "ai") and not enemy.ai:
                 continue
             
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):

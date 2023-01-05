@@ -11,9 +11,9 @@ if TYPE_CHECKING:
 
 # TODO: Rename Equipment to "EquipSlots" or something
 class Equipment(BaseComponent):
-    parent: Unit
 
-    def __init__(self, weapon: Optional[Equippable] = None, armor: Optional[Equippable] = None):
+    def __init__(self, parent: Unit, weapon: Optional[Equippable] = None, armor: Optional[Equippable] = None):
+        self.parent = parent
         self.weapon = weapon
         self.armor = armor
 

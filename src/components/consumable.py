@@ -14,6 +14,7 @@ from input_handlers import (
     AreaRangedAttackHandler,
     SingleRangedAttackHandler,
 )
+from utilities import map_codepoints
 
 if TYPE_CHECKING:
     from entity import Unit
@@ -91,13 +92,15 @@ class HealingConsumable(Consumable):
         else:
             raise Impossible(f"Your health is alreadest_y full.")
 
+
 class HealthPotion(HealingConsumable):
     def __init__(self):
         HealingConsumable.__init__(self)
         self.amount = 4
         self.color = (127, 0, 255)
-        self.type = "Health Potion"
+        self.kind = "Health Potion"
         self.char = "!"
+
 
 class FoodConsumable(Consumable):
     def __init__(self):
@@ -121,15 +124,31 @@ class FoodConsumable(Consumable):
         )
         self.deplete()
 
+
 class Meat(FoodConsumable):
     def __init__(self, material: str, parent: Union[GameMap, Inventory]):
         FoodConsumable.__init__(self)
-        self.char = "d"
+        self.kind = "Meat"
+        self.sprite_pos = (1, 16)
+        char_info = map_codepoints(self.kind, self.sprite_pos)
+        self.char = char_info["sprite"]
         self.hunger_amount = 10
-        self.type = "Meat"
         self.color = color.red
         self.material = material
         self.parent = parent
+
+
+class Fruit(FoodConsumable):
+    def __init__(self, parent: Union[GameMap, Inventory]):
+        FoodConsumable.__init__(self)
+        self.kind = "Fruit"
+        self.sprite_pos = (3, 16)
+        char_info = map_codepoints(self.kind, self.sprite_pos)
+        self.char = char_info["sprite"]
+        self.hunger_amount = 10
+        self.color = color.red
+        self.parent = parent
+
 
 class FireballDamageConsumable(Consumable):
     def __init__(self):
@@ -154,7 +173,7 @@ class FireballDamageConsumable(Consumable):
             raise Impossible("You cannot target an area that you cannot see.")
 
         targets_hit = False
-        for unit in self.engine.game_map.units:
+        for unit in self.engine.game_map.entities:
             if unit.distance(*target_xy) <= self.radius:
                 self.engine.message_log.add_message(
                     f"{unit.get_title()} is engulfed in a fiery explosion, taking {self.damage} damage!"
@@ -178,7 +197,7 @@ class LightningDamageConsumable(Consumable):
         target = None
         closest_distance = self.maximum_range + 1.0
 
-        for unit in self.engine.game_map.units:
+        for unit in self.engine.game_map.entities:
             if unit is not consumer and self.game_map.visible[unit.x, unit.y]:
                 distance = consumer.distance(unit.x, unit.y)
 

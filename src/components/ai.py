@@ -7,6 +7,7 @@ from actions import Action, BumpAction, MeleeAction, MovementAction, WaitAction
 
 if TYPE_CHECKING:
     from entity import Unit
+    from components.plant import Tree
 
 class BaseAI(Action):
     entity: Unit
@@ -16,9 +17,8 @@ class BaseAI(Action):
 
     def do_move(self, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
         """Perform movement action"""
-        from utilities import get_path_to
         
-        return get_path_to(self.engine, self, dest_x, dest_y)
+        return self.engine.get_path_to(self, dest_x, dest_y)
 
 class ConfusedEnemy(BaseAI):
     """
@@ -69,8 +69,16 @@ class HostileEnemy(BaseAI):
 
     def perform(self) -> None:
         target = self.engine.player
+
+        time = self.engine.game_world.current_time
+        if time % 4 == 0:
+            self.entity.handle_hunger(-1)
+        if time % 2 == 0:
+            self.entity.handle_thirst(-1)
+
         dest_x = target.x - self.entity.x
         dest_y = target.y - self.entity.y
+
         distance = max(abs(dest_x), abs(dest_y))  # Chebyshev distance.
 
         if self.engine.game_map.visible[self.entity.x, self.entity.y]:
@@ -85,3 +93,13 @@ class HostileEnemy(BaseAI):
             ).perform()
 
         return WaitAction(self.entity).perform()
+
+class PlantAI(BaseAI):
+    def __init__(self, entity: Unit):
+        super().__init__(entity)
+        self.entity: Tree
+
+    def perform(self) -> None:
+        time = self.engine.game_world.current_time
+        if time % 2 == 0:
+            self.entity.handle_growth()

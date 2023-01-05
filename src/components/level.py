@@ -9,16 +9,17 @@ if TYPE_CHECKING:
 
 
 class Level(BaseComponent):
-    parent: Unit
 
     def __init__(
         self,
+        parent: Unit,
         current_level: int = 1,
         current_xp: int = 0,
         level_up_base: int = 0,
         level_up_factor: int = 150,
         xp_given: int = 0,
     ):
+        self.parent = parent
         self.current_level = current_level
         self.current_xp = current_xp
         self.level_up_base = level_up_base

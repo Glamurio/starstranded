@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import random
 
 from typing import Iterable, Iterator, Optional, TYPE_CHECKING
 
@@ -61,12 +62,13 @@ class GameMap:
     def items(self) -> Iterator[Item]:
         yield from (entity for entity in self.entities if isinstance(entity, Item))
 
-    def get_blocking_entity_at_location(
-        self, location_x: int, location_y: int,
+    def get_entity_at_location(
+        self, location_x: int, location_y: int, check_block: bool = False
     ) -> Optional[Entity]:
         for entity in self.entities:
+            checker = entity.blocks_movement if check_block else True
             if (
-                entity.blocks_movement
+                checker
                 and entity.x == location_x
                 and entity.y == location_y
             ):
@@ -74,7 +76,7 @@ class GameMap:
 
         return None
 
-    def get_actor_at_location(self, x: int, y: int) -> Optional[Unit]:
+    def get_unit_at_location(self, x: int, y: int) -> Optional[Unit]:
         for unit in self.units:
             if unit.x == x and unit.y == y:
                 return unit
@@ -106,10 +108,13 @@ class GameMap:
         for entity in entities_sorted_for_rendering:
             # Only print entities that are in the FOV
             if self.visible[entity.x, entity.y]:
+                char = entity.char
                 if isinstance(entity.char, int):
-                    entity.char = chr(entity.char)
+                    char = chr(entity.char)
+                    if entity.mirrored:
+                        char = chr(entity.char_right)
                 console.print(
-                    x=entity.x, y=entity.y, string=entity.char, fg=entity.color
+                    x=entity.x, y=entity.y, string=char, fg=entity.color
                 )
 
 class GameWorld:
@@ -159,7 +164,7 @@ class GameWorld:
     def pass_time(self, unit: Unit, time: int) -> int:
         """Passes game time in minutes after every player turn. Returns current game time"""
 
-        if unit.type == "Player":
+        if unit.kind == "Player":
             self.current_time += time
             if self.current_time % 4 == 0:
                 unit.handle_hunger(-1)

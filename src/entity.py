@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import g
 import copy
 import math
 from typing import Optional, List, Tuple, TypeVar, TYPE_CHECKING, Union
@@ -26,10 +25,15 @@ class Entity:
         self.x: int = 0
         self.y: int = 0
         self.sprite_pos: Tuple[int, int] = (0, 0)
-        self.char = None
+        self.corpse_sprite_pos: Tuple[int, int] = (0, 0)
+        self.mirrored = False
+        self.char: int = 0xE000
+        self.char_left: int = 0xE000
+        self.char_right: int = 0xE000
+        self.char_corpse: int  = 0xE000
         self.color: Tuple[int, int, int] = (255, 255, 255)
         self.name: Optional[str] = None
-        self.type: str = "<Unnamed>"
+        self.kind: str = None
         self.attributes: List[str] = []
         self.inventory: Inventory = None
         self.blocks_movement: bool = False
@@ -83,8 +87,19 @@ class Entity:
         """
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
+    def redirect_char(self, face_right: bool = False):
+        """Redirects unit sprite"""
+        if face_right:
+            self.char = self.char_right
+        else:
+            self.char = self.char_left
+
     def move(self, dest_x: int, dest_y: int) -> None:
-        """Move the entity by a given amount.""" 
+        """Move the entity by a given amount."""
+        if self.x > dest_x:
+            self.redirect_char()
+        elif self.x < dest_x:
+            self.redirect_char(True)
         self.x = dest_x
         self.y = dest_y
 
@@ -95,7 +110,7 @@ class Entity:
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        description = f'{" ".join(attributes)} {self.type}' if attributes else self.type
+        description = f'{" ".join(attributes)} {self.kind}' if attributes else self.kind
         return f'{self.name}, the {description}' if self.name else description
 
     def add_attribute(self, attribute: str) -> None:
@@ -123,6 +138,6 @@ class Item(Entity):
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        material_type = f'{self.material} {self.type}' if self.material else  self.type
+        material_type = f'{self.material} {self.kind}' if self.material else  self.kind
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         return f'{self.name}, the {description}' if self.name else description

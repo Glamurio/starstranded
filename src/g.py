@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import tcod
 import numpy as np # type: ignore
-from typing import List, TYPE_CHECKING
+from typing import List, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from input_handlers import BaseEventHandler
@@ -15,6 +15,13 @@ Custom `Private Use Area` charmap for Urizen
 
 mapped_chars: List[int] = [0xE000]
 """List, which tracks mapped codepoints"""
+
+char_dict: Dict[Dict] = {None: mapped_chars[0]}
+"""
+Used to reference which codepoints belong to which char
+
+Keys are `class`, values are `int`
+"""
 
 global_tileset = tcod.tileset.load_tilesheet(
     "urizen_nogrid_white.png", 50, 50, CHARMAP_URIZEN

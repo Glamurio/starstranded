@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np  # type: ignore
 import color
-from utilities import map_sprite
+from utilities import map_codepoints
 
 # Tile graphics structured type compatible with Console.rgb.
 graphic_dt = np.dtype(
@@ -36,6 +36,7 @@ class Tile(object):
         *,
         walkable: int = False,
         transparent: int = False,
+        kind: str = "Name",
         sprite_pos: Tuple[int, int] = (0, 0),
         dark_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         dark_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
@@ -43,10 +44,14 @@ class Tile(object):
         light_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         dtype: np.dtype = tile_dt,
     ):
-
+        
+        self.kind = kind
         self.walkable = walkable
         self.transparent = transparent
-        self.codepoint = map_sprite(sprite_pos[0], sprite_pos[1])
+        self.sprite_pos = sprite_pos
+
+        char_info = map_codepoints(self.kind, sprite_pos)
+        self.codepoint = char_info["sprite"]
 
         self.dark_bg = dark_bg
         self.dark_fg = dark_fg
@@ -66,14 +71,17 @@ class Tile(object):
 SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 floor = Tile(
+    kind="Floor",
     walkable=True,
     transparent=True,
     sprite_pos=(0, 2),
     dark_bg=color.black,
     light_bg=color.nigh_black,
+    dark_fg=color.gray,
     dtype=tile_dt
 )
 water = Tile(
+    kind="Water",
     walkable=False,
     transparent=True,
     sprite_pos=(9, 32),
@@ -81,7 +89,19 @@ water = Tile(
     light_fg=color.blue,
     dtype=tile_dt
 )
+roots = Tile(
+    kind="Roots",
+    walkable=True,
+    transparent=True,
+    sprite_pos=(9, 2),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    dark_fg=color.dark_brown,
+    light_fg=color.brown,
+    dtype=tile_dt
+)
 wall = Tile(
+    kind="Wall",
     walkable=False,
     transparent=False,
     sprite_pos=(1, 0),
@@ -90,6 +110,7 @@ wall = Tile(
     dtype=tile_dt
 )
 down_stairs = Tile(
+    kind="Downstairs",
     walkable=False,
     transparent=False,
     sprite_pos=(11, 0),

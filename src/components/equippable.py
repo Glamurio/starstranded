@@ -3,6 +3,10 @@ from __future__ import annotations
 import color
 from entity import Item
 from equipment_types import EquipmentType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from components.unit import Unit
 
 # TODO: Rename Equippable to "Equipment" once I refactored that
 class Equippable(Item):
@@ -13,7 +17,7 @@ class Equippable(Item):
         self.defense_bonus: int = 0
         self.equipped: bool = False
 
-    def activate(self) -> None:
+    def activate(self, user: Unit) -> None:
         """Invoke this items ability.
 
         `action` is the context for this activation.
@@ -32,7 +36,7 @@ class Dagger(Equippable):
         self.char="/"
         self.color=(0, 191, 255)
         self.material="Bronze"
-        self.type="Dagger"
+        self.kind="Dagger"
 
 
 class Sword(Equippable):
@@ -43,7 +47,7 @@ class Sword(Equippable):
         self.char="\\"
         self.color=(0, 191, 255)
         self.material="Iron"
-        self.type="Sword"
+        self.kind="Sword"
 
 class LeatherArmor(Equippable):
     def __init__(self) -> None:
@@ -53,7 +57,7 @@ class LeatherArmor(Equippable):
         self.char="["
         self.color=color.brown
         self.material="Leather"
-        self.type="Armor"
+        self.kind="Armor"
 
 class ChainMail(Equippable):
     def __init__(self) -> None:
@@ -63,4 +67,4 @@ class ChainMail(Equippable):
         self.char="]"
         self.color=(139, 69, 19)
         self.material="Iron"
-        self.type="Chain Mail"
+        self.kind="Chain Mail"
