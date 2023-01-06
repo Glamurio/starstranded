@@ -305,7 +305,62 @@ def generate_noise(
     height_limits = [-1.1, -0.3, 0.3, 1.1]
     height_tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
     landscape = construct_landscape(height_limits, height_tiles, height_samples)
+    
+    water = tile_types.water
+    lake_map = landscape == tile_types.water.get_array()
+    for x, row in enumerate(lake_map):
+        for y, tile in enumerate(row):
+            if not tile:
+                continue
+            coords: List[List] = [[x-1, y, "left", False], [x+1, y, "right", False], [x, y-1, "up", False], [x, y+1, "down", False]]
+            for coord in coords:
+                if 0 <= coord[0] < map_width and 0 <= coord[1] < map_height and lake_map[coord[0]][coord[1]]:
+                    coord[3] = True
 
+            cases = [case[3] for case in coords]
+            match cases:
+                case [False, False, False, False]:
+                    water_char = g.char_dict[water.kind]['solo']
+                case [False, False, False, True]:
+                    water_char = g.char_dict[water.kind]['north']
+                case [False, False, True, False]:
+                    water_char = g.char_dict[water.kind]['south']
+                case [False, False, True, True]:
+                    water_char = g.char_dict[water.kind]['sprite']
+                case [False, True, False, False]:
+                    water_char = g.char_dict[water.kind]['west']
+                case [False, True, False, True]:
+                    water_char = g.char_dict[water.kind]['north_west']
+                case [False, True, True, False]:
+                    water_char = g.char_dict[water.kind]['south_west']
+                case [False, True, True, True]:
+                    water_char = g.char_dict[water.kind]['west']
+                case [True, False, False, False]:
+                    water_char = g.char_dict[water.kind]['east']
+                case [True, False, False, True]:
+                    water_char = g.char_dict[water.kind]['north_east']
+                case [True, False, True, False]:
+                    water_char = g.char_dict[water.kind]['south_east']
+                case [True, False, True, True]:
+                    water_char = g.char_dict[water.kind]['east']
+                case [True, True, False, False]:
+                    water_char = g.char_dict[water.kind]['sprite']
+                case [True, True, False, True]:
+                    water_char = g.char_dict[water.kind]['north']
+                case [True, True, True, False]:
+                    water_char = g.char_dict[water.kind]['south']
+                case [True, True, True, True]:
+                    water_char = g.char_dict[water.kind]['wave'] if bool(random.getrandbits(1)) else g.char_dict[water.kind]['sprite']
+
+            water_dark = (water_char, water.dark_fg, water.dark_bg)
+            water_light = (water_char, water.light_fg, water.light_bg)
+            water_tile = (water.walkable, water.transparent, water_dark, water_light)
+            
+            landscape[x][y] = water_tile
+            
+
+
+    # Add vegetation
     landscape = plant_trees(vegetation_samples, landscape)
 
     player = engine.player
@@ -313,6 +368,7 @@ def generate_noise(
 
     tree_map: np.ndarray = landscape == tile_types.roots.get_array()
     spawn_vegetation(components.plant.Tree(), components.plant.Shrub(), map, tree_map)
+
 
     # Get random player position
     x = random.randint(0, map.width - 1)

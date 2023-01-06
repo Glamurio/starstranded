@@ -9,11 +9,13 @@ import random
 from components.consumable import Fruit
 from components.inventory import Inventory
 from components.ai import PlantAI
+from tile_types import roots
 
 from utilities import map_codepoints, clamp, get_random_color, get_gaussian_shade
 
 if TYPE_CHECKING:
     from world import GameMap
+    from components.unit import Unit
 
 T = TypeVar("T", bound="Entity")
 
@@ -55,12 +57,27 @@ class Plant(Entity):
         clone.x = x
         clone.y = y
         clone.parent = game_map
-        clone.shade = get_gaussian_shade(clone.color)
-        clone.mirrored = bool(random.getrandbits(1))
+        clone.shade = get_gaussian_shade(clone.color)#
+        mirrored = bool(random.getrandbits(1))
+        clone.mirrored = mirrored
         game_map.entities.add(clone)
-        game_map.tiles[x, y]['transparent'] = not clone.blocks_sight
-        game_map.tiles[x, y]['walkable'] = not clone.blocks_movement
+        char = clone.char+1 if mirrored else clone.char
+        tile = game_map.tiles[x, y]
+        tile['transparent'] = not clone.blocks_sight
+        tile['walkable'] = not clone.blocks_movement
+        tile['dark'] = (char, tile['dark'][1], tile['dark'][2])
         return clone
+
+    def die(self, killer: Unit) -> None:
+        self.char = self.char_corpse
+        self.blocks_movement = False
+        self.blocks_sight = False
+        self.ai = None
+        self.render_order = RenderOrder.CORPSE
+        tile = self.parent.tiles[self.x, self.y]
+        tile['transparent'] = False
+        tile['walkable'] = False
+        tile['dark'] = (roots.codepoint, roots.dark_fg, roots.dark_bg)
 
 
 class Tree(Plant):

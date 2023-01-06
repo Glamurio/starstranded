@@ -8,7 +8,7 @@ import random
 
 import numpy as np # type: ignore
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Tuple
+from typing import TYPE_CHECKING, Dict, Tuple, List
 
 if TYPE_CHECKING:
     pass
@@ -28,7 +28,7 @@ def clamp(n: int, smallest: int, largest: int):
 
 def get_random_color(threshold: int = 30) -> Tuple(int, int, int):
     """Gets random color, excluding colors that exceed `threshold`"""
-    return (max((255 * random.random()), threshold), max((255 * random.random()), threshold), max((255 * random.random()), threshold))
+    return (int(max((255 * random.random()), threshold)), int(max((255 * random.random()), threshold)), int(max((255 * random.random()), threshold)))
 
 def get_shade(color: tuple[float, float, float], factor: float = -0.5):
     """Get shade reduced or increased by `factor`"""
@@ -79,7 +79,7 @@ def generate_name(origin: str):
         return tcod.namegen_generate(name_set)
     return tcod.namegen_generate(name_sets[0])
 
-def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None) -> Dict:
+def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: List[tuple] = []) -> Dict:
     """
     Function, which maps class_name to codepoint(s) and coordinates.
 
@@ -104,6 +104,8 @@ def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, co
             continue
         if corpse_i in g.mapped_chars:
             continue
+        if sum([variation in g.mapped_chars for variation in variations]):
+            continue
         
         values = [i]
         char_info["sprite"] = i
@@ -120,6 +122,12 @@ def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, co
             g.global_tileset.remap(corpse_i, corpse_xy[0], corpse_xy[1])
             values.append(corpse_i)
 
+        for j, variation in enumerate(variations):
+            variation_i = 1 + i + int(mirror) + int(bool(corpse_xy)) + j
+            char_info[variation[2]] = variation_i
+            g.global_tileset.remap(variation_i, variation[0], variation[1])
+            values.append(variation_i)
+            
         break
     
     g.mapped_chars.extend(values)
