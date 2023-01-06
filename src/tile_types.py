@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np  # type: ignore
 import color
@@ -37,6 +37,7 @@ class Tile(object):
         walkable: int = False,
         transparent: int = False,
         kind: str = "Name",
+        variations: List[Tuple[int, int, str]] = [],
         sprite_pos: Tuple[int, int] = (0, 0),
         dark_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         dark_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
@@ -50,15 +51,16 @@ class Tile(object):
         self.transparent = transparent
         self.sprite_pos = sprite_pos
 
-        char_info = map_codepoints(self.kind, sprite_pos)
+        self.variations = variations
+        char_info = map_codepoints(self.kind, sprite_pos, variations=variations)
         self.codepoint = char_info["sprite"]
 
         self.dark_bg = dark_bg
         self.dark_fg = dark_fg
         self.dark = (self.codepoint, dark_fg, dark_bg)
 
-        self.light_bg = dark_bg
-        self.light_fg = dark_fg
+        self.light_bg = light_bg
+        self.light_fg = light_fg
         self.light = (self.codepoint, light_fg, light_bg)
 
         self.dtype = dtype
@@ -81,17 +83,31 @@ floor = Tile(
     dtype=tile_dt
 )
 water_color = get_random_color()
+water_variations = [
+    (0, 32, "north_west"),
+    (1, 32, "north"),
+    (2, 32, "north_east"),
+    (3, 32, "west"),
+    (4, 32, "wave"),
+    (5, 32, "east"),
+    (6, 32, "south_west"),
+    (7, 32, "south"),
+    (8, 32, "south_east"),
+    (10, 32, "solo")
+]
 water = Tile(
     kind="Water",
+    variations=water_variations,
     walkable=False,
     transparent=True,
     sprite_pos=(9, 32),
     dark_fg=get_shade(water_color),
     light_fg=water_color,
-    light_bg=color.white,
-    dark_bg=color.gray,
+    light_bg=color.nigh_black,
+    dark_bg=color.black,
     dtype=tile_dt
 )
+
 roots = Tile(
     kind="Roots",
     walkable=True,
