@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING, Union, Dict
 
 import actions
 import color
+import random
 import components.ai
+from components.names import pos_names, color_names
 from components.inventory import Inventory
 from entity import Item
 
@@ -14,7 +16,7 @@ from input_handlers import (
     AreaRangedAttackHandler,
     SingleRangedAttackHandler,
 )
-from utilities import map_codepoints
+from utilities import map_codepoints, get_random_color, get_gaussian_shade, generate_name, get_color_group
 
 if TYPE_CHECKING:
     from entity import Unit
@@ -98,7 +100,7 @@ class HealthPotion(HealingConsumable):
         HealingConsumable.__init__(self)
         self.amount = 4
         self.color = (127, 0, 255)
-        self.kind = "Health Potion"
+        self.species = "Health Potion"
         self.char = "!"
 
 
@@ -128,9 +130,9 @@ class FoodConsumable(Consumable):
 class Meat(FoodConsumable):
     def __init__(self, material: str, parent: Union[GameMap, Inventory]):
         FoodConsumable.__init__(self)
-        self.kind = "Meat"
+        self.species = "Meat"
         self.sprite_pos = (1, 16)
-        char_info = map_codepoints(self.kind, self.sprite_pos)
+        char_info = map_codepoints(self.species, self.sprite_pos)
         self.char = char_info["sprite"]
         self.hunger_amount = 10
         self.color = color.red
@@ -139,14 +141,25 @@ class Meat(FoodConsumable):
 
 
 class Fruit(FoodConsumable):
-    def __init__(self, parent: Union[GameMap, Inventory]):
+    def __init__(self, parent: Union[GameMap, Inventory], factory: Dict[tuple[int, int, int], str] = {}):
         FoodConsumable.__init__(self)
-        self.kind = "Fruit"
-        self.sprite_pos = (3, 16)
-        char_info = map_codepoints(self.kind, self.sprite_pos)
+
+        if not factory:
+            position, shape_names = random.choice(list(pos_names.items()))
+            self.sprite_pos = position
+            self.color = get_random_color()
+            self.species = random.choice(color_names[get_color_group(self.color)]) + random.choice(shape_names)
+        else:
+            self.sprite_pos = factory['position']
+            self.color = factory['color']
+            self.species = factory['species']
+
+        self.shade = get_gaussian_shade(self.color)
+
+        char_info = map_codepoints(self.species, self.sprite_pos)
         self.char = char_info["sprite"]
         self.hunger_amount = 10
-        self.color = color.red
+        self.thirst_amount = 10
         self.parent = parent
 
 

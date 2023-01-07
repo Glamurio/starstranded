@@ -164,7 +164,7 @@ class GameWorld:
     def pass_time(self, unit: Unit, time: int) -> int:
         """Passes game time in minutes after every player turn. Returns current game time"""
 
-        if unit.kind == "Player":
+        if unit.species == "Player":
             self.current_time += time
             if self.current_time % 4 == 0:
                 unit.handle_hunger(-1)

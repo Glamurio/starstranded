@@ -34,7 +34,7 @@ class Entity:
         self.color: Tuple[int, int, int] = (255, 255, 255)
         self.shade: Tuple[int, int, int] = (255, 255, 255)
         self.name: Optional[str] = None
-        self.kind: str = None
+        self.species: str = None
         self.attributes: List[str] = []
         self.inventory: Inventory = None
         self.blocks_movement: bool = False
@@ -111,7 +111,7 @@ class Entity:
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        description = f'{" ".join(attributes)} {self.kind}' if attributes else self.kind
+        description = f'{" ".join(attributes)} {self.species}' if attributes else self.species
         return f'{self.name}, the {description}' if self.name else description
 
     def add_attribute(self, attribute: str) -> None:
@@ -139,6 +139,6 @@ class Item(Entity):
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        material_type = f'{self.material} {self.kind}' if self.material else  self.kind
+        material_type = f'{self.material} {self.species}' if self.material else self.species
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         return f'{self.name}, the {description}' if self.name else description

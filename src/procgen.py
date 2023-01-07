@@ -222,6 +222,66 @@ def generate_map(
 
     return dungeon
 
+def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int, height: int):
+    """
+    Replaces all tiles of type `tile` within given `landscape` with the appropriate variations
+    
+    Returns changed `landscape`
+    """
+    tile_map = landscape == tile.get_array()
+    char_info = g.char_dict[tile.species]
+    default = char_info['sprite']
+    for x, row in enumerate(tile_map):
+        for y, is_tile in enumerate(row):
+            if not is_tile:
+                continue
+            coords: List[List] = [[x-1, y, "left", False], [x+1, y, "right", False], [x, y-1, "up", False], [x, y+1, "down", False]]
+            for coord in coords:
+                if 0 <= coord[0] < width and 0 <= coord[1] < height and tile_map[coord[0]][coord[1]]:
+                    coord[3] = True
+
+            cases = [case[3] for case in coords]
+            match cases:
+                case [False, False, False, False]:
+                    tile_char = char_info['solo'] if char_info['solo'] else default
+                case [False, False, False, True]:
+                    tile_char = char_info['north'] if char_info['north'] else default
+                case [False, False, True, False]:
+                    tile_char = char_info['south'] if char_info['south'] else default
+                case [False, False, True, True]:
+                    tile_char = default
+                case [False, True, False, False]:
+                    tile_char = char_info['west'] if char_info['west'] else default
+                case [False, True, False, True]:
+                    tile_char = char_info['north_west'] if char_info['north_west'] else default
+                case [False, True, True, False]:
+                    tile_char = char_info['south_west'] if char_info['south_west'] else default
+                case [False, True, True, True]:
+                    tile_char = char_info['west'] if char_info['west'] else default
+                case [True, False, False, False]:
+                    tile_char = char_info['east'] if char_info['east'] else default
+                case [True, False, False, True]:
+                    tile_char = char_info['north_east'] if char_info['north_east'] else default
+                case [True, False, True, False]:
+                    tile_char = char_info['south_east'] if char_info['south_east'] else default
+                case [True, False, True, True]:
+                    tile_char = char_info['east'] if char_info['east'] else default
+                case [True, True, False, False]:
+                    tile_char = default
+                case [True, True, False, True]:
+                    tile_char = char_info['north'] if char_info['north'] else default
+                case [True, True, True, False]:
+                    tile_char = char_info['south'] if char_info['south'] else default
+                case [True, True, True, True]:
+                    tile_char = char_info['wave'] if char_info['wave'] and bool(random.getrandbits(1)) else default
+
+            tile_dark = (tile_char, tile.dark_fg, tile.dark_bg)
+            tile_light = (tile_char, tile.light_fg, tile.light_bg)
+            tile_result = (tile.walkable, tile.transparent, tile_dark, tile_light)
+            
+            landscape[x][y] = tile_result
+    return landscape
+
 def spawn_vegetation(tree: components.plant.Tree, shrub: components.plant.Shrub, map: GameMap, tree_map: np.ndarray):
     """Spawns trees and shrubs `map` via `tree_map`"""
     for x, row in enumerate(tree_map):
@@ -305,60 +365,9 @@ def generate_noise(
     height_limits = [-1.1, -0.3, 0.3, 1.1]
     height_tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
     landscape = construct_landscape(height_limits, height_tiles, height_samples)
-    
-    water = tile_types.water
-    lake_map = landscape == tile_types.water.get_array()
-    for x, row in enumerate(lake_map):
-        for y, tile in enumerate(row):
-            if not tile:
-                continue
-            coords: List[List] = [[x-1, y, "left", False], [x+1, y, "right", False], [x, y-1, "up", False], [x, y+1, "down", False]]
-            for coord in coords:
-                if 0 <= coord[0] < map_width and 0 <= coord[1] < map_height and lake_map[coord[0]][coord[1]]:
-                    coord[3] = True
-
-            cases = [case[3] for case in coords]
-            match cases:
-                case [False, False, False, False]:
-                    water_char = g.char_dict[water.kind]['solo']
-                case [False, False, False, True]:
-                    water_char = g.char_dict[water.kind]['north']
-                case [False, False, True, False]:
-                    water_char = g.char_dict[water.kind]['south']
-                case [False, False, True, True]:
-                    water_char = g.char_dict[water.kind]['sprite']
-                case [False, True, False, False]:
-                    water_char = g.char_dict[water.kind]['west']
-                case [False, True, False, True]:
-                    water_char = g.char_dict[water.kind]['north_west']
-                case [False, True, True, False]:
-                    water_char = g.char_dict[water.kind]['south_west']
-                case [False, True, True, True]:
-                    water_char = g.char_dict[water.kind]['west']
-                case [True, False, False, False]:
-                    water_char = g.char_dict[water.kind]['east']
-                case [True, False, False, True]:
-                    water_char = g.char_dict[water.kind]['north_east']
-                case [True, False, True, False]:
-                    water_char = g.char_dict[water.kind]['south_east']
-                case [True, False, True, True]:
-                    water_char = g.char_dict[water.kind]['east']
-                case [True, True, False, False]:
-                    water_char = g.char_dict[water.kind]['sprite']
-                case [True, True, False, True]:
-                    water_char = g.char_dict[water.kind]['north']
-                case [True, True, True, False]:
-                    water_char = g.char_dict[water.kind]['south']
-                case [True, True, True, True]:
-                    water_char = g.char_dict[water.kind]['wave'] if bool(random.getrandbits(1)) else g.char_dict[water.kind]['sprite']
-
-            water_dark = (water_char, water.dark_fg, water.dark_bg)
-            water_light = (water_char, water.light_fg, water.light_bg)
-            water_tile = (water.walkable, water.transparent, water_dark, water_light)
             
-            landscape[x][y] = water_tile
-            
-
+    # Add variations
+    landscape = replace_variations(tile_types.water, landscape, map_width, map_height)
 
     # Add vegetation
     landscape = plant_trees(vegetation_samples, landscape)

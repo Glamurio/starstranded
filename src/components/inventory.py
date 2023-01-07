@@ -53,6 +53,8 @@ class Inventory(BaseComponent):
             if self.parent == self.engine.player:
                 raise exceptions.Impossible("Your Inventory is full.")
             return
+
+        item.parent = self
         if placeholder:
             self.placeholders.append(item)
         else:

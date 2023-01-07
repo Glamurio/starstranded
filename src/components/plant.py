@@ -6,12 +6,14 @@ from render_order import RenderOrder
 from typing import TypeVar, TYPE_CHECKING
 import copy
 import random
+
+from components.names import pos_names, color_names, tree_names
 from components.consumable import Fruit
 from components.inventory import Inventory
 from components.ai import PlantAI
 from tile_types import roots
 
-from utilities import map_codepoints, clamp, get_random_color, get_gaussian_shade
+from utilities import map_codepoints, clamp, get_random_color, get_gaussian_shade, get_color_group
 
 if TYPE_CHECKING:
     from world import GameMap
@@ -30,9 +32,21 @@ class Plant(Entity):
         avg_cycle = random.gauss(self.growth_cycle, 1)
         avg_cycle = clamp(avg_cycle, 0, self.growth_cycle * 2)
         self.avg_cycle: float = avg_cycle
+        self.inventory = Inventory(self, capacity=10)
+
+        fruit_color = get_random_color()
+        fruit_pos, shape_names = random.choice(list(pos_names.items()))
+        group = color_names[get_color_group(fruit_color)]
+        fruit_species = random.choice(group) + random.choice(shape_names)
+
+        self.fruit_factory = {
+            'color': fruit_color,
+            'position': fruit_pos,
+            'species': fruit_species
+        }
+
         self.fruit: Fruit = Fruit
         self.ai = PlantAI(self)
-        self.inventory = Inventory(self, capacity=10)
 
         self.color = get_random_color()
 
@@ -49,7 +63,7 @@ class Plant(Entity):
         self.growth += 1
         if self.growth > self.avg_cycle:
             self.growth = 0
-            self.inventory.add(Fruit, True)
+            self.inventory.add(self.fruit(self.inventory, self.fruit_factory))
 
     def spawn(self: T, game_map: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
@@ -87,7 +101,7 @@ class Tree(Plant):
         avg_cycle = random.gauss(self.growth_cycle, 1)
         avg_cycle = clamp(avg_cycle, 0, self.growth_cycle * 2)
         self.avg_cycle: float = avg_cycle
-        self.kind = "Tree"
+        self.species = f"{self.fruit_factory['species']} {random.choice(tree_names)}"
 
         self.blocks_movement: bool = True
         self.blocks_sight: bool = True
@@ -96,12 +110,11 @@ class Tree(Plant):
         self.sprite_pos = self.possible_pos[random.randint(0, len(self.possible_pos)-1)]
         self.corpse_sprite_pos=(13, 5)
 
-        char_info = map_codepoints(self.kind, self.sprite_pos, True, self.corpse_sprite_pos)
+        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
         self.char = char_info["sprite"]
         self.char_left = char_info["sprite"]
         self.char_right = char_info["mirror"]
         self.char_corpse = char_info["corpse"]
-
 
 class Shrub(Plant):
     def __init__(self):
@@ -112,7 +125,7 @@ class Shrub(Plant):
         avg_cycle = random.gauss(self.growth_cycle, 1)
         avg_cycle = clamp(avg_cycle, 0, self.growth_cycle * 2)
         self.avg_cycle: float = avg_cycle
-        self.kind = "Shrub"
+        self.species = "Shrub"
         self.ai = PlantAI(self)
         self.inventory = Inventory(self, capacity=10)
 
@@ -123,7 +136,7 @@ class Shrub(Plant):
         self.sprite_pos = (5, 4)
         self.corpse_sprite_pos=(14, 4)
 
-        char_info = map_codepoints(self.kind, self.sprite_pos, True, self.corpse_sprite_pos)
+        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
         self.char = char_info["sprite"]
         self.char_left = char_info["sprite"]
         self.char_right = char_info["mirror"]

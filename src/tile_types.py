@@ -46,13 +46,13 @@ class Tile(object):
         dtype: np.dtype = tile_dt,
     ):
         
-        self.kind = kind
+        self.species = kind
         self.walkable = walkable
         self.transparent = transparent
         self.sprite_pos = sprite_pos
 
         self.variations = variations
-        char_info = map_codepoints(self.kind, sprite_pos, variations=variations)
+        char_info = map_codepoints(self.species, sprite_pos, variations=variations)
         self.codepoint = char_info["sprite"]
 
         self.dark_bg = dark_bg

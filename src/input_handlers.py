@@ -430,7 +430,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 button_x = x + 2
                 button_y = y + (i*2) + 2
                 is_equipped = False
-                
+
                 if isinstance(item, Equippable):
                     item: Equippable = item
                     is_equipped = item.equipped
@@ -726,7 +726,7 @@ class MainGameEventHandler(EventHandler):
             return
         if not (unit.x == entity.x and unit.y == entity.y):
             return
-        if entity == unit or entity.kind == self.engine.player:
+        if entity == unit or entity.species == self.engine.player:
             return
         if isinstance(entity, Item):
             item: Item = entity

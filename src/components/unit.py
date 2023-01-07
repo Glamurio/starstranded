@@ -86,7 +86,7 @@ class Unit(Entity):
         self.is_alive = False
         self.render_order = RenderOrder.CORPSE
 
-        meat = Meat(self.kind, self.inventory)
+        meat = Meat(self.species, self.inventory)
         self.inventory.add(meat)
 
         self.engine.message_log.add_message(death_message, death_message_color)
@@ -122,9 +122,9 @@ class Unit(Entity):
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        description = f'{" ".join(attributes)} {self.kind}' if attributes else self.kind
+        description = f'{" ".join(attributes)} {self.species}' if attributes else self.species
         if not self.is_alive:
-            return f'remains of {self.name}' if self.name else f'{self.kind} remains'
+            return f'remains of {self.name}' if self.name else f'{self.species} remains'
         return f'{self.name}, the {description}' if self.name else description
 
 class Player(Unit):
@@ -137,7 +137,7 @@ class Player(Unit):
         self.color = (255, 255, 255)
         self.shade = (255, 255, 255)
         self.name="Ardan"
-        self.kind="Player"
+        self.species="Player"
         self.race="Human"
         self.ai=HostileEnemy(self)
         self.inventory=Inventory(self, capacity=10)
@@ -145,7 +145,7 @@ class Player(Unit):
         self.equipment=Equipment(self)
         self.sprite_pos=(0, 9)
         self.corpse_sprite_pos=(24, 11)
-        char_info = map_codepoints(self.kind, self.sprite_pos, True, self.corpse_sprite_pos)
+        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
         self.char = char_info["sprite"]
         self.char_left = self.char
         self.char_right = char_info["mirror"]
@@ -161,7 +161,7 @@ class Selenite(Unit):
         self.color = color.light_blue
         self.shade = get_gaussian_shade(self.color)
         self.name = name if name else generate_name("selenite")
-        self.kind="Selenite"
+        self.species="Selenite"
         self.race="Selenite"
         self.ai=HostileEnemy(self)
         self.inventory=Inventory(self, capacity=10)
@@ -169,7 +169,7 @@ class Selenite(Unit):
         self.equipment=Equipment(self)
         self.sprite_pos=(2, 37)
         self.corpse_sprite_pos=(44, 11)
-        char_info = map_codepoints(self.kind, self.sprite_pos, True, self.corpse_sprite_pos)
+        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
         self.char = char_info["sprite"]
         self.char_left = char_info["sprite"]
         self.char_right = char_info["mirror"]
