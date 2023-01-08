@@ -222,41 +222,35 @@ def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, co
         return g.char_dict[class_name]
 
     char_info = {}
-    for i in range(0xE001, 0xF8FF+1):
-        mirror_i = i + 1
-        corpse_i = i + 2
-        if i in g.mapped_chars:
-            continue
-        if mirror_i in g.mapped_chars:
-            continue
-        if corpse_i in g.mapped_chars:
-            continue
-        if sum([variation in g.mapped_chars for variation in variations]):
-            continue
+    MAX_TILES = g.global_tileset_size[0] * g.global_tileset_size[1]
+    i = char_xy[1] * g.global_tileset_size[0] + char_xy[0]
+    assert i < MAX_TILES
+    char_i = i + 0xE000
+    mirror_i = i + 0xE000 + MAX_TILES
+    corpse_i = i + 0xE000 + MAX_TILES * 2
         
-        values = [i]
-        char_info["sprite"] = i
-        g.global_tileset.remap(i, char_xy[0], char_xy[1])
+    values = [char_i]
+    char_info["sprite"] = char_i
 
-        if mirror:
-            char_info["mirror"] = mirror_i
-            inv_tile = np.flip(g.global_tileset.get_tile(i), axis=1)
-            g.global_tileset.set_tile(mirror_i, inv_tile)
-            values.append(mirror_i)
+    g.global_tileset.remap(char_i, char_xy[0], char_xy[1])
 
-        if corpse_xy:
-            char_info["corpse"] = corpse_i
-            g.global_tileset.remap(corpse_i, corpse_xy[0], corpse_xy[1])
-            values.append(corpse_i)
+    if mirror:
+        char_info["mirror"] = mirror_i
+        inv_tile = np.flip(g.global_tileset.get_tile(char_i), axis=1)
+        g.global_tileset.set_tile(mirror_i, inv_tile)
+        values.append(mirror_i)
 
-        for j, variation in enumerate(variations):
-            variation_i = 1 + i + int(mirror) + int(bool(corpse_xy)) + j
-            char_info[variation[2]] = variation_i
-            g.global_tileset.remap(variation_i, variation[0], variation[1])
-            values.append(variation_i)
+    if corpse_xy:
+        char_info["corpse"] = corpse_i
+        g.global_tileset.remap(corpse_i, corpse_xy[0], corpse_xy[1])
+        values.append(corpse_i)
+
+    for j, variation in enumerate(variations):
+        variation_i = 1 + i + int(mirror) + int(bool(corpse_xy)) + j
+        char_info[variation[2]] = variation_i
+        g.global_tileset.remap(variation_i, variation[0], variation[1])
+        values.append(variation_i)
             
-        break
-    
     g.mapped_chars.extend(values)
     g.char_dict[class_name] = char_info
     

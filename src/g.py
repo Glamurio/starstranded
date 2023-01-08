@@ -23,10 +23,16 @@ Used to reference which codepoints belong to which char
 Keys are `class`, values are `int`
 """
 
+global_tileset_size = (50, 50)
 global_tileset = tcod.tileset.load_tilesheet(
-    "urizen_nogrid_white.png", 50, 50, CHARMAP_URIZEN
+    "urizen_nogrid_white.png", global_tileset_size[0], global_tileset_size[1], CHARMAP_URIZEN
 )
 """Global tileset, referenced when adding additional tiles"""
+
+text_tileset_site = (16, 16)
+text_tileset = tcod.tileset.load_tilesheet(
+    "Zesty_curses_24x24.png", text_tileset_site[0], text_tileset_site[1], tcod.tileset.CHARMAP_CP437
+)
 
 screen_width = 80
 screen_height = 45
