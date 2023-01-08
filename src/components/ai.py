@@ -7,9 +7,10 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 from actions import Action, BumpAction, MeleeAction, MovementAction, WaitAction
 
 if TYPE_CHECKING:
-    from entity import Unit, Entity
+    from entity import Unit, Entity, Item
     from components.plant import Plant
     from components.consumable import FoodConsumable
+    from components.inventory import Inventory
 
 class BaseAI(Action):
     entity: Unit
@@ -58,10 +59,25 @@ class BaseAI(Action):
                     return self.eat_food(item)
 
         closest_plant: Plant = None
+        closest_food: Item = None
         plants = list(self.engine.game_map.plants)
+        items = list(self.engine.game_map.items)
         max_radius = self.entity.radius  # Maximum radius to search for plants within
         for radius in range(0, max_radius + 1):
             # Find the closest plant within the current radius
+            for item in items:
+                distance = self.engine.distance((self.entity.x, self.entity.y), (item.x, item.y))
+                if not distance == radius:
+                    continue
+                if not hasattr(item, 'hunger_amount'):
+                    continue
+
+                closest_food = item
+                break
+
+            if closest_food:
+                break
+
             for plant in plants:
                 distance = self.engine.distance((self.entity.x, self.entity.y), (plant.x, plant.y))
                 if not distance == radius:
@@ -70,33 +86,45 @@ class BaseAI(Action):
                     continue
                 if plant.inventory.is_empty():
                     continue
-                
+
                 closest_plant = plant
                 break
 
             if closest_plant:
                 break
-
-        if not closest_plant:
-            return self.wander()
         
-        if self.engine.distance((self.entity.x, self.entity.y), (closest_plant.x, closest_plant.y)) <= 1:
-            for item in closest_plant.inventory.items:
-                if hasattr(item, "hunger_amount") or hasattr(item, "thirst_amount"):
-                    self.entity.inventory.loot(item)
+        if closest_food and self.engine.distance((self.entity.x, self.entity.y), (closest_food.x, closest_food.y)) <= 1:
+            return self.forage_food(closest_food)
 
-                    player = self.engine.player
-                    if self.engine.can_see(player.x, player.y, self.entity.x, self.entity.y, player.radius):
-                        self.engine.message_log.add_message(
-                            f"{self.entity.get_title()} begins eating the {item.get_title()}."
-                        )
-                    return WaitAction(self.entity).perform()
+        if closest_plant and self.engine.distance((self.entity.x, self.entity.y), (closest_plant.x, closest_plant.y)) <= 1:
+            return self.forage_food(container=closest_plant.inventory)
+            
+        if not closest_plant or not closest_food:
+            return self.wander()
 
         adjacent_tiles = self.engine.get_adjacent_tiles(closest_plant.x, closest_plant.y)
         tile = self.engine.get_closest_tile(adjacent_tiles, self.entity.x, self.entity.y)
         self.path = self.get_path(tile[0], tile[1])
         return MovementAction(self.entity, tile[0], tile[1], self.path).perform()
 
+    def forage_food(self, food: FoodConsumable = None, container: Inventory = None):
+        if not food and container:
+            for item in container.items:
+                if hasattr(item, "hunger_amount") or hasattr(item, "thirst_amount"):
+                    food = item
+                    break
+
+        if not food:
+            return self.wander()
+
+        self.entity.inventory.loot(food)
+
+        player = self.engine.player
+        if self.engine.can_see(player.x, player.y, self.entity.x, self.entity.y, player.radius):
+            self.engine.message_log.add_message(
+                f"{self.entity.get_title()} begins eating the {food.get_title()}."
+            )
+        return WaitAction(self.entity).perform()
 
     def eat_food(self, item: FoodConsumable):
         item.consume(self.entity)

@@ -143,7 +143,7 @@ class MainMenu(input_handlers.BaseEventHandler):
                 'x': button_x,
                 'y': button_y,
             }
-        
+
             console.print(
                 button_x,
                 button_y,
