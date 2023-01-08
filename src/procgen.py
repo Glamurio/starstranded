@@ -24,7 +24,7 @@ max_items_by_floor = [
     (4, 8),
 ]
 max_monsters_by_floor = [
-    (1, 6),
+    (1, 1),
     (4, 12),
     (6, 18),
 ]
@@ -37,7 +37,7 @@ item_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     # 6: [(entity_funities.fireball_scroll, 25), (entity_funities.chain_mail, 15)],
 }
 enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(units.Selenite, 80)],
+    0: [(units.Animal, 100)],
     # 3: [(entity_funities.troll, 15)],
     # 5: [(entity_funities.troll, 30)],
     # 7: [(entity_funities.troll, 60)],
@@ -87,6 +87,7 @@ def get_entities_at_random(
     chosen_entities = random.choices(
         entities, weights=entity_weighted_chance_values, k=number_of_entities
     )
+    # TODO: Change spawning of enemies to not be clones and remove this
     chosen_entities = [e() for e in chosen_entities]
     return chosen_entities
 

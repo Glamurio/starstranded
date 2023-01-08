@@ -7,7 +7,7 @@ from typing import TypeVar, TYPE_CHECKING
 import copy
 import random
 
-from components.names import pos_names, color_names, tree_names
+from components.names import fruit_pos_names, color_names, tree_pos_names, shrub_pos_names
 from components.consumable import Fruit
 from components.inventory import Inventory
 from components.ai import PlantAI
@@ -34,18 +34,19 @@ class Plant(Entity):
         self.avg_cycle: float = avg_cycle
         self.inventory = Inventory(self, capacity=10)
 
-        fruit_color = get_random_color()
-        fruit_pos, shape_names = random.choice(list(pos_names.items()))
-        group = color_names[get_color_group(fruit_color)]
-        fruit_species = random.choice(group) + random.choice(shape_names)
+        self.fruit: Fruit = Fruit if random.random() > 0.2 else None
+        if self.fruit:
+            fruit_color = get_random_color()
+            fruit_pos, shape_names = random.choice(list(fruit_pos_names.items()))
+            group = color_names[get_color_group(fruit_color)]
+            fruit_species = random.choice(group) + random.choice(shape_names)
 
-        self.fruit_factory = {
-            'color': fruit_color,
-            'position': fruit_pos,
-            'species': fruit_species
-        }
+            self.fruit_factory = {
+                'color': fruit_color,
+                'position': fruit_pos,
+                'species': fruit_species
+            }
 
-        self.fruit: Fruit = Fruit
         self.ai = PlantAI(self)
 
         self.color = get_random_color()
@@ -60,6 +61,9 @@ class Plant(Entity):
 
         Every cycle, `self.fruit` is added to `self.inventory`
         """
+        if not self.fruit:
+            return
+
         self.growth += 1
         if self.growth > self.avg_cycle:
             self.growth = 0
@@ -101,13 +105,21 @@ class Tree(Plant):
         avg_cycle = random.gauss(self.growth_cycle, 1)
         avg_cycle = clamp(avg_cycle, 0, self.growth_cycle * 2)
         self.avg_cycle: float = avg_cycle
-        self.species = f"{self.fruit_factory['species']} {random.choice(tree_names)}"
 
         self.blocks_movement: bool = True
         self.blocks_sight: bool = True
 
-        self.possible_pos = [(0, 4), (1, 4), (2, 4), (3, 4), (4, 4)]
-        self.sprite_pos = self.possible_pos[random.randint(0, len(self.possible_pos)-1)]
+        self.color = get_random_color()
+        tree_pos, shape_names = random.choice(list(tree_pos_names.items()))
+        group = color_names[get_color_group(self.color)]
+
+        if self.fruit:
+            self.species = f"{self.fruit_factory['species']} {random.choice(shape_names)}"
+        else:
+            self.species = f'{random.choice(group)} {random.choice(shape_names)}'
+        
+
+        self.sprite_pos = tree_pos
         self.corpse_sprite_pos=(13, 5)
 
         char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
@@ -125,7 +137,7 @@ class Shrub(Plant):
         avg_cycle = random.gauss(self.growth_cycle, 1)
         avg_cycle = clamp(avg_cycle, 0, self.growth_cycle * 2)
         self.avg_cycle: float = avg_cycle
-        self.species = "Shrub"
+
         self.ai = PlantAI(self)
         self.inventory = Inventory(self, capacity=10)
 
@@ -133,7 +145,16 @@ class Shrub(Plant):
         self.blocks_sight: bool = False
         self.render_order = RenderOrder.SHRUB
 
-        self.sprite_pos = (5, 4)
+        self.color = get_random_color()
+        shrub_pos, shape_names = random.choice(list(shrub_pos_names.items()))
+        group = color_names[get_color_group(self.color)]
+
+        if self.fruit:
+            self.species = f"{self.fruit_factory['species']} {random.choice(shape_names)}"
+        else:
+            self.species = f'{random.choice(group)} {random.choice(shape_names)}'
+
+        self.sprite_pos = shrub_pos
         self.corpse_sprite_pos=(14, 4)
 
         char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)

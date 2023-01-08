@@ -5,13 +5,13 @@ from entity import Entity
 from render_order import RenderOrder
 
 import color
-from components.ai import HostileEnemy
+from components.ai import HostileAI, PassiveAI
 from components.inventory import Inventory
 from components.equipment import Equipment
 from components.level import Level
 from components.consumable import Meat
 
-from utilities import clamp, map_codepoints, generate_name, get_gaussian_shade
+from utilities import clamp, map_codepoints, generate_name, get_gaussian_shade, get_random_color
 
 class Unit(Entity):
     def __init__(self):
@@ -20,6 +20,7 @@ class Unit(Entity):
         self.hp = self.max_hp
         self.base_defense = 1
         self.base_power = 1
+        self.radius = 8
         self.race: str = None
 
         self.equipment = Equipment(self)
@@ -139,7 +140,7 @@ class Player(Unit):
         self.name="Ardan"
         self.species="Player"
         self.race="Human"
-        self.ai=HostileEnemy(self)
+        self.ai=HostileAI(self)
         self.inventory=Inventory(self, capacity=10)
         self.level=Level(self, level_up_base=100, xp_given=50)
         self.equipment=Equipment(self)
@@ -163,11 +164,38 @@ class Selenite(Unit):
         self.name = name if name else generate_name("selenite")
         self.species="Selenite"
         self.race="Selenite"
-        self.ai=HostileEnemy(self)
+        self.ai=HostileAI(self)
         self.inventory=Inventory(self, capacity=10)
         self.level=Level(self, level_up_base=100, xp_given=35)
         self.equipment=Equipment(self)
         self.sprite_pos=(2, 37)
+        self.corpse_sprite_pos=(44, 11)
+        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
+        self.char = char_info["sprite"]
+        self.char_left = char_info["sprite"]
+        self.char_right = char_info["mirror"]
+        self.char_corpse = char_info["corpse"]
+
+class Animal(Unit):
+    def __init__(self, name: Optional[str] = None):
+        Unit.__init__(self)
+        self.max_hp = 10
+        self.hp = self.max_hp
+        self.base_defense = 0
+        self.base_power = 3
+
+        self.color = get_random_color()
+        # shrub_pos, shape_names = random.choice(list(shrub_pos_names.items()))
+        # group = color_names[get_color_group(self.color)]
+        self.shade = get_gaussian_shade(self.color)
+
+        self.species="Rabbit"
+
+        self.ai=PassiveAI(self)
+        self.inventory=Inventory(self, capacity=10)
+        self.level=Level(self, level_up_base=100, xp_given=35)
+        self.equipment=Equipment(self)
+        self.sprite_pos=(3, 15)
         self.corpse_sprite_pos=(44, 11)
         char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
         self.char = char_info["sprite"]

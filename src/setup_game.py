@@ -2,7 +2,7 @@
 from __future__ import annotations
 from asyncio import exceptions
 
-import copy
+import g
 import lzma
 import pickle
 import traceback

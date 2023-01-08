@@ -20,6 +20,11 @@ class Action:
         """Return the engine this action belongs to."""
         return self.entity.game_map.engine
 
+    @property
+    def target_unit(self) -> Optional[Unit]:
+        """Return the unit at this actions destination."""
+        return self.engine.game_map.get_unit_at_location(*self.dest_xy)
+
     def perform(self) -> bool:
         """Perform this action with the objects needed to determine its scope.
 
@@ -62,11 +67,6 @@ class ItemAction(Action):
         if not target_xy:
             target_xy = entity.x, entity.y
         self.target_xy = target_xy
-
-    @property
-    def target_unit(self) -> Optional[Unit]:
-        """Return the unit at this actions destination."""
-        return self.engine.game_map.get_unit_at_location(*self.target_xy)
 
     def perform(self) -> None:
         """Invoke the items ability, this action will be given to provide context."""
@@ -134,11 +134,6 @@ class ActionWithDirection(Action):
         """Return the blocking entity at this actions destination.."""
         return self.engine.game_map.get_entity_at_location(*self.dest_xy, True)
 
-    @property
-    def target_unit(self) -> Optional[Unit]:
-        """Return the unit at this actions destination."""
-        return self.engine.game_map.get_unit_at_location(*self.dest_xy)
-
     def get_path(self, ai, x: int, y: int) -> List[Tuple]:
         return self.engine.get_path_to(ai, x, y)
 
@@ -148,15 +143,15 @@ class ActionWithDirection(Action):
 
 class MeleeAction(ActionWithDirection):
     def perform(self) -> None:
-        super().perform()
 
         attacker: Unit = self.entity
         target: Unit = self.target_unit
 
         if not target:
             raise exceptions.Impossible("Nothing to attack.")
+
         if attacker == target:
-            return WaitAction(self.entity).perform()
+            return
 
         damage = attacker.power - target.defense
 
@@ -174,7 +169,8 @@ class MeleeAction(ActionWithDirection):
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
             )
-
+            
+        self.engine.game_world.pass_time(unit=self.entity, time=1)
 
 class MovementAction(ActionWithDirection):
 
@@ -209,8 +205,9 @@ class MovementAction(ActionWithDirection):
                 continue
             if hasattr(enemy, "growth_cycle"):
                 continue
-            if hasattr(enemy, "ai") and not enemy.ai:
-                continue
+            if hasattr(enemy, "ai"):
+                if not enemy.ai or not enemy.ai.is_hostile:
+                    continue
             
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
                 return False
@@ -224,8 +221,8 @@ class BumpAction(ActionWithDirection):
         path: List[Tuple] = self.get_path(self.entity.ai, self.dest_x, self.dest_y)
 
         distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.
-        
-        if self.target_unit and self.target_unit.is_alive and distance <= 1:
+
+        if self.target_unit and not self.target_unit == self.entity and self.target_unit.is_alive and distance <= 1:
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
 
         return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()

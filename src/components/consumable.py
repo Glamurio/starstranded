@@ -6,7 +6,7 @@ import actions
 import color
 import random
 import components.ai
-from components.names import pos_names, color_names
+from components.names import fruit_pos_names, color_names
 from components.inventory import Inventory
 from entity import Item
 
@@ -36,10 +36,9 @@ class Consumable(Item):
 
     def deplete(self) -> None:
         """Remove the consumed item from its containing inventory."""
-        entity = self
-        inventory: Inventory = entity.parent
+        inventory: Inventory = self.parent
         if isinstance(inventory, Inventory):
-            inventory.items.remove(entity)
+            inventory.remove(self)
 
 
 class ConfusionConsumable(Consumable):
@@ -111,20 +110,21 @@ class FoodConsumable(Consumable):
         self.thirst_amount: int = 0
 
     def activate(self, user: Unit) -> None:
-        self.consume(user)
+        message = self.consume(user)
+        if user == self.engine.player and message:
+            self.engine.message_log.add_message(message, color.health_recovered)
 
-    def consume(self, user: Unit) -> None:
+    def consume(self, user: Unit) -> str:
         user.handle_hunger(self.hunger_amount)
         user.handle_thirst(self.thirst_amount)
 
-        hunger_restore = f' and lose {self.hunger_amount} hunger' if self.hunger_amount < 0 else f' and restore {self.hunger_amount} hunger' if self.hunger_amount > 0 else ''
-        thirst_restore = f' and lose {self.thirst_amount} thirst' if self.thirst_amount < 0 else f' and restore {self.thirst_amount} thirst' if self.thirst_amount > 0 else ''
+        hunger_restore = f' and loses {self.hunger_amount} hunger' if self.hunger_amount < 0 else f' and restores {self.hunger_amount} hunger' if self.hunger_amount > 0 else ''
+        thirst_restore = f' and loses {self.thirst_amount} thirst' if self.thirst_amount < 0 else f' and restores {self.thirst_amount} thirst' if self.thirst_amount > 0 else ''
 
-        self.engine.message_log.add_message(
-            f"You consume {self.get_title()}{hunger_restore if hunger_restore else ''}{thirst_restore if thirst_restore else ''}.",
-            color.health_recovered,
-        )
         self.deplete()
+
+        message = f"{user.get_title()} consumes {self.get_title()}{hunger_restore if hunger_restore else ''}{thirst_restore if thirst_restore else ''}."
+        return message
 
 
 class Meat(FoodConsumable):
@@ -145,7 +145,7 @@ class Fruit(FoodConsumable):
         FoodConsumable.__init__(self)
 
         if not factory:
-            position, shape_names = random.choice(list(pos_names.items()))
+            position, shape_names = random.choice(list(fruit_pos_names.items()))
             self.sprite_pos = position
             self.color = get_random_color()
             self.species = random.choice(color_names[get_color_group(self.color)]) + random.choice(shape_names)
@@ -154,7 +154,7 @@ class Fruit(FoodConsumable):
             self.color = factory['color']
             self.species = factory['species']
 
-        self.shade = get_gaussian_shade(self.color)
+        self.shade = get_gaussian_shade(self.color, 10)
 
         char_info = map_codepoints(self.species, self.sprite_pos)
         self.char = char_info["sprite"]

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from engine import Engine
     from entity import Entity
     from components.unit import Unit
+    from components.plant import Plant
 
 
 def distance(p1, p2, diag=True, euclidean=False):
@@ -56,6 +57,15 @@ class GameMap:
             entity
             for entity in self.entities
             if hasattr(entity, "is_alive")
+        )
+
+    @property
+    def plants(self) -> Iterator[Plant]:
+        """Iterate over this maps living units."""
+        yield from (
+            entity
+            for entity in self.entities
+            if hasattr(entity, "growth")
         )
 
     @property
@@ -166,9 +176,9 @@ class GameWorld:
 
         if unit.species == "Player":
             self.current_time += time
-            if self.current_time % 4 == 0:
+            if not self.current_time % 4:
                 unit.handle_hunger(-1)
-            if self.current_time % 2 == 0:
+            if not self.current_time % 2:
                 unit.handle_thirst(-1)
 
             self.engine.handle_enemy_turns()

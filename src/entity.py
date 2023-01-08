@@ -58,14 +58,17 @@ class Entity:
         """Gets called after initialization of the object."""
         pass
 
-    def spawn(self: T, game_map: GameMap, x: int, y: int) -> T:
+    def spawn(self: T, game_map: GameMap, x: int, y: int, new: bool = False) -> T:
         """Spawn a copy of this instance at the given location."""
-        clone = copy.deepcopy(self)
-        clone.x = x
-        clone.y = y
-        clone.parent = game_map
-        game_map.entities.add(clone)
-        return clone
+        if not new:
+            entity = copy.deepcopy(self)
+        else:
+            entity = type(self)()
+        entity.x = x
+        entity.y = y
+        entity.parent = game_map
+        game_map.entities.add(entity)
+        return entity
 
     def place(self, x: int, y: int, game_map: Optional[GameMap] = None) -> None:
         """Place this entity at a new location.  Handles moving across GameMaps."""

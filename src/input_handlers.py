@@ -144,7 +144,7 @@ class EventHandler(BaseEventHandler):
             repeat = action.perform()
             while repeat:
                 repeat = action.perform()
-                time.sleep(0.05)
+                # time.sleep(0.05)
                 g.render(self)
         except exceptions.Impossible as exc:
             self.engine.message_log.add_message(exc.args[0], color.impossible)
@@ -204,7 +204,7 @@ class PickupHandler(AskUserEventHandler):
         super().on_render(console)
         player = self.engine.player
         mouse_x, mouse_y = self.engine.mouse_location
-        distance = self.engine.distance(tcod.event.Point(player.x, player.y), self.engine.mouse_location)
+        distance = self.engine.distance((player.x, player.y), (mouse_x, mouse_y))
         path = self.engine.get_path_to(player.ai, mouse_x, mouse_y)
         tile = path.pop(0) if path else (player.x, player.y)
         if distance <= 1:
@@ -396,10 +396,7 @@ class InventoryEventHandler(AskUserEventHandler):
         self.items = inventory.items
 
         # Instantiate placeholders
-        placeholders = inventory.placeholders
-        for placeholder in placeholders:
-            self.items.append(placeholder(inventory))
-            placeholders.remove(placeholder)
+        inventory.instantiate_placeholders()
 
         number_of_items_in_inventory = len(self.items)
 

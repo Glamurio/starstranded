@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import lzma
 import pickle
+import g
 
 from typing import TYPE_CHECKING, List, Tuple
 import tcod
@@ -85,15 +86,30 @@ class Engine:
         # Convert from List[List[int]] to List[Tuple[int, int]].
         return [(index[0], index[1]) for index in path]
 
-    def distance(self, p1: tcod.event.Point, p2: tcod.event.Point, diag=True, euclidean=False):
+    def distance(self, p1: tuple[int, int], p2: tuple[int, int], diag=True, euclidean=False):
         if diag:
-            return max(abs(p1.x - p2.x), abs(p1.y - p2.y))
+            return max(abs(p1[0] - p2[0]), abs(p1[1] - p2[1]))
         if euclidean:
-            return math.sqrt(math.pow((p1.x - p2.x), 2) + math.pow((p1.y - p2.y), 2))
+            return math.sqrt(math.pow((p1[0] - p2[0]), 2) + math.pow((p1[1] - p2[1]), 2))
         
-        return abs(p1.x - p2.x) + abs(p1.y - p2.y)
+        return abs(p1[0] - p1[0]) + abs(p2[1] - p2[1])
 
-    def can_see(self, x1, y1, x2, y2, radius: int):
+    def get_adjacent_tiles(self, x: int, y: int):
+        return [(x-1, y-1), (x, y-1), (x+1, y-1), (x-1, y), (x+1, y), (x-1, y+1), (x, y+1), (x+1, y+1)]
+
+    def get_closest_tile(self, coordinates: List[tuple[int, int, int]], x: int , y: int):
+        closest_coordinate = coordinates[0]
+        closest_distance = math.sqrt((x - closest_coordinate[0])**2 + (y - closest_coordinate[1])**2)
+        
+        for coord in coordinates:
+            distance = math.sqrt((x - coord[0])**2 + (y - coord[1])**2)
+            if distance < closest_distance:
+                closest_coordinate = coord
+                closest_distance = distance
+                
+        return closest_coordinate
+
+    def can_see(self, x1, y1, x2, y2, radius: int = 8):
         if self.distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius-2:
             return False
 
@@ -123,7 +139,7 @@ class Engine:
         self.game_map.visible[:] = compute_fov(
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
-            radius=8,
+            radius=100,
             algorithm=tcod.FOV_SYMMETRIC_SHADOWCAST
         )
         # If a tile is "visible" it should be added to "explored".

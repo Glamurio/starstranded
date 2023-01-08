@@ -107,7 +107,6 @@ water = Tile(
     dark_bg=color.black,
     dtype=tile_dt
 )
-
 roots = Tile(
     kind="Roots",
     walkable=True,
@@ -119,13 +118,16 @@ roots = Tile(
     light_fg=color.brown,
     dtype=tile_dt
 )
+wall_color = get_random_color()
 wall = Tile(
     kind="Wall",
     walkable=False,
     transparent=False,
-    sprite_pos=(1, 0),
-    dark_fg=color.dark_gray,
-    light_fg=color.gray,
+    sprite_pos=(0, 3),
+    dark_fg=get_shade(wall_color),
+    light_fg=wall_color,
+    light_bg=color.nigh_black,
+    dark_bg=color.black,
     dtype=tile_dt
 )
 down_stairs = Tile(
