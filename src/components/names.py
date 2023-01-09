@@ -44,6 +44,7 @@ tree_pos_names = {
     (2, 4): ["Willow", "Acacia", "Jacaranda"],
     (3, 4): ["Pine", "Fir", "Larch", "Spruce", "Hemlock"],
     (4, 4): ["Cypress", "Linden", "Cedar", "Juniper"],
+    (9, 4): ["Cactus", "Succulent", "Cereus"],
     (10, 4): ["Cactus", "Succulent", "Cereus"],
     (11, 4): ["Palm"]
 }
