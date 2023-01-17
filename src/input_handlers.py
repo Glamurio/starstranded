@@ -126,15 +126,17 @@ class EventHandler(BaseEventHandler):
         self.engine = engine
 
     def reset_to_handler(self, handler: EventHandler):
-        print("reset")
+        """Resets active handler to handler provided"""
         g.handlers = [handler]
 
-    def resolve_handler(self):
+    def resolve_handler(self) -> EventHandler:
+        """Resolves and returns current handler and switches to the next in stack"""
         handler = g.handlers.pop()
-        print("removed", handler)
 
         if not len(g.handlers):
             self.reset_to_handler(MainGameEventHandler(self.engine))
+
+        return handler
             
 
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
@@ -142,8 +144,7 @@ class EventHandler(BaseEventHandler):
         action_or_state = self.dispatch(event)
 
         if isinstance(action_or_state, BaseEventHandler):
-            g.handlers.append(action_or_state)
-            print(g.handlers)
+            g.handlers.append(action_or_state) # Add handler to stack
 
         if isinstance(action_or_state, actions.Action) and self.handle_action(action_or_state):
             # A valid action was performed.
@@ -157,7 +158,7 @@ class EventHandler(BaseEventHandler):
                 self.reset_to_handler(MainGameEventHandler(self.engine)) # Return to the main handler.
 
         if len(g.handlers):
-            return g.handlers[-1]
+            return g.handlers[-1] # Switch to most recent handler in stack
 
         return self
 
@@ -219,10 +220,9 @@ class AskUserEventHandler(EventHandler):
     def on_exit(self) -> Optional[ActionOrHandler]:
         """Called when the user is trying to exit or cancel an action.
 
-        By default this returns to the main event handler.
+        By default this simply resolves the current active handler
         """
         self.resolve_handler()
-        print(g.handlers)
         
 
 class PickupHandler(AskUserEventHandler):
@@ -418,7 +418,10 @@ class InventoryEventHandler(AskUserEventHandler):
 
     def __init__(self, engine: Engine, inventory: Inventory = None, entities: List[Entity] = None, console: tcod.Console = None, offset: int = 0):
         super().__init__(engine)
-        self.inventory = inventory
+        # If there's only one entity at target location, treat it as single inventory
+        entity: Entity = entities[0] if entities and len(entities) == 1 else None
+        self.inventory = entity.inventory if entity and not inventory else inventory
+        
         self.entities = entities
         self.offset = offset
         self.console = console

@@ -1,17 +1,17 @@
 color_names = {
-    "Red": ['Red', 'Crimson', 'Scarlet', 'Dragon', 'Flame', 'Fire', 'Flare', 'Burgundy', 'Ribbon', 'Cardinal', 'Torch'],
-    "Orange": ['Soda', 'Honey', 'Copper', 'Calico', 'Rust', 'Coral', 'Sunset'],
-    "Yellow": ['Bee', 'Yellow', 'Sunny', 'Sunlight', 'Sunshine', 'Gold', 'Golden', 'Peridot', 'Citrine', 'Butter', 'Mustard'],
-    "Green": ['Venom', 'Lush', 'Slime', 'Green', 'Evergreen', 'Emerald', 'Druid', 'Malachite', 'Forest', 'Jungle', 'Sage', 'Moss'],
-    "Blue": ['Azure', 'Water', 'Vermeer', 'Mystic', 'Sapphire', 'Ocean', 'Seashore', 'Blue'],
-    "Violet": ['Violet', 'Amethyst', 'Rose', 'Bordeaux', 'Velvet', 'Fuschia', 'Candy', 'Orchid', 'Lilac', 'Wisteria', 'Hyacinth'],
-    "Brown": ['Brown', 'Coffee', 'Caramel', 'Muffin', 'Chocolate', 'Oak', 'Bark', 'Chestnut', 'Mocha', 'Toffee', 'Cocoa', 'Timber'],
+    "Red": ['Red', 'Ruby', 'Crab', 'Maroon', 'Scorpion', 'Blood', 'Hot', 'Rot', 'Crimson', 'Scarlet', 'Dragon', 'Flame', 'Fire', 'Flare', 'Burgundy', 'Ribbon', 'Cardinal', 'Torch'],
+    "Orange": ['Atom', 'Saffron', 'Tiger', 'Tabby', 'Fox', 'Scotch', 'Hunyadi', 'Xanthic', 'Ochre', 'Soda', 'Honey', 'Copper', 'Calico', 'Rust', 'Coral', 'Sunset'],
+    "Yellow": ['Amber', 'Sulfur', 'Royal', 'Duck', 'Finch', 'Yolk', 'Blonde', 'Bee', 'Yellow', 'Sunny', 'Sunlight', 'Sunshine', 'Gold', 'Golden', 'Peridot', 'Citrine', 'Butter', 'Mustard'],
+    "Green": ['Viper', 'Poison', 'Frog', 'Parrot', 'Venom', 'Lush', 'Slime', 'Green', 'Evergreen', 'Emerald', 'Druid', 'Malachite', 'Forest', 'Jungle', 'Sage', 'Moss'],
+    "Blue": ['Periwinkle', 'Savoy', 'Neon', 'Peacock', 'Lizard', 'Jean', 'Marine',  'Navy', 'Fish', 'Azure', 'Water', 'Vermeer', 'Mystic', 'Sapphire', 'Ocean', 'Seashore', 'Blue'],
+    "Violet": ['Vivid', 'Violet', 'Beetle', 'Amethyst', 'Rose', 'Bordeaux', 'Velvet', 'Fuschia', 'Candy', 'Orchid', 'Lilac', 'Wisteria', 'Hyacinth'],
+    "Brown": ['Auburn', 'Burnt', 'Brown', 'Coffee', 'Caramel', 'Muffin', 'Chocolate', 'Oak', 'Bark', 'Chestnut', 'Mocha', 'Toffee', 'Cocoa', 'Timber'],
     "White": ['White', 'Quartz', 'Angel', 'Snow', 'Ivory', 'Light', 'Milk', 'Paper', 'Bone', 'Cloud', 'Cream', 'Shell', 'Steam', 'Ghost', 'Aether'],
     "Black": ['Black', 'Obsidian', 'Night', 'Black', 'Midnight', 'Oil', 'Ebony', 'Onyx', 'Darkness', 'Nebula', 'Chaos', 'Angst', 'Slate', 'Dark', 'Coal', 'Asphalt', 'Space', 'Soot'],
-    "Gray": ['Gray', 'Fog', 'Ash', 'Cloud', 'Storm', 'Steel', 'Lead', 'Smoke', 'Platinum', 'Flint', 'Sepia', 'Ashen'],
-    "Cyan": ['Cyan', 'Teal', 'Cerulean', 'Azure', 'Ice', 'Aqua', 'Frost', 'Sky'],
-    "Magenta": ['Magenta', 'Fuchsia', 'Violet', 'Purple', 'Pansy', 'Lavender', 'Purple', 'Indigo'],
-    "Rose": ['Rose', 'Coral', 'Salmon', 'Sunset', 'Flamingo', 'Peach', 'Apricot']
+    "Gray": ['Gray', 'Silver', 'Metal', 'Rock', 'Stone', 'Fog', 'Rat', 'Mouse', 'Ash', 'Cloud', 'Storm', 'Steel', 'Lead', 'Smoke', 'Platinum', 'Flint', 'Sepia', 'Ashen'],
+    "Cyan": ['Prisma', 'Celeste', 'Keppel', 'Myrtle', 'Turquoise', 'Verdigris', 'Robin', 'Chroma', 'Cyan', 'Teal', 'Cerulean', 'Azure', 'Ice', 'Aqua', 'Frost', 'Sky'],
+    "Magenta": ['Magenta', 'Amaranth', 'Fuchsia', 'Violet', 'Purple', 'Pansy', 'Lavender', 'Purple', 'Indigo', 'Razzle', 'Finn', 'Axolotl'],
+    "Rose": ['Rose', 'Coral', 'Salmon', 'Sunset', 'Flamingo', 'Peach', 'Apricot', 'Mauve', 'Lily', 'Carnation', 'Pale', 'Galah', 'Sakura', 'Pig']
 }
 # TODO: Separate "Vegetables" from "Fruits"
 fruit_pos_names = {
@@ -24,7 +24,7 @@ fruit_pos_names = {
     (8, 16): ["pear", "seeds", "durian", "nut", "mellow", "lychee"],
     (9, 16): ["leaf", "grass", "nettle", "petal", "lichen"],
     (10, 16): ["pumpkin", "tomato"],
-    (12, 16): ["grapes", "peas", "raisins", "cocoa"],
+    (12, 16): ["grapes", "pea", "raisin", "cocoa"],
     (13, 16): ["acorn"],
     (15, 16): ["orange", "lemon", "citrus", "lime"],
     (16, 16): ["potato"],
@@ -37,7 +37,6 @@ fruit_pos_names = {
     (23, 16): ["turnip", "beet", "root"],
     (24, 16): ["physalis"]
 }
-# TODO: Separate Trees into shapes, also add Shrubbery names
 tree_pos_names = {
     (0, 4): ["Oak", "Maple", "Beech", "Sycamore"],
     (1, 4): ["Elm", "Birch", "Hickory", "Plumeria", "Poplar"],
