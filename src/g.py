@@ -52,6 +52,8 @@ sdl_renderer.logical_size = logical_size
 atlas = tcod.render.SDLTilesetAtlas(sdl_renderer, global_tileset)
 console_render = tcod.render.SDLConsoleRender(atlas)
 
+handlers: List[BaseEventHandler] = []
+
 def render(handler: BaseEventHandler) -> None:
     """
     Global render function

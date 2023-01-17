@@ -366,7 +366,21 @@ def generate_noise(
     height_limits = [-1.1, -0.3, 0.3, 1.1]
     height_tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
     landscape = construct_landscape(height_limits, height_tiles, height_samples)
+
+    lake_map: np.ndarray = landscape == tile_types.water.get_array()
+    dilated_lake_map: np.ndarray = np.zeros(shape=lake_map.shape)
+    for x in range(len(lake_map)):
+        for y in range(len(lake_map[0])):
+            if lake_map[x, y]:
+                dilated_lake_map[x, y] = 2
+                continue
             
+            if lake_map[min(x+1, map_width-1), y] or lake_map[max(x-1, 0), y] or lake_map[x, min(y+1, map_height-1)] or lake_map[x, max(y-1, 0)]:
+                dilated_lake_map[x, y] = 2
+                continue
+    
+    landscape[dilated_lake_map.astype(bool)] = tile_types.water.get_array()
+
     # Add variations
     landscape = replace_variations(tile_types.water, landscape, map_width, map_height)
 

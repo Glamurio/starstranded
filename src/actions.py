@@ -54,7 +54,6 @@ class PickupAction(Action):
         super().perform()
 
         self.entity.inventory.loot(self.item)
-
         self.engine.message_log.add_message(f"You picked up {self.item.get_title()}!")
 
 

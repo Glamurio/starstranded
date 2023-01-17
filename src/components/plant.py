@@ -79,7 +79,7 @@ class Plant(Entity):
         mirrored = bool(random.getrandbits(1))
         clone.mirrored = mirrored
         game_map.entities.add(clone)
-        char = clone.char+1 if mirrored else clone.char
+        char = clone.char_right if mirrored else clone.char
         tile = game_map.tiles[x, y]
         tile['transparent'] = not clone.blocks_sight
         tile['walkable'] = not clone.blocks_movement

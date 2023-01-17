@@ -125,19 +125,40 @@ class EventHandler(BaseEventHandler):
     def __init__(self, engine: Engine):
         self.engine = engine
 
+    def reset_to_handler(self, handler: EventHandler):
+        print("reset")
+        g.handlers = [handler]
+
+    def resolve_handler(self):
+        handler = g.handlers.pop()
+        print("removed", handler)
+
+        if not len(g.handlers):
+            self.reset_to_handler(MainGameEventHandler(self.engine))
+            
+
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
         """Handle events for input handlers with an engine."""
         action_or_state = self.dispatch(event)
+
         if isinstance(action_or_state, BaseEventHandler):
-            return action_or_state
-        if self.handle_action(action_or_state):
+            g.handlers.append(action_or_state)
+            print(g.handlers)
+
+        if isinstance(action_or_state, actions.Action) and self.handle_action(action_or_state):
             # A valid action was performed.
             if not self.engine.player.is_alive:
                 # The player was killed sometime during or after the action.
                 return GameOverEventHandler(self.engine)
             elif self.engine.player.level.requires_level_up:
                 return LevelUpEventHandler(self.engine)
-            return MainGameEventHandler(self.engine)  # Return to the main handler.
+
+            if not len(g.handlers):
+                self.reset_to_handler(MainGameEventHandler(self.engine)) # Return to the main handler.
+
+        if len(g.handlers):
+            return g.handlers[-1]
+
         return self
 
     def handle_action(self, action: Optional[actions.Action]) -> bool:
@@ -200,7 +221,8 @@ class AskUserEventHandler(EventHandler):
 
         By default this returns to the main event handler.
         """
-        return MainGameEventHandler(self.engine)
+        self.resolve_handler()
+        print(g.handlers)
         
 
 class PickupHandler(AskUserEventHandler):
@@ -251,7 +273,8 @@ class PickupHandler(AskUserEventHandler):
             if hasattr(target, "material"):
                 return actions.PickupAction(self.engine.player, target)
 
-        return InventoryLootHandler(self.engine, targets, self.engine.player)
+        self.resolve_handler()
+        return InventoryLootHandler(self.engine, self.engine.player, entities=targets)
         
 
 
@@ -384,52 +407,46 @@ class InventoryEventHandler(AskUserEventHandler):
 
     console_x: int
     console_y: int
+    offset: int
 
-    pos_fix = 100
+    inventory: Inventory
     inventory_entries: List[Item] = []
-    container: Inventory = None
-    container_title: str = None
-    container_menu_i: int = None
 
     buttons = {}
     button_height: int = 2
     button_highlight: str = None
 
-    def __init__(self, engine: Engine, entities: List[Entity] = None):
+    def __init__(self, engine: Engine, inventory: Inventory = None, entities: List[Entity] = None, console: tcod.Console = None, offset: int = 0):
         super().__init__(engine)
-        entity: Entity = entities[0] if len(entities) == 1 else None
-        self.entity: Entity = entity
+        self.inventory = inventory
         self.entities = entities
+        self.offset = offset
+        self.console = console
 
     def on_render(self, console: tcod.Console) -> None:
         """
         Render an inventory menu, which displays the items in the inventory.
         """
         super().on_render(console)
-
-        if not self.entities:
-            return
-
-        mouse_x, mouse_y = self.engine.mouse_location
         
-        if self.entity == self.engine.player:
+        if self.inventory:
+            self.TITLE = f"{self.inventory.parent.get_title()}"
+
+        if self.inventory and self.inventory.parent == self.engine.player:
             self.TITLE = f"Inventory"
-        elif self.entity:
-            self.TITLE = f"{self.entity.get_title()}"
-        else:
-            self.TITLE = f"Objects at {(mouse_x, mouse_y)}"
-        self.console_x = g.screen_width_offset
+
+        self.console_x = g.screen_width_offset * (1 + self.offset)
         self.console_y = 1
 
-        inventory = None
-        if hasattr(self.entity, 'inventory'):
-            inventory = self.entity.inventory
+        if self.inventory:
             # Instantiate placeholders
-            inventory.instantiate_placeholders()
-
-            self.inventory_entries = inventory.items
+            self.inventory.instantiate_placeholders()
+            self.inventory_entries = self.inventory.items
         else:
             self.inventory_entries = self.entities
+
+        if not self.inventory and len(self.inventory_entries):
+            self.TITLE = f"Objects at {(self.inventory_entries[0].x, self.inventory_entries[0].y)}"
 
         self.menu_height = self.height_per_item * len(self.inventory_entries) + 2
 
@@ -449,67 +466,16 @@ class InventoryEventHandler(AskUserEventHandler):
             bg=color.black,
         )
 
-        if self.entity:
-            self.build_inventory(console, solo=True)
+        self.build_inventory(console)
 
-        if self.container and not self.container.is_empty():
-            self.container_title = self.container.parent.get_title()
-            container_items: List[Item] = self.container.items
-            container_x = self.console_x + self.menu_width
-            container_y = 1
-            console.draw_frame(
-                x=container_x,
-                y=container_y,
-                width=self.menu_width,
-                height=self.menu_height,
-                title=self.container_title,
-                clear=True,
-                fg=color.menu_text,
-                bg=color.black,
-            )
 
-            if not len(container_items):
-                console.print(container_x + 1, container_y + 2, "(Empty)")
-                return
-            
-            if len(container_items) > 0:
-                # self.TITLE = f"Objects at {(mouse_x, mouse_y)}"
-                for i, entity in enumerate(container_items):
-                    if entity == self.entity:
-                        continue
+    def build_inventory(self, console: tcod.Console):
+        if not len(self.inventory_entries):
+            console.print(self.console_x + 1, self.console_y + 2, "(Empty)")
+            return
 
-                    button_x = container_x + 2
-                    button_y = container_y + (i*2) + 2
-                    is_equipped = False
-                    entity_title = entity.get_title()
-                    button_string = entity_title
-
-                    if hasattr(entity, 'inventory'):
-                        button_string = f"{entity_title} >"
-                    if hasattr(entity, "equipped"):
-                        item: Equippable = entity
-                        is_equipped = item.equipped
-                        button_string = f"{entity_title} (E)" if is_equipped else entity_title
-
-                    new_i = self.pos_fix + i
-                    self.buttons[new_i]: dict = {
-                        'x': button_x + self.menu_width // 2 - 2,
-                        'y': button_y,
-                    }
-
-                    console.print(
-                        button_x,
-                        button_y,
-                        button_string,
-                        fg=color.menu_text_inverse if new_i == self.button_highlight else color.menu_text,
-                        bg=color.white if new_i == self.button_highlight else color.black,
-                    )
-                    
         if len(self.inventory_entries) > 0:
-            # self.TITLE = f"Objects at {(mouse_x, mouse_y)}"
             for i, entity in enumerate(self.inventory_entries):
-                if entity == self.entity:
-                    continue
 
                 button_x = self.console_x + 2
                 button_y = self.console_y + (i*2) + 2
@@ -537,73 +503,29 @@ class InventoryEventHandler(AskUserEventHandler):
                     bg=color.white if i == self.button_highlight else color.black,
                 )
 
-    def build_inventory(self, console: tcod.Console, solo=True):
-        if not len(self.inventory_entries):
-            console.print(self.console_x + 1, self.console_y + 2, "(Empty)")
-            return
-
-        if len(self.inventory_entries) > 0:
-            for i, item in enumerate(self.inventory_entries):
-                button_x = self.console_x + 2
-                button_y = self.console_y + (i*2) + 2
-                is_equipped = False
-                item_title = item.get_title()
-                button_string = item_title
-
-                if hasattr(item, "equipped"):
-                    item: Equippable = item
-                    is_equipped = item.equipped
-                    button_string = f"{item_title} (E)" if is_equipped else item_title
-                elif hasattr(item, 'inventory'):
-                    button_string = f"{item_title} >"
-
-                self.buttons[i]: dict = {
-                    'x': button_x + self.menu_width // 2 - 2,
-                    'y': button_y,
-                }
-
-                console.print(
-                    button_x,
-                    button_y,
-                    button_string,
-                    fg=color.menu_text_inverse if i == self.button_highlight else color.menu_text,
-                    bg=color.white if i == self.button_highlight else color.black,
-                )
-
     def on_entity_selected(self, entity: Entity) -> Optional[ActionOrHandler]:
         if hasattr(entity, "inventory"):
-            self.container = entity.inventory
-            print(entity.inventory)
-            
+            return InventoryLootHandler(self.engine, self.engine.player, entity.inventory, console=self.console, offset=1)
 
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[BaseEventHandler]:
-        entries = self.container.items if self.container else self.inventory_entries
-        menu_i = self.container_menu_i if self.container else self.menu_i
-
-        if menu_i:
-            menu_i = menu_i + self.pos_fix if self.container else menu_i
 
         if event.sym == tcod.event.K_UP:
-            menu_i = 0 if menu_i is None else menu_i
-            menu_i = menu_i-1 if menu_i > 0 else len(entries)-1
+            self.menu_i = 0 if self.menu_i is None else self.menu_i
+            self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.inventory_entries)-1
         elif event.sym == tcod.event.K_DOWN:
-            menu_i = -1 if menu_i is None else menu_i
-            menu_i = menu_i+1 if not menu_i == len(entries)-1 else 0
+            self.menu_i = -1 if self.menu_i is None else self.menu_i
+            self.menu_i = self.menu_i+1 if not self.menu_i == len(self.inventory_entries)-1 else 0
 
-        self.menu_i = menu_i if self.container else self.menu_i
-        self.container_menu_i = menu_i if self.container else self.container_menu_i
-
-        self.button_highlight = menu_i if menu_i is not None else self.button_highlight
+        self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
         
         if event.sym in CONFIRM_KEYS:
-            print(entries)
-            item: Item = entries[menu_i]
+            item: Item = self.inventory_entries[self.menu_i]
             if hasattr(item, "material"):
                 return self.on_item_selected(item)
 
-            entity: Entity = entries[menu_i]
+            entity: Entity = self.inventory_entries[self.menu_i]
             return self.on_entity_selected(entity)
 
         return super().ev_keydown(event)
@@ -616,22 +538,20 @@ class InventoryEventHandler(AskUserEventHandler):
         self, event: tcod.event.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """Left click confirms a selection."""
-        entries = self.container.items if self.container else self.inventory_entries
-        if event.button == tcod.event.BUTTON_LEFT:
-            for i, item in enumerate(entries):
-                new_i = i + self.pos_fix if self.container else i
-                if not self.button_highlight == new_i:
-                    continue
+        if not event.button == tcod.event.BUTTON_LEFT:
+            return self.resolve_handler()
 
-                if hasattr(item, "material"):
-                    item: Item = item
-                    return self.on_item_selected(item)
+        for i, item in enumerate(self.inventory_entries):
+            if not self.button_highlight == i:
+                continue
 
-                entity: Entity = item
-                return self.on_entity_selected(entity)
-            return self.on_exit()
-        else:
-            return self.on_exit()
+            if hasattr(item, "material"):
+                item: Item = item
+                return self.on_item_selected(item)
+
+            entity: Entity = item
+            return self.on_entity_selected(entity)
+        return self.resolve_handler()
 
     def ev_mousemotion(
         self, event: tcod.event.MouseMotion
@@ -652,12 +572,10 @@ class InventoryActivateHandler(InventoryEventHandler):
     TITLE = "Inventory"
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
-        if item:
-            if hasattr(item, 'equipped'):
-                return actions.EquipAction(self.entity, item)
-            else:
-                return item.activate(self.entity)
-        return None
+        if hasattr(item, 'equipped'):
+            return actions.EquipAction(self.inventory.parent, item)
+        else:
+            return item.activate(self.inventory.parent)
 
 
 class InventoryDropHandler(InventoryEventHandler):
@@ -667,15 +585,14 @@ class InventoryDropHandler(InventoryEventHandler):
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Drop this item."""
-        return actions.DropItem(self.entity, item)
+        return actions.DropItem(self.inventory.parent, item)
 
 
-# TODO: Create a semi-inventory for tiles to pick up items that share the space with other inventories
 class InventoryLootHandler(InventoryEventHandler):
     """Handle looting an item."""
 
-    def __init__(self, engine: Engine, entities: List[Entity], looter: Entity):
-        super().__init__(engine, entities)
+    def __init__(self, engine: Engine, looter: Entity, inventory: Inventory = None, entities: List[Entity] = [], console: tcod.Console = None, offset: int = 0):
+        super().__init__(engine, inventory, entities, console, offset)
 
         self.looter = looter
         self.entities = entities
@@ -684,9 +601,12 @@ class InventoryLootHandler(InventoryEventHandler):
         """
         Render an inventory menu, which displays the items in the inventory.
         """
-        super().on_render(console)
-
+        self.console = console if not self.console else self.console
+        super().on_render(self.console)
+    
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
+        if not self.inventory:
+            self.inventory_entries.remove(item)
         return actions.PickupAction(self.looter, item)
 
 class SelectIndexHandler(AskUserEventHandler):
@@ -856,9 +776,9 @@ class MainGameEventHandler(EventHandler):
         elif key == tcod.event.K_g:
             return PickupHandler(self.engine)
         elif key == tcod.event.K_i:
-            return InventoryActivateHandler(self.engine, [player])
+            return InventoryActivateHandler(self.engine, player.inventory)
         elif key == tcod.event.K_d:
-            return InventoryDropHandler(self.engine, [player])
+            return InventoryDropHandler(self.engine, player.inventory)
 
         elif key == tcod.event.K_c:
             return CharacterScreenEventHandler(self.engine)
@@ -882,7 +802,7 @@ class MainGameEventHandler(EventHandler):
                 item: Item = entity
                 return actions.PickupAction(unit, item)
                 
-            return InventoryLootHandler(self.engine, entities, unit)
+            return InventoryLootHandler(self.engine, unit, entities=entities)
 
 class GameOverEventHandler(EventHandler):
     def on_quit(self) -> None:
@@ -953,5 +873,5 @@ class HistoryViewer(EventHandler):
         elif event.sym == tcod.event.K_END:
             self.cursor = self.log_length - 1  # Move directly to the last message.
         else:  # Any other key moves back to the main game state.
-            return MainGameEventHandler(self.engine)
+            self.reset_to_handler(MainGameEventHandler(self.engine))
         return None

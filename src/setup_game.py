@@ -241,7 +241,9 @@ class CharacterCreation(input_handlers.BaseEventHandler):
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
         if event.sym == tcod.event.K_RETURN:
-            return input_handlers.MainGameEventHandler(new_game(self.PLAYER))
+            game_handler = input_handlers.MainGameEventHandler(new_game(self.PLAYER))
+            g.handlers = [game_handler]
+            return game_handler
         elif event.sym == tcod.event.K_BACKSPACE:
             name = self.PLAYER.name[:-1]
             self.PLAYER.set_name(name)
