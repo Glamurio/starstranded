@@ -132,7 +132,7 @@ class ActionWithDirection(Action):
     @property
     def blocking_entity(self) -> Optional[Entity]:
         """Return the blocking entity at this actions destination.."""
-        return self.engine.game_map.get_entity_at_location(*self.dest_xy, True)
+        return self.engine.game_map.get_entities_at_location(*self.dest_xy, True)
 
     def get_path(self, ai, x: int, y: int) -> List[Tuple]:
         return self.engine.get_path_to(ai, x, y)

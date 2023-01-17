@@ -32,9 +32,9 @@ fruit_pos_names = {
     (18, 16): ["berry"],
     (19, 16): ["banana"],
     (20, 16): ["sugar", "corn", "maize"],                        
-    (21, 16): ["turnip, beet", "root"],
+    (21, 16): ["turnip", "beet", "root"],
     (22, 16): ["herb", "algae", "leek", "onion"],
-    (23, 16): ["turnip, beet", "root"],
+    (23, 16): ["turnip", "beet", "root"],
     (24, 16): ["physalis"]
 }
 # TODO: Separate Trees into shapes, also add Shrubbery names

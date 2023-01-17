@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 class Consumable(Item):
     def __init__(self):
         Item.__init__(self)
+        self.object_type = "Consumable"
 
     def activate(self) -> None:
         """Invoke this items ability.
@@ -99,7 +100,7 @@ class HealthPotion(HealingConsumable):
         HealingConsumable.__init__(self)
         self.amount = 4
         self.color = (127, 0, 255)
-        self.species = "Health Potion"
+        self.object_type = "Health Potion"
         self.char = "!"
 
 
@@ -130,9 +131,9 @@ class FoodConsumable(Consumable):
 class Meat(FoodConsumable):
     def __init__(self, material: str, parent: Union[GameMap, Inventory]):
         FoodConsumable.__init__(self)
-        self.species = "Meat"
+        self.object_type = "Meat"
         self.sprite_pos = (1, 16)
-        char_info = map_codepoints(self.species, self.sprite_pos)
+        char_info = map_codepoints(self.object_type, self.sprite_pos)
         self.char = char_info["sprite"]
         self.hunger_amount = 10
         self.color = color.red
@@ -161,6 +162,13 @@ class Fruit(FoodConsumable):
         self.hunger_amount = 10
         self.thirst_amount = 10
         self.parent = parent
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
+        attributes = [] if exclude_attributes else self.attributes
+        material_type = f'{self.material} {self.species}' if self.material else self.species
+        description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
+        return f'{self.name}, the {description}' if self.name else description
 
 
 class FireballDamageConsumable(Consumable):

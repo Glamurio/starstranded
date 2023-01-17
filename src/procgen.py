@@ -24,7 +24,7 @@ max_items_by_floor = [
     (4, 8),
 ]
 max_monsters_by_floor = [
-    (1, 1),
+    (1, 10),
     (4, 12),
     (6, 18),
 ]
@@ -230,7 +230,7 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
     Returns changed `landscape`
     """
     tile_map = landscape == tile.get_array()
-    char_info = g.char_dict[tile.species]
+    char_info = g.char_dict[tile.object_type]
     default = char_info['sprite']
     for x, row in enumerate(tile_map):
         for y, is_tile in enumerate(row):

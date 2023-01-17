@@ -34,9 +34,9 @@ class Entity:
         self.color: Tuple[int, int, int] = (255, 255, 255)
         self.shade: Tuple[int, int, int] = (255, 255, 255)
         self.name: Optional[str] = None
+        self.object_type: str = "Entity"
         self.species: str = None
         self.attributes: List[str] = []
-        self.inventory: Inventory = None
         self.blocks_movement: bool = False
         self.blocks_sight: bool = False
         self.render_order: RenderOrder = RenderOrder.CORPSE
@@ -130,6 +130,7 @@ class Item(Entity):
     def __init__(self):
         Entity.__init__(self)
         self.render_order = RenderOrder.ITEM
+        self.object_type: str = "Item"
         self.material = None
 
     def activate(self, user: Unit) -> None:
@@ -142,6 +143,6 @@ class Item(Entity):
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        material_type = f'{self.material} {self.species}' if self.material else self.species
+        material_type = f'{self.material} {self.object_type}' if self.material else self.object_type
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         return f'{self.name}, the {description}' if self.name else description

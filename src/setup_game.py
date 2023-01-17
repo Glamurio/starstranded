@@ -43,8 +43,8 @@ def new_game(player: Unit) -> Engine:
     """Return a brand new game session as an Engine instance."""
     from world import GameWorld
     
-    map_width = 70
-    map_height = 40
+    map_width = g.screen_width - g.screen_width_offset
+    map_height = g.screen_height - g.screen_height_offset
 
     room_max_size = 10
     room_min_size = 6

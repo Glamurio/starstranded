@@ -36,7 +36,7 @@ class Tile(object):
         *,
         walkable: int = False,
         transparent: int = False,
-        kind: str = "Name",
+        object_type: str = "Name",
         variations: List[Tuple[int, int, str]] = [],
         sprite_pos: Tuple[int, int] = (0, 0),
         dark_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
@@ -46,13 +46,13 @@ class Tile(object):
         dtype: np.dtype = tile_dt,
     ):
         
-        self.species = kind
+        self.object_type = object_type
         self.walkable = walkable
         self.transparent = transparent
         self.sprite_pos = sprite_pos
 
         self.variations = variations
-        char_info = map_codepoints(self.species, sprite_pos, variations=variations)
+        char_info = map_codepoints(self.object_type, sprite_pos, variations=variations)
         self.codepoint = char_info["sprite"]
 
         self.dark_bg = dark_bg
@@ -73,7 +73,7 @@ class Tile(object):
 SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 floor = Tile(
-    kind="Floor",
+    object_type="Floor",
     walkable=True,
     transparent=True,
     sprite_pos=(0, 2),
@@ -96,7 +96,7 @@ water_variations = [
     (10, 32, "solo")
 ]
 water = Tile(
-    kind="Water",
+    object_type="Water",
     variations=water_variations,
     walkable=False,
     transparent=True,
@@ -108,7 +108,7 @@ water = Tile(
     dtype=tile_dt
 )
 roots = Tile(
-    kind="Roots",
+    object_type="Roots",
     walkable=True,
     transparent=True,
     sprite_pos=(9, 2),
@@ -120,7 +120,7 @@ roots = Tile(
 )
 wall_color = get_random_color()
 wall = Tile(
-    kind="Wall",
+    object_type="Wall",
     walkable=False,
     transparent=False,
     sprite_pos=(0, 3),
@@ -131,7 +131,7 @@ wall = Tile(
     dtype=tile_dt
 )
 down_stairs = Tile(
-    kind="Downstairs",
+    object_type="Downstairs",
     walkable=False,
     transparent=False,
     sprite_pos=(11, 0),

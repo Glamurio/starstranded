@@ -36,6 +36,9 @@ text_tileset = tcod.tileset.load_tilesheet(
 
 screen_width = 80
 screen_height = 45
+screen_width_offset = 10
+screen_height_offset = 5
+
 root_console = tcod.Console(screen_width, screen_height, order="F")
 logical_size = (root_console.width * global_tileset.tile_width, root_console.height * global_tileset.tile_height)
 sdl_window = tcod.sdl.video.new_window(

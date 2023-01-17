@@ -39,7 +39,7 @@ class Dagger(Equippable):
         self.char="/"
         self.color=(0, 191, 255)
         self.material="Bronze"
-        self.species="Dagger"
+        self.object_type="Dagger"
 
 
 class Sword(Equippable):
@@ -51,7 +51,7 @@ class Sword(Equippable):
         self.char="\\"
         self.color=(0, 191, 255)
         self.material="Iron"
-        self.species="Sword"
+        self.object_type="Sword"
 
 class LeatherArmor(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory]) -> None:
@@ -62,7 +62,7 @@ class LeatherArmor(Equippable):
         self.char="["
         self.color=color.brown
         self.material="Leather"
-        self.species="Armor"
+        self.object_type="Armor"
 
 class ChainMail(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory]) -> None:
@@ -73,4 +73,4 @@ class ChainMail(Equippable):
         self.char="]"
         self.color=(139, 69, 19)
         self.material="Iron"
-        self.species="Chain Mail"
+        self.object_type="Chain Mail"

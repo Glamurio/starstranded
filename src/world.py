@@ -72,9 +72,10 @@ class GameMap:
     def items(self) -> Iterator[Item]:
         yield from (entity for entity in self.entities if isinstance(entity, Item))
 
-    def get_entity_at_location(
+    def get_entities_at_location(
         self, location_x: int, location_y: int, check_block: bool = False
     ) -> Optional[Entity]:
+        entities = []
         for entity in self.entities:
             checker = entity.blocks_movement if check_block else True
             if (
@@ -82,9 +83,9 @@ class GameMap:
                 and entity.x == location_x
                 and entity.y == location_y
             ):
-                return entity
+                entities.append(entity)
 
-        return None
+        return entities
 
     def get_unit_at_location(self, x: int, y: int) -> Optional[Unit]:
         for unit in self.units:
@@ -174,7 +175,7 @@ class GameWorld:
     def pass_time(self, unit: Unit, time: int) -> int:
         """Passes game time in minutes after every player turn. Returns current game time"""
 
-        if unit.species == "Player":
+        if unit == self.engine.player:
             self.current_time += time
             if not self.current_time % 4:
                 unit.handle_hunger(-1)

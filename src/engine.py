@@ -128,7 +128,7 @@ class Engine:
         if not self.game_map.tiles["walkable"][dest_x, dest_y]:
             # Destination is blocked by a tile.
             return False
-        if self.game_map.get_entity_at_location(dest_x, dest_y, True):
+        if self.game_map.get_entities_at_location(dest_x, dest_y, True):
             # Destination is blocked by an entity.
             return False
 

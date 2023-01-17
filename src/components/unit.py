@@ -23,8 +23,10 @@ class Unit(Entity):
         self.radius = 8
         self.race: str = None
 
+        self.inventory: Inventory = Inventory(self, capacity=10)
         self.equipment = Equipment(self)
         self.level = Level(self)
+        self.object_type="Unit"
 
         self.max_hunger = 100
         self.hunger = self.max_hunger
@@ -71,7 +73,7 @@ class Unit(Entity):
         else:
             return 0
 
-    def die(self, killer: Unit) -> None:
+    def die(self, killer: Unit = None) -> None:
         if self is self.engine.player:
             death_message = "You died!"
             death_message_color = color.player_die
@@ -87,12 +89,14 @@ class Unit(Entity):
         self.is_alive = False
         self.render_order = RenderOrder.CORPSE
 
-        meat = Meat(self.species, self.inventory)
-        self.inventory.add(meat)
+        self.inventory.add(Meat(self.species, self.inventory))
+        self.inventory.add(Meat(self.species, self.inventory))
+
 
         self.engine.message_log.add_message(death_message, death_message_color)
 
-        killer.level.add_xp(self.level.xp_given)
+        if killer:
+            killer.level.add_xp(self.level.xp_given)
 
     def heal(self, amount: int) -> int:
         if self.hp == self.max_hp:
@@ -115,10 +119,24 @@ class Unit(Entity):
             self.die(entity)
 
     def handle_hunger(self, amount: int) -> None:
+        prev_hunger = self.hunger
         self.hunger = clamp((self.hunger + amount), 0, self.max_hunger)
+        if self.hunger == 0 and not self.engine.player:
+            if self == self.engine.player and prev_hunger > 0:
+                self.engine.message_log.add_message(
+                    f"{self.get_title()} is starving!", color.enemy_atk
+                )
+            self.handle_health(-1, self)
 
     def handle_thirst(self, amount: int) -> None:
+        prev_thirst = self.thirst
         self.thirst = clamp((self.thirst + amount), 0, self.max_thirst)
+        if self.thirst == 0 and not self.engine.player:
+            if self == self.engine.player and prev_thirst > 0:
+                self.engine.message_log.add_message(
+                    f"{self.get_title()} is severely dehydrated!", color.enemy_atk
+                )
+            self.handle_health(-1, self)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
@@ -138,8 +156,8 @@ class Player(Unit):
         self.color = (255, 255, 255)
         self.shade = (255, 255, 255)
         self.name="Ardan"
-        self.species="Player"
-        self.race="Human"
+        self.object_type="Player"
+        self.species="Human"
         self.ai=HostileAI(self)
         self.inventory=Inventory(self, capacity=10)
         self.level=Level(self, level_up_base=100, xp_given=50)
@@ -163,7 +181,6 @@ class Selenite(Unit):
         self.shade = get_gaussian_shade(self.color)
         self.name = name if name else generate_name("selenite")
         self.species="Selenite"
-        self.race="Selenite"
         self.ai=HostileAI(self)
         self.inventory=Inventory(self, capacity=10)
         self.level=Level(self, level_up_base=100, xp_given=35)
@@ -179,7 +196,7 @@ class Selenite(Unit):
 class Animal(Unit):
     def __init__(self, name: Optional[str] = None):
         Unit.__init__(self)
-        self.max_hp = 10
+        self.max_hp = 1
         self.hp = self.max_hp
         self.base_defense = 0
         self.base_power = 3
