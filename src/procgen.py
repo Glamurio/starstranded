@@ -230,7 +230,7 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
     Returns changed `landscape`
     """
     tile_map = landscape == tile.get_array()
-    char_info = g.char_dict[tile.object_type]
+    char_info: Dict = g.char_dict[tile.object_type]
     default = char_info['sprite']
     for x, row in enumerate(tile_map):
         for y, is_tile in enumerate(row):
@@ -244,37 +244,38 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
             cases = [case[3] for case in coords]
             match cases:
                 case [False, False, False, False]:
-                    tile_char = char_info['center_solo'] if char_info['center_solo'] else default
+                    tile_char = char_info.get('center_solo', default) 
                 case [False, False, False, True]:
-                    tile_char = char_info['north_solo'] if char_info['north_solo'] else default
+                    tile_char = char_info.get('north_solo', default)
                 case [False, False, True, False]:
-                    tile_char = char_info['south_solo'] if char_info['south_solo'] else default
+                    tile_char = char_info.get('south_solo', default)
                 case [False, False, True, True]:
-                    tile_char = char_info['east_west'] if char_info['east_west'] else default
+                    tile_char = char_info.get('east_west', default)
                 case [False, True, False, False]:
-                    tile_char = char_info['west_solo'] if char_info['west_solo'] else default
+                    tile_char = char_info.get('west_solo', default)
                 case [False, True, False, True]:
-                    tile_char = char_info['north_west'] if char_info['north_west'] else default
+                    tile_char = char_info.get('north_west', default)
                 case [False, True, True, False]:
-                    tile_char = char_info['south_west'] if char_info['south_west'] else default
+                    tile_char = char_info.get('south_west', default)
                 case [False, True, True, True]:
-                    tile_char = char_info['west'] if char_info['west'] else default
+                    tile_char = char_info.get('west', default)
                 case [True, False, False, False]:
-                    tile_char = char_info['east_solo'] if char_info['east_solo'] else default
+                    tile_char = char_info.get('east_solo', default)
                 case [True, False, False, True]:
-                    tile_char = char_info['north_east'] if char_info['north_east'] else default
+                    tile_char = char_info.get('north_east', default)
                 case [True, False, True, False]:
-                    tile_char = char_info['south_east'] if char_info['south_east'] else default
+                    tile_char = char_info.get('south_east', default)
                 case [True, False, True, True]:
-                    tile_char = char_info['east'] if char_info['east'] else default
+                    tile_char = char_info.get('east', default)
                 case [True, True, False, False]:
-                    tile_char = char_info['north_south'] if char_info['north_south'] else default
+                    tile_char = char_info.get('north_south', default)
                 case [True, True, False, True]:
-                    tile_char = char_info['north'] if char_info['north'] else default
+                    tile_char = char_info.get('north', default)
                 case [True, True, True, False]:
-                    tile_char = char_info['south'] if char_info['south'] else default
+                    tile_char = char_info.get('south', default)
                 case [True, True, True, True]:
-                    tile_char = char_info['wave'] if char_info['wave'] and bool(random.getrandbits(1)) else default
+                    center = char_info.get('center', None)
+                    tile_char = center if center and bool(random.getrandbits(1)) else default
 
             tile_dark = (tile_char, tile.dark_fg, tile.dark_bg)
             tile_light = (tile_char, tile.light_fg, tile.light_bg)
@@ -383,6 +384,7 @@ def generate_noise(
 
     # Add variations
     landscape = replace_variations(tile_types.water, landscape, map_width, map_height)
+    landscape = replace_variations(tile_types.wall, landscape, map_width, map_height)
 
     # Add vegetation
     landscape = plant_trees(vegetation_samples, landscape)

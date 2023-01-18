@@ -88,7 +88,7 @@ water_variations = [
     (1, 32, "north"),
     (2, 32, "north_east"),
     (3, 32, "west"),
-    (4, 32, "wave"),
+    (4, 32, "center"),
     (5, 32, "east"),
     (6, 32, "south_west"),
     (7, 32, "south"),
@@ -125,8 +125,21 @@ roots = Tile(
     dtype=tile_dt
 )
 wall_color = get_random_color()
+wall_variations = [
+    (0, 8, "north_west"),
+    (1, 3, "north"),
+    (1, 8, "north_east"),
+    (1, 3, "west"),
+    (1, 3, "center"),
+    (1, 3, "east"),
+    (3, 8, "south_west"),
+    (1, 3, "south"),
+    (2, 8, "south_east"),
+    (5, 8, "center_solo"),
+]
 wall = Tile(
     object_type="Wall",
+    variations=wall_variations,
     walkable=False,
     transparent=False,
     sprite_pos=(0, 3),
