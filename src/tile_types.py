@@ -93,7 +93,13 @@ water_variations = [
     (6, 32, "south_west"),
     (7, 32, "south"),
     (8, 32, "south_east"),
-    (10, 32, "solo")
+    (10, 32, "center_solo"),
+    (11, 32, "east_west"),
+    (12, 32, "north_south"),
+    (13, 32, "north_solo"),
+    (14, 32, "east_solo"),
+    (15, 32, "south_solo"),
+    (16, 32, "west_solo")
 ]
 water = Tile(
     object_type="Water",

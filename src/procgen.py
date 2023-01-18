@@ -244,15 +244,15 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
             cases = [case[3] for case in coords]
             match cases:
                 case [False, False, False, False]:
-                    tile_char = char_info['solo'] if char_info['solo'] else default
+                    tile_char = char_info['center_solo'] if char_info['center_solo'] else default
                 case [False, False, False, True]:
-                    tile_char = char_info['north'] if char_info['north'] else default
+                    tile_char = char_info['north_solo'] if char_info['north_solo'] else default
                 case [False, False, True, False]:
-                    tile_char = char_info['south'] if char_info['south'] else default
+                    tile_char = char_info['south_solo'] if char_info['south_solo'] else default
                 case [False, False, True, True]:
-                    tile_char = default
+                    tile_char = char_info['east_west'] if char_info['east_west'] else default
                 case [False, True, False, False]:
-                    tile_char = char_info['west'] if char_info['west'] else default
+                    tile_char = char_info['west_solo'] if char_info['west_solo'] else default
                 case [False, True, False, True]:
                     tile_char = char_info['north_west'] if char_info['north_west'] else default
                 case [False, True, True, False]:
@@ -260,7 +260,7 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
                 case [False, True, True, True]:
                     tile_char = char_info['west'] if char_info['west'] else default
                 case [True, False, False, False]:
-                    tile_char = char_info['east'] if char_info['east'] else default
+                    tile_char = char_info['east_solo'] if char_info['east_solo'] else default
                 case [True, False, False, True]:
                     tile_char = char_info['north_east'] if char_info['north_east'] else default
                 case [True, False, True, False]:
@@ -268,7 +268,7 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
                 case [True, False, True, True]:
                     tile_char = char_info['east'] if char_info['east'] else default
                 case [True, True, False, False]:
-                    tile_char = default
+                    tile_char = char_info['north_south'] if char_info['north_south'] else default
                 case [True, True, False, True]:
                     tile_char = char_info['north'] if char_info['north'] else default
                 case [True, True, True, False]:
