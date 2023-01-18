@@ -4,6 +4,7 @@ import color
 from entity import Item
 from equipment_types import EquipmentType
 from typing import TYPE_CHECKING, Union
+from utilities import map_codepoints
 
 if TYPE_CHECKING:
     from components.unit import Unit
@@ -36,10 +37,12 @@ class Dagger(Equippable):
         self.parent = parent
         self.equipment_type = EquipmentType.WEAPON
         self.power_bonus = 2
-        self.char="/"
-        self.color=(0, 191, 255)
         self.material="Bronze"
         self.object_type="Dagger"
+        self.sprite_pos = (44, 21)
+        char_info = map_codepoints(self.object_type, self.sprite_pos)
+        self.char = char_info["sprite"]
+        self.color=(0, 191, 255)
 
 
 class Sword(Equippable):
@@ -48,10 +51,10 @@ class Sword(Equippable):
         self.parent = parent
         self.equipment_type = EquipmentType.WEAPON
         self.power_bonus = 4
-        self.char="\\"
-        self.color=(0, 191, 255)
         self.material="Iron"
         self.object_type="Sword"
+        self.char="\\"
+        self.color=(0, 191, 255)
 
 class LeatherArmor(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory]) -> None:
@@ -59,10 +62,12 @@ class LeatherArmor(Equippable):
         self.parent = parent
         self.equipment_type = EquipmentType.ARMOR
         self.defense_bonus = 1
-        self.char="["
-        self.color=color.brown
         self.material="Leather"
         self.object_type="Armor"
+        self.sprite_pos = (31, 23)
+        char_info = map_codepoints(self.object_type, self.sprite_pos)
+        self.char = char_info["sprite"]
+        self.color=color.brown
 
 class ChainMail(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory]) -> None:
@@ -70,7 +75,7 @@ class ChainMail(Equippable):
         self.parent = parent
         self.equipment_type = EquipmentType.ARMOR
         self.defense_bonus = 3
-        self.char="]"
-        self.color=(139, 69, 19)
         self.material="Iron"
         self.object_type="Chain Mail"
+        self.char="]"
+        self.color=(139, 69, 19)

@@ -28,6 +28,12 @@ class Inventory(BaseComponent):
         """
         Adds an item to the inventory and removes it from the original location.
         """
+        self.contents = self.items + self.placeholders
+        if len(self.contents) >= self.capacity:
+            if self.parent == self.engine.player:
+                raise exceptions.Impossible("Your Inventory is full.")
+            return
+
         if isinstance(item.parent, GameMap):
             self.game_map.entities.remove(item)
         elif isinstance(item.parent, Inventory):

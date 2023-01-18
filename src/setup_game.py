@@ -28,12 +28,12 @@ def create_player() -> Unit:
     import components.equippable as equip
 
     player = Player()
-    dagger = equip.Dagger(player.inventory)
-    leather_armor = equip.LeatherArmor(player.inventory)
 
+    dagger = equip.Dagger(player.inventory)
     player.inventory.add(dagger)
     player.equipment.toggle_equip(dagger, add_message=False)
 
+    leather_armor = equip.LeatherArmor(player.inventory)
     player.inventory.add(leather_armor)
     player.equipment.toggle_equip(leather_armor, add_message=False)
 

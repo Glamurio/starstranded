@@ -51,10 +51,34 @@ class PickupAction(Action):
         self.item = item
 
     def perform(self) -> None:
-        super().perform()
+        # super().perform()
 
         self.entity.inventory.loot(self.item)
         self.engine.message_log.add_message(f"You picked up {self.item.get_title()}!")
+
+class MassPickupAction(Action):
+    """Pickup a list of items and add it to the inventory, if there is room for it."""
+
+    def __init__(self, entity: Unit, items: List[Item]):
+        super().__init__(entity)
+        self.items = items
+
+    # TODO: Rework so that it takes more time per item, also fix multi-pickup
+    def perform(self) -> None:
+        # item = self.items.pop()
+        # if not item:
+        #     return False
+        # if not hasattr(item, 'inventory'):
+        #     return False
+        # self.entity.inventory.loot(item)
+        # self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
+        # return True
+        for item in reversed(self.items):
+            if hasattr(item, 'inventory'):
+                continue
+            self.entity.inventory.loot(item)
+            self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
+            
 
 
 class ItemAction(Action):

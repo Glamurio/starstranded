@@ -411,6 +411,7 @@ class InventoryEventHandler(AskUserEventHandler):
 
     inventory: Inventory
     inventory_entries: List[Item] = []
+    entries_amount: int = 0
 
     buttons = {}
     button_height: int = 2
@@ -430,16 +431,24 @@ class InventoryEventHandler(AskUserEventHandler):
         """
         Render an inventory menu, which displays the items in the inventory.
         """
-        super().on_render(console)
+        is_player = False
+        prev_index = g.handlers.index(self) - 1
+        parent = g.handlers[prev_index] if prev_index >= 0 else None
+
+        if parent: 
+            parent.on_render(console)
+        else:
+            super().on_render(console)
         
         if self.inventory:
             self.TITLE = f"{self.inventory.parent.get_title()}"
 
         if self.inventory and self.inventory.parent == self.engine.player:
+            is_player = True
             self.TITLE = f"Inventory"
 
         self.console_x = g.screen_width_offset * (1 + self.offset)
-        self.console_y = 1
+        self.console_y = 1 + self.offset
 
         if self.inventory:
             # Instantiate placeholders
@@ -447,11 +456,12 @@ class InventoryEventHandler(AskUserEventHandler):
             self.inventory_entries = self.inventory.items
         else:
             self.inventory_entries = self.entities
+        self.entries_amount = len(self.inventory_entries)
 
-        if not self.inventory and len(self.inventory_entries):
+        if not self.inventory and self.entries_amount:
             self.TITLE = f"Objects at {(self.inventory_entries[0].x, self.inventory_entries[0].y)}"
 
-        self.menu_height = self.height_per_item * len(self.inventory_entries) + 2
+        self.menu_height = self.height_per_item * self.entries_amount + 6
 
         if self.menu_height <= 4:
             self.menu_height = 4
@@ -466,24 +476,20 @@ class InventoryEventHandler(AskUserEventHandler):
             title=self.TITLE,
             clear=True,
             fg=color.menu_text,
-            bg=color.black,
+            bg=color.nigh_black,
         )
 
-        self.build_inventory(console)
-
-
-    def build_inventory(self, console: tcod.Console):
-        if not len(self.inventory_entries):
+        if not self.entries_amount:
             console.print(self.console_x + 1, self.console_y + 2, "(Empty)")
             return
 
-        if len(self.inventory_entries) > 0:
+        if self.entries_amount > 0:
             for i, entity in enumerate(self.inventory_entries):
 
                 button_x = self.console_x + 2
                 button_y = self.console_y + (i*2) + 2
                 is_equipped = False
-                entity_title = entity.get_title()
+                entity_title = f"{entity.get_title()}"
                 button_string = entity_title
 
                 if hasattr(entity, 'inventory'):
@@ -491,7 +497,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 if hasattr(entity, "equipped"):
                     item: Equippable = entity
                     is_equipped = item.equipped
-                    button_string = f"{entity_title} (E)" if is_equipped else entity_title
+                    button_string = f"{entity_title} (E)" if is_equipped else button_string
 
                 self.buttons[i]: dict = {
                     'x': button_x + self.menu_width // 2 - 2,
@@ -501,9 +507,34 @@ class InventoryEventHandler(AskUserEventHandler):
                 console.print(
                     button_x,
                     button_y,
+                    f"{chr(entity.char)} ",
+                    fg=entity.color,
+                    bg=color.nigh_black,
+                )
+                console.print(
+                    button_x + 2,
+                    button_y,
                     button_string,
                     fg=color.menu_text_inverse if i == self.button_highlight else color.menu_text,
-                    bg=color.white if i == self.button_highlight else color.black,
+                    bg=color.white if i == self.button_highlight else color.nigh_black,
+                )
+
+            if not is_player:
+                grab_i = self.entries_amount + 1
+                button_x = self.console_x + 2
+                button_y = self.console_y + (grab_i*2) + 2
+
+                self.buttons[grab_i]: dict = {
+                    'x': button_x + self.menu_width // 2 - 2,
+                    'y': button_y,
+                }
+
+                console.print(
+                    button_x,
+                    button_y,
+                    "g) Grab All",
+                    fg=color.menu_text_inverse if grab_i == self.button_highlight else color.menu_text,
+                    bg=color.white if grab_i == self.button_highlight else color.nigh_black,
                 )
 
     def on_entity_selected(self, entity: Entity) -> Optional[ActionOrHandler]:
@@ -516,12 +547,15 @@ class InventoryEventHandler(AskUserEventHandler):
 
         if event.sym == tcod.event.K_UP:
             self.menu_i = 0 if self.menu_i is None else self.menu_i
-            self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.inventory_entries)-1
+            self.menu_i = self.menu_i-1 if self.menu_i > 0 else self.entries_amount
         elif event.sym == tcod.event.K_DOWN:
             self.menu_i = -1 if self.menu_i is None else self.menu_i
-            self.menu_i = self.menu_i+1 if not self.menu_i == len(self.inventory_entries)-1 else 0
+            self.menu_i = self.menu_i+1 if not self.menu_i == self.entries_amount else 0
 
         self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
+
+        if event.sym == tcod.event.K_g:
+            return self.on_items_selected(self.inventory_entries)
         
         if event.sym in CONFIRM_KEYS:
             item: Item = self.inventory_entries[self.menu_i]
@@ -536,6 +570,7 @@ class InventoryEventHandler(AskUserEventHandler):
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Called when the user selects a valid item."""
         raise NotImplementedError()
+                
 
     def ev_mousebuttondown(
         self, event: tcod.event.MouseButtonDown
@@ -611,6 +646,13 @@ class InventoryLootHandler(InventoryEventHandler):
         if not self.inventory:
             self.inventory_entries.remove(item)
         return actions.PickupAction(self.looter, item)
+
+    def on_items_selected(self, items: List[Item]) -> Optional[ActionOrHandler]:
+        """Called when the user attempts to grab multiple items at once."""
+        if not self.inventory:
+            for item in reversed(items):
+                self.inventory_entries.remove(item)
+        return actions.MassPickupAction(self.looter, items)
 
 class SelectIndexHandler(AskUserEventHandler):
     """Handles asking the user for an index on the map."""
