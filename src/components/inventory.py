@@ -29,7 +29,7 @@ class Inventory(BaseComponent):
         Adds an item to the inventory and removes it from the original location.
         """
         self.contents = self.items + self.placeholders
-        if len(self.contents) >= self.capacity:
+        if self.is_full():
             if self.parent == self.engine.player:
                 raise exceptions.Impossible("Your Inventory is full.")
             return
@@ -42,20 +42,24 @@ class Inventory(BaseComponent):
         self.add(item)
         # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
 
-    def drop(self, item: Item) -> None:
+    def drop(self, item: Item, target_xy: tuple[int, int]) -> None:
         """
-        Removes an item from the inventory and restores it to the game map, at the unit's current location.
+        Removes an item from the inventory and restores it to the game map, at the given location.
+
+        If no location is given, defaults to unit's location.
         """
         if item in self.items:
             self.items.remove(item)
-        item.place(self.parent.x, self.parent.y, self.game_map)
+
+        tile = target_xy if target_xy else (self.parent.x, self.parent.y)
+        item.place(tile[0], tile[1], self.game_map)
         self.contents = self.items + self.placeholders
         
         self.engine.message_log.add_message(f"You dropped {item.get_title()}.")
 
     def add(self, item: Item, placeholder: bool = False) -> None:
         self.contents = self.items + self.placeholders
-        if len(self.contents) >= self.capacity:
+        if self.is_full():
             if self.parent == self.engine.player:
                 raise exceptions.Impossible("Your Inventory is full.")
             return
@@ -83,3 +87,6 @@ class Inventory(BaseComponent):
 
     def is_empty(self):
         return not bool(len(self.contents))
+
+    def is_full(self):
+        return len(self.contents) >= self.capacity

@@ -198,8 +198,7 @@ class PassiveAI(BaseAI):
             dest_x, dest_y = self.path[-1]
             return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
 
-        # Run away from the closest unit that'
-        # s not own species
+        # Run away from the closest unit that's not own species
         for unit in self.engine.game_map.units:
             if unit.species == self.entity.species:
                 continue

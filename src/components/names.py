@@ -24,7 +24,7 @@ fruit_pos_names = {
     (8, 16): ["pear", "seeds", "durian", "nut", "mellow", "lychee"],
     (9, 16): ["leaf", "grass", "nettle", "petal", "lichen"],
     (10, 16): ["pumpkin", "tomato"],
-    (12, 16): ["grapes", "pea", "raisin", "cocoa"],
+    (12, 16): ["grape", "pea", "raisin", "cocoa"],
     (13, 16): ["acorn"],
     (15, 16): ["orange", "lemon", "citrus", "lime"],
     (16, 16): ["potato"],

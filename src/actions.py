@@ -82,11 +82,11 @@ class MassPickupAction(Action):
 
 
 class ItemAction(Action):
-    def __init__(
-        self, entity: Unit, item: Item, target_xy: Optional[Tuple[int, int]] = None
-    ):
+    def __init__(self, entity: Unit, item: Item, target_xy: Optional[Tuple[int, int]] = None):
         super().__init__(entity)
+        self.action = 'activate'
         self.item = item
+        
         if not target_xy:
             target_xy = entity.x, entity.y
         self.target_xy = target_xy
@@ -95,18 +95,22 @@ class ItemAction(Action):
         """Invoke the items ability, this action will be given to provide context."""
         super().perform()
 
-        if self.item:
+        if self.item and self.action == 'activate':
             self.item.activate(self.entity)
 
 
 class DropItem(ItemAction):
+    def __init__(self, entity: Unit, item: Item, target_xy: Optional[Tuple[int, int]] = None):
+        super().__init__(entity, item, target_xy)
+        self.action = 'drop'
+
     def perform(self) -> None:
         super().perform()
 
         if hasattr(self.item, 'equipped') and self.item.equipped:
             self.entity.equipment.toggle_equip(self.item)
 
-        self.entity.inventory.drop(self.item)
+        self.entity.inventory.drop(self.item, self.target_xy)
 
 
 class EquipAction(Action):

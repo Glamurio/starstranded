@@ -155,7 +155,7 @@ def get_random_color(threshold: int = 30) -> Tuple(int, int, int):
 def get_shade(color: tuple[float, float, float], factor: float = -0.5):
     """Get shade reduced or increased by `factor`"""
     N = 1 + factor
-    shade = (color[0] * N, color[1] * N, color[2] * N)
+    shade = (int(color[0] * N), int(color[1] * N), int(color[2] * N))
     return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))
 
 

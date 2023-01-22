@@ -95,7 +95,9 @@ class Engine:
         return abs(p1[0] - p1[0]) + abs(p2[1] - p2[1])
 
     def get_adjacent_tiles(self, x: int, y: int):
-        return [(x-1, y-1), (x, y-1), (x+1, y-1), (x-1, y), (x+1, y), (x-1, y+1), (x, y+1), (x+1, y+1)]
+        """Returns adjacent tiles to coordinates, so long as they are within map bounds."""
+        adjacent_tiles = [(x-1, y-1), (x, y-1), (x+1, y-1), (x-1, y), (x+1, y), (x-1, y+1), (x, y+1), (x+1, y+1)]
+        return [tile for tile in adjacent_tiles if self.game_map.in_bounds(tile[0], tile[1])]
 
     def get_closest_tile(self, coordinates: List[tuple[int, int, int]], x: int , y: int):
         closest_coordinate = coordinates[0]

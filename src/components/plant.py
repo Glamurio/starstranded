@@ -11,6 +11,8 @@ from components.names import fruit_pos_names, color_names, tree_pos_names, shrub
 from components.consumable import Fruit
 from components.inventory import Inventory
 from components.ai import PlantAI
+from crafting import Branch
+
 from tile_types import roots
 
 from utilities import map_codepoints, clamp, get_random_color, get_gaussian_shade, get_color_group
@@ -18,6 +20,7 @@ from utilities import map_codepoints, clamp, get_random_color, get_gaussian_shad
 if TYPE_CHECKING:
     from world import GameMap
     from components.unit import Unit
+    from entity import Item
 
 T = TypeVar("T", bound="Entity")
 
@@ -67,7 +70,27 @@ class Plant(Entity):
         self.growth += 1
         if self.growth > self.avg_cycle:
             self.growth = 0
-            self.inventory.add(self.fruit(self.inventory, self.fruit_factory))
+
+            # Drop some branches or fruit on the floor
+            if self.inventory.is_full():
+                item: Item = random.choice(self.inventory.items)
+                adjacent_tiles = self.engine.get_adjacent_tiles(self.x, self.y)
+
+                # Shuffle, so it doesn't drop everything on the same tile
+                random.shuffle(adjacent_tiles)
+
+                for tile in adjacent_tiles:
+                    blocking_entity = self.engine.game_map.get_entities_at_location(tile[0], tile[1], True)
+
+                    if blocking_entity:
+                        continue
+                    
+                    self.inventory.drop(item, tile)
+                    break
+                
+            self.inventory.add(Branch(self))
+            if self.fruit:
+                self.inventory.add(self.fruit(self.inventory, self.fruit_factory))
 
     def spawn(self: T, game_map: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
