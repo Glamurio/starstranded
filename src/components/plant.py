@@ -80,10 +80,14 @@ class Plant(Entity):
                 random.shuffle(adjacent_tiles)
 
                 for tile in adjacent_tiles:
-                    blocking_entity = self.engine.game_map.get_entities_at_location(tile[0], tile[1], True)
+                    entities: list[Entity] = self.engine.game_map.get_entities_at_location(tile[0], tile[1])
 
-                    if blocking_entity:
+                    if len(entities) >= 3:
                         continue
+
+                    for entity in entities:
+                        if entity.blocks_movement:
+                            return
                     
                     self.inventory.drop(item, tile)
                     break
@@ -98,7 +102,7 @@ class Plant(Entity):
         clone.x = x
         clone.y = y
         clone.parent = game_map
-        clone.shade = get_gaussian_shade(clone.color)#
+        clone.shade = get_gaussian_shade(clone.color)
         mirrored = bool(random.getrandbits(1))
         clone.mirrored = mirrored
         game_map.entities.add(clone)

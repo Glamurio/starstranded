@@ -9,6 +9,7 @@ import traceback
 from typing import TYPE_CHECKING, Optional
 
 import tcod
+from tcod import libtcodpy
 
 import color
 from engine import Engine
@@ -112,7 +113,7 @@ class MainMenu(input_handlers.BaseEventHandler):
             # Quit
             raise SystemExit()
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         """Render the main menu on a background image."""
         self.console_height = console.height
         self.console_width = console.width
@@ -123,14 +124,14 @@ class MainMenu(input_handlers.BaseEventHandler):
             console.height // 2 - 4,
             "Starstranded",
             fg=color.menu_title,
-            alignment=tcod.CENTER,
+            alignment=libtcodpy.CENTER,
         )
         console.print(
             console.width // 2,
             console.height - 2,
             "By Ryou",
             fg=color.menu_title,
-            alignment=tcod.CENTER,
+            alignment=libtcodpy.CENTER,
         )
 
         # Iterate over menu buttons, save their position for highlighting
@@ -150,20 +151,20 @@ class MainMenu(input_handlers.BaseEventHandler):
                 text.center(self.menu_width),
                 fg=color.menu_text_inverse if text == self.button_highlight else color.menu_text,
                 bg=color.white if text == self.button_highlight else color.black,
-                alignment=tcod.CENTER,
-                bg_blend=tcod.BKGND_ALPHA(64),
+                alignment=libtcodpy.CENTER,
+                bg_blend=libtcodpy.BKGND_ALPHA(64),
             )
 
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
 
-        if event.sym == tcod.event.K_UP:
+        if event.sym == tcod.event.KeySym.UP:
             if not self.button_highlight:
                 self.menu_i = 0
             else:
                 self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.button_names)-1
-        elif event.sym == tcod.event.K_DOWN:
+        elif event.sym == tcod.event.KeySym.DOWN:
             if not self.button_highlight:
                 self.menu_i = 0
             else:
@@ -173,7 +174,7 @@ class MainMenu(input_handlers.BaseEventHandler):
         if event.sym in input_handlers.CONFIRM_KEYS:
             return self.resolve_menu(event)
 
-        if event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
+        if event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
             raise SystemExit()
 
         return None
@@ -207,7 +208,7 @@ class CharacterCreation(input_handlers.BaseEventHandler):
     PLAYER = create_player()
     MAX_CHARS = 16
     
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         from utilities import generate_name
 
         width = len(self.TITLE) + 4
@@ -240,13 +241,13 @@ class CharacterCreation(input_handlers.BaseEventHandler):
             self.PLAYER.set_name(name)
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym == tcod.event.K_RETURN:
+        if event.sym == tcod.event.KeySym.RETURN:
             game_handler = input_handlers.MainGameEventHandler(new_game(self.PLAYER))
             g.handlers = [game_handler]
             return game_handler
-        elif event.sym == tcod.event.K_BACKSPACE:
+        elif event.sym == tcod.event.KeySym.BACKSPACE:
             name = self.PLAYER.name[:-1]
             self.PLAYER.set_name(name)
-        elif event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
+        elif event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
             return MainMenu()
             

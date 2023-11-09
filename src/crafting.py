@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from components.inventory import Inventory
 from components.consumable import Consumable
 
-from utilities import map_codepoints, get_shade
+from utilities import map_codepoints, get_shade, get_gaussian_shade
 
 if TYPE_CHECKING:
     from components.plant import Tree
@@ -39,4 +39,4 @@ class Branch(CraftingConsumable):
         char_info = map_codepoints(self.object_type, self.sprite_pos)
         self.char = char_info["sprite"]
         self.color = get_shade(parent.color)
-        # TODO: Fix color being lost on drop
+        self.shade = get_gaussian_shade(self.color, 10)

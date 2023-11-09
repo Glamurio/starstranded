@@ -6,6 +6,7 @@ import g
 
 from typing import TYPE_CHECKING, List, Tuple
 import tcod
+from tcod import libtcodpy
 import numpy as np # type: ignore
 
 from tcod.console import Console
@@ -64,7 +65,7 @@ class Engine:
 
         # Set up the cost so that unexplored tiles do not factor in the terrain that they have
         # This prevents the player from knowing if an unexplored terrain is walkable or not
-        cost = np.logical_or(walkable, unexplored, dtype=np.int8).astype(int)
+        cost = np.logical_or(walkable, unexplored).astype(int)
 
         for entity in ai.entity.game_map.entities:
             # Check that an entity blocks movement and the cost isn't zero (blocking.)
@@ -142,7 +143,7 @@ class Engine:
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
             radius=100,
-            algorithm=tcod.FOV_SYMMETRIC_SHADOWCAST
+            algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
         )
         # If a tile is "visible" it should be added to "explored".
         self.game_map.explored |= self.game_map.visible
