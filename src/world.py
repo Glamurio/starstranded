@@ -6,7 +6,7 @@ import random
 from typing import Iterable, Iterator, Optional, TYPE_CHECKING
 
 import numpy as np  # type: ignore
-from tcod.console import Console
+from tcod import libtcodpy
 
 from entity import Item
 import tile_types
@@ -98,7 +98,7 @@ class GameMap:
         """Return True if x and y are inside of the bounds of this map."""
         return 0 <= x < self.width and 0 <= y < self.height
 
-    def render(self, console: Console) -> None:
+    def render(self, console: libtcodpy.tcod.console.Console) -> None:
         """
         Renders the map.
 

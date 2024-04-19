@@ -5,12 +5,8 @@ import pickle
 import g
 
 from typing import TYPE_CHECKING, List, Tuple
-import tcod
 from tcod import libtcodpy
 import numpy as np # type: ignore
-
-from tcod.console import Console
-from tcod.map import compute_fov
 
 import exceptions
 from message_log import MessageLog
@@ -30,7 +26,7 @@ class Engine:
 
     def __init__(self, player: Unit):
         self.message_log = MessageLog()
-        self.mouse_location = tcod.event.Point(0, 0)
+        self.mouse_location = libtcodpy.tcod.event.Point(0, 0)
         self.player = player
 
 
@@ -77,8 +73,8 @@ class Engine:
                 cost[entity.x, entity.y] += 10
 
         # Create a graph from the cost array and pass that graph to a new pathfinder.
-        graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
-        pathfinder = tcod.path.Pathfinder(graph)
+        graph = libtcodpy.tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
+        pathfinder = libtcodpy.tcod.path.Pathfinder(graph)
 
         pathfinder.add_root((ai.entity.x, ai.entity.y))  # Start position.
 
@@ -113,10 +109,10 @@ class Engine:
         return closest_coordinate
 
     def can_see(self, x1, y1, x2, y2, radius: int = 8):
-        if self.distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius-2:
+        if self.distance(libtcodpy.tcod.event.Point(x1, y1), libtcodpy.tcod.event.Point(x2, y2)) > radius-2:
             return False
 
-        for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
+        for x, y in libtcodpy.tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
             if not self.game_map.tiles["transparent"][x][y]:
                 return False
 
@@ -139,7 +135,7 @@ class Engine:
 
     def update_fov(self) -> None:
         """Recompute the visible area based on the players point of view."""
-        self.game_map.visible[:] = compute_fov(
+        self.game_map.visible[:] = libtcodpy.tcod.map.compute_fov(
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
             radius=100,
@@ -149,7 +145,7 @@ class Engine:
         self.game_map.explored |= self.game_map.visible
 
 
-    def render(self, console: Console) -> None:
+    def render(self, console: libtcodpy.tcod.console.Console) -> None:
         self.game_map.render(console)
 
         self.message_log.render(console=console, x=21, y=49, width=40, height=5)

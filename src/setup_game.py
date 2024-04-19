@@ -8,7 +8,6 @@ import pickle
 import traceback
 from typing import TYPE_CHECKING, Optional
 
-import tcod
 from tcod import libtcodpy
 
 import color
@@ -22,7 +21,7 @@ if TYPE_CHECKING:
     from components.unit import Unit
 
 # Load the background image and remove the alpha channel.
-background_image = tcod.image.load("menu_background.png")[:, :, :3]
+background_image = libtcodpy.tcod.image.load("menu_background.png")[:, :, :3]
 
 def create_player() -> Unit:
     from components.unit import Player
@@ -94,7 +93,7 @@ class MainMenu(input_handlers.BaseEventHandler):
     button_names = ["New Game", "Continue", "Quit"]
     button_highlight = button_names[menu_i]
 
-    def resolve_menu(self, event: tcod.event):
+    def resolve_menu(self, event: libtcodpy.tcod.event):
         """Resolves button and click logic"""
         
         if self.button_highlight == 'New Game':
@@ -113,7 +112,7 @@ class MainMenu(input_handlers.BaseEventHandler):
             # Quit
             raise SystemExit()
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, console: libtcodpy.tcod.console.Console) -> None:
         """Render the main menu on a background image."""
         self.console_height = console.height
         self.console_width = console.width
@@ -140,7 +139,7 @@ class MainMenu(input_handlers.BaseEventHandler):
             button_x = console.width // 2
             button_y = console.height // 2 - 2 + (i*2)
 
-            self.buttons[text]: dict = {
+            self.buttons[text] = {
                 'x': button_x,
                 'y': button_y,
             }
@@ -156,15 +155,15 @@ class MainMenu(input_handlers.BaseEventHandler):
             )
 
     def ev_keydown(
-        self, event: tcod.event.KeyDown
+        self, event: libtcodpy.tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
 
-        if event.sym == tcod.event.KeySym.UP:
+        if event.sym == libtcodpy.tcod.event.KeySym.UP:
             if not self.button_highlight:
                 self.menu_i = 0
             else:
                 self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.button_names)-1
-        elif event.sym == tcod.event.KeySym.DOWN:
+        elif event.sym == libtcodpy.tcod.event.KeySym.DOWN:
             if not self.button_highlight:
                 self.menu_i = 0
             else:
@@ -174,29 +173,29 @@ class MainMenu(input_handlers.BaseEventHandler):
         if event.sym in input_handlers.CONFIRM_KEYS:
             return self.resolve_menu(event)
 
-        if event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
+        if event.sym in (libtcodpy.tcod.event.KeySym.q, libtcodpy.tcod.event.KeySym.ESCAPE):
             raise SystemExit()
 
         return None
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: libtcodpy.tcod.event.MouseButtonDown
     ) -> Optional[input_handlers.ActionOrHandler]:
         """Left click confirms a selection."""
 
         for text in self.button_names:
-            button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
+            button_pt = libtcodpy.tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
 
             if in_rect:
                 return self.resolve_menu(event)
 
     def ev_mousemotion(
-        self, event: tcod.event.MouseMotion
+        self, event: libtcodpy.tcod.event.MouseMotion
     ) -> Optional[input_handlers.ActionOrHandler]:
         """Tracks mouse movement"""
         for i, text in enumerate(self.button_names):
-            button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
+            button_pt = libtcodpy.tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
             if in_rect:
                 self.menu_i = i
@@ -208,7 +207,7 @@ class CharacterCreation(input_handlers.BaseEventHandler):
     PLAYER = create_player()
     MAX_CHARS = 16
     
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, console: libtcodpy.tcod.console.Console) -> None:
         from utilities import generate_name
 
         width = len(self.TITLE) + 4
@@ -234,20 +233,20 @@ class CharacterCreation(input_handlers.BaseEventHandler):
                 x=x + len(self.PLAYER.name) + 2, y=y + 2, string=f"_"
             )
 
-    def ev_textinput(self, event: tcod.event.TextInput) -> Optional[input_handlers.BaseEventHandler]:
+    def ev_textinput(self, event: libtcodpy.tcod.event.TextInput) -> Optional[input_handlers.BaseEventHandler]:
         name = self.PLAYER.name
         name += event.text
         if len(name) < self.MAX_CHARS:
             self.PLAYER.set_name(name)
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym == tcod.event.KeySym.RETURN:
+    def ev_keydown(self, event: libtcodpy.tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
+        if event.sym == libtcodpy.tcod.event.KeySym.RETURN:
             game_handler = input_handlers.MainGameEventHandler(new_game(self.PLAYER))
             g.handlers = [game_handler]
             return game_handler
-        elif event.sym == tcod.event.KeySym.BACKSPACE:
+        elif event.sym == libtcodpy.tcod.event.KeySym.BACKSPACE:
             name = self.PLAYER.name[:-1]
             self.PLAYER.set_name(name)
-        elif event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
+        elif event.sym in (libtcodpy.tcod.event.KeySym.q, libtcodpy.tcod.event.KeySym.ESCAPE):
             return MainMenu()
             

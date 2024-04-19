@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-import tcod
+from tcod import libtcodpy
 import g
 import random
 
@@ -165,7 +165,7 @@ def get_gaussian_shade(color: tuple[float, float, float], sigma: float = 20):
     return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))
 
 
-def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point, width: int, height: int) -> bool:
+def is_mouse_in_rectangle(mouse: libtcodpy.tcod.event.MouseState, point: libtcodpy.tcod.event.Point, width: int, height: int) -> bool:
     """
     Check if current mouse position is within a rectangle of given `width` and `height` and return True or False.
 
@@ -178,13 +178,13 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
 
 
 def text_input(buffer: str = "") -> str:
-    for event in tcod.event.wait():
+    for event in libtcodpy.tcod.event.wait():
         match event:
-            case tcod.event.KeyDown(sym=tcod.eventKeySym.KeySym.RETURN):
+            case libtcodpy.tcod.event.KeyDown(sym = libtcodpy.tcod.eventKeySym.KeySym.RETURN):
                 return buffer
-            case tcod.event.KeyDown(sym=tcod.eventKeySym.BACKSPACE):
+            case libtcodpy.tcod.event.KeyDown(sym = libtcodpy.tcod.eventKeySym.BACKSPACE):
                 buffer = buffer[:-1]
-            case tcod.event.TextInput(text=text):
+            case libtcodpy.tcod.event.TextInput(text=text):
                 buffer += text
 
 
@@ -194,19 +194,19 @@ def generate_name(origin: str):
     for file in os.listdir(path):
         file_names.append(file)
         if file.find(".cfg") > 0:
-            tcod.namegen_parse(os.path.join(path, file))
+            libtcodpy.tcod.namegen_parse(os.path.join(path, file))
 
     # get the sets list
-    name_sets = tcod.namegen_get_sets()
+    name_sets = libtcodpy.tcod.namegen_get_sets()
     for name_set in name_sets:
         if not origin.casefold() in name_set.casefold():
             continue
 
-        return tcod.namegen_generate(name_set)
-    return tcod.namegen_generate(name_sets[0])
+        return libtcodpy.tcod.namegen_generate(name_set)
+    return libtcodpy.tcod.namegen_generate(name_sets[0])
 
 
-def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: List[tuple] = []) -> Dict:
+def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: List[tuple] = []) -> Dict: # type: ignore
     """
     Function, which maps class_name to codepoint(s) and coordinates.
 
