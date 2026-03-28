@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.2.2", "tcod>=20.1.0,<21"]
+requires = ["setuptools>=68.2.2", "tcod>=21.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,7 +9,7 @@ authors = [
   { name="Ryou", email="ryou.takeshi@gmail.com" },
 ]
 dependencies = [
-    "tcod>=20.1.0,<21",
+    "tcod>=21.0.0",
     "numpy",
     "matplotlib",
 ]

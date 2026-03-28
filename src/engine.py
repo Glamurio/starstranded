@@ -6,6 +6,7 @@ import g
 
 from typing import TYPE_CHECKING, List, Tuple
 from tcod import libtcodpy
+import tcod
 import numpy as np # type: ignore
 
 import exceptions
@@ -26,7 +27,7 @@ class Engine:
 
     def __init__(self, player: Unit):
         self.message_log = MessageLog()
-        self.mouse_location = libtcodpy.tcod.event.Point(0, 0)
+        self.mouse_location = tcod.event.Point(0, 0)
         self.player = player
 
 
@@ -73,8 +74,8 @@ class Engine:
                 cost[entity.x, entity.y] += 10
 
         # Create a graph from the cost array and pass that graph to a new pathfinder.
-        graph = libtcodpy.tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
-        pathfinder = libtcodpy.tcod.path.Pathfinder(graph)
+        graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
+        pathfinder = tcod.path.Pathfinder(graph)
 
         pathfinder.add_root((ai.entity.x, ai.entity.y))  # Start position.
 
@@ -109,10 +110,10 @@ class Engine:
         return closest_coordinate
 
     def can_see(self, x1, y1, x2, y2, radius: int = 8):
-        if self.distance(libtcodpy.tcod.event.Point(x1, y1), libtcodpy.tcod.event.Point(x2, y2)) > radius-2:
+        if self.distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius-2:
             return False
 
-        for x, y in libtcodpy.tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
+        for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
             if not self.game_map.tiles["transparent"][x][y]:
                 return False
 
@@ -134,34 +135,55 @@ class Engine:
         return True
 
     def update_fov(self) -> None:
-        """Recompute the visible area based on the players point of view,
-        plus any active light sources (e.g. lit campfires)."""
+        """Recompute the visible area based on the player's point of view,
+        extended by any lit campfires whose light reaches into the player's vision."""
         from crafting import Campfire
+        import numpy as np
 
-        self.game_map.visible[:] = libtcodpy.tcod.map.compute_fov(
+        # Step 1: Compute base player FOV
+        player_fov = tcod.map.compute_fov(
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
             radius=100,
             algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
         )
 
-        # Add light from campfires
+        self.game_map.visible[:] = player_fov
+
+        # Step 2: For each lit campfire, check if its light connects to player vision
         for entity in self.game_map.entities:
-            if isinstance(entity, Campfire) and entity.is_lit:
-                campfire_fov = libtcodpy.tcod.map.compute_fov(
-                    self.game_map.tiles["transparent"],
-                    (entity.x, entity.y),
-                    radius=entity.light_radius,
-                    algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
-                )
-                # Merge: anything the campfire can see is also visible
+            if not isinstance(entity, Campfire) or not entity.is_lit or not entity.is_placed:
+                continue
+
+            # Compute what the campfire illuminates
+            campfire_fov = tcod.map.compute_fov(
+                self.game_map.tiles["transparent"],
+                (entity.x, entity.y),
+                radius=entity.light_radius,
+                algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
+            )
+
+            # Check overlap: does ANY tile lit by the campfire fall within 
+            # the player's current vision?
+            overlap = np.logical_and(self.game_map.visible, campfire_fov)
+
+            if overlap.any():
+                # The campfire light connects to what the player sees.
+                # Extend vision with campfire-lit tiles, but only those
+                # that are reachable from the overlap zone.
+                # 
+                # Simple approach: merge the entire campfire FOV.
+                # This works because compute_fov already limits the campfire
+                # to tiles it can actually illuminate (respects walls).
+                # The overlap check ensures we only do this when the player
+                # can see at least part of the campfire's light.
                 self.game_map.visible |= campfire_fov
 
-        # If a tile is "visible" it should be added to "explored".
+        # Step 3: Explored tracking
         self.game_map.explored |= self.game_map.visible
 
 
-    def render(self, console: libtcodpy.tcod.console.Console) -> None:
+    def render(self, console: tcod.console.Console) -> None:
         self.game_map.render(console)
 
         self.message_log.render(console=console, x=21, y=49, width=40, height=5)

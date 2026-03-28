@@ -5,7 +5,7 @@ from world import GameMap, GameWorld
 
 import tile_types
 import random
-from tcod import libtcodpy
+import tcod
 import g
 
 import numpy as np  # type: ignore
@@ -162,9 +162,9 @@ def tunnel_between(
         corner_x, corner_y = x1, y2
 
     # Generate the coordinates for this tunnel.
-    for x, y in libtcodpy.tcod.los.bresenham((x1, y1), (corner_x, corner_y)).tolist():
+    for x, y in tcod.los.bresenham((x1, y1), (corner_x, corner_y)).tolist():
         yield x, y
-    for x, y in libtcodpy.tcod.los.bresenham((corner_x, corner_y), (x2, y2)).tolist():
+    for x, y in tcod.los.bresenham((corner_x, corner_y), (x2, y2)).tolist():
         yield x, y
 
 
@@ -299,27 +299,27 @@ def generate_noise(
     world: GameWorld,
 ) -> GameMap:
 
-    height_noise = libtcodpy.tcod.noise.Noise(
+    height_noise = tcod.noise.Noise(
         dimensions=2,
-        algorithm= libtcodpy.tcod.noise.Algorithm.PERLIN,
+        algorithm= tcod.noise.Algorithm.PERLIN,
     )
-    height_samples = height_noise[ libtcodpy.tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
-    height_noise = libtcodpy.tcod.noise.Noise(
+    height_samples = height_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
+    height_noise = tcod.noise.Noise(
             dimensions=2,
-            algorithm= libtcodpy.tcod.noise.Algorithm.PERLIN,
+            algorithm= tcod.noise.Algorithm.PERLIN,
     )
-    height_samples = (height_samples + height_noise[ libtcodpy.tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
+    height_samples = (height_samples + height_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
 
-    vegetation_noise = libtcodpy.tcod.noise.Noise(
+    vegetation_noise = tcod.noise.Noise(
         dimensions=2,
-        algorithm= libtcodpy.tcod.noise.Algorithm.PERLIN,
+        algorithm= tcod.noise.Algorithm.PERLIN,
     )
-    vegetation_samples = vegetation_noise[ libtcodpy.tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
-    vegetation_noise = libtcodpy.tcod.noise.Noise(
+    vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
+    vegetation_noise = tcod.noise.Noise(
         dimensions=2,
-        algorithm= libtcodpy.tcod.noise.Algorithm.PERLIN,
+        algorithm= tcod.noise.Algorithm.PERLIN,
     )
-    vegetation_samples = vegetation_noise[ libtcodpy.tcod.noise.grid(shape=(map_height, map_width), scale=0.1, origin=(0, 0))]
+    vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.1, origin=(0, 0))]
 
     def value_range(a, low, high):
         return np.logical_and(a>low , a<=high)
