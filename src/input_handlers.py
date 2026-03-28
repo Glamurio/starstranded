@@ -110,7 +110,7 @@ class PopupMessage(BaseEventHandler):
         console.print(
             console.width // 2,
             console.height // 2,
-            self.text,
+            text=self.text,
             fg=color.white,
             bg=color.black,
             alignment=libtcodpy.CENTER,
@@ -184,8 +184,9 @@ class EventHandler(BaseEventHandler):
         return True
 
     def ev_mousemotion(self, event: libtcodpy.tcod.event.MouseMotion) -> None:
-        if self.engine.game_map.in_bounds(event.tile.x, event.tile.y):
-            self.engine.mouse_location = libtcodpy.tcod.event.Point(event.tile.x, event.tile.y)
+        tx, ty = int(event.position.x), int(event.position.y)
+        if self.engine.game_map.in_bounds(tx, ty):
+            self.engine.mouse_location = libtcodpy.tcod.event.Point(tx, ty)
 
     def on_render(self, console: libtcodpy.tcod.console.Console) -> None:
         self.engine.render(console)
@@ -257,7 +258,7 @@ class PickupHandler(AskUserEventHandler):
             return self.on_tile_selected(targets)
 
     def ev_keydown(self, event: libtcodpy.tcod.event.KeyDown) -> Optional[ActionOrHandler]:
-        if event.sym == libtcodpy.tcod.event.KeySym.g or event.sym == libtcodpy.tcod.event.KeySym.RETURN:
+        if event.sym == libtcodpy.tcod.event.KeySym.G or event.sym == libtcodpy.tcod.event.KeySym.RETURN:
             targets = self.engine.game_map.get_entities_at_location(self.target_location.x, self.target_location.y)
             return self.on_tile_selected(targets)
 
@@ -305,22 +306,22 @@ class CharacterScreenEventHandler(AskUserEventHandler):
         )
 
         console.print(
-            x=x + 1, y=y + 1, string=f"Level: {self.engine.player.level.current_level}"
+            x=x + 1, y=y + 1, text=f"Level: {self.engine.player.level.current_level}"
         )
         console.print(
-            x=x + 1, y=y + 2, string=f"XP: {self.engine.player.level.current_xp}"
+            x=x + 1, y=y + 2, text=f"XP: {self.engine.player.level.current_xp}"
         )
         console.print(
             x=x + 1,
             y=y + 3,
-            string=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
+            text=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
         )
 
         console.print(
-            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.power}"
+            x=x + 1, y=y + 4, text=f"Attack: {self.engine.player.power}"
         )
         console.print(
-            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.defense}"
+            x=x + 1, y=y + 5, text=f"Defense: {self.engine.player.defense}"
         )
 
 
@@ -344,29 +345,29 @@ class LevelUpEventHandler(AskUserEventHandler):
             bg=(0, 0, 0),
         )
 
-        console.print(x=x + 1, y=1, string="Congratulations! You level up!")
-        console.print(x=x + 1, y=2, string="Select an attribute to increase.")
+        console.print(x=x + 1, y=1, text="Congratulations! You level up!")
+        console.print(x=x + 1, y=2, text="Select an attribute to increase.")
 
         console.print(
             x=x + 1,
             y=4,
-            string=f"a) Constitution (+20 HP, from {self.engine.player.max_hp})",
+            text=f"a) Constitution (+20 HP, from {self.engine.player.max_hp})",
         )
         console.print(
             x=x + 1,
             y=5,
-            string=f"b) Strength (+1 attack, from {self.engine.player.power})",
+            text=f"b) Strength (+1 attack, from {self.engine.player.power})",
         )
         console.print(
             x=x + 1,
             y=6,
-            string=f"c) Agility (+1 defense, from {self.engine.player.defense})",
+            text=f"c) Agility (+1 defense, from {self.engine.player.defense})",
         )
 
     def ev_keydown(self, event: libtcodpy.tcod.event.KeyDown) -> Optional[ActionOrHandler]:
         player = self.engine.player
         key = event.sym
-        index = key - libtcodpy.tcod.event.KeySym.a
+        index = key - libtcodpy.tcod.event.KeySym.A
 
         if 0 <= index <= 2:
             if index == 0:
@@ -480,7 +481,7 @@ class InventoryEventHandler(AskUserEventHandler):
         )
 
         if not self.entries_amount:
-            console.print(self.console_x + 1, self.console_y + 2, "(Empty)")
+            console.print(self.console_x + 1, self.console_y + 2, text="(Empty)")
             return
 
         if self.entries_amount > 0:
@@ -507,14 +508,14 @@ class InventoryEventHandler(AskUserEventHandler):
                 console.print(
                     button_x,
                     button_y,
-                    f"{chr(entity.char)} ",
+                    text=f"{chr(entity.char)} ",
                     fg=entity.color,
                     bg=color.nigh_black,
                 )
                 console.print(
                     button_x + 2,
                     button_y,
-                    button_string,
+                    text=button_string,
                     fg=color.menu_text_inverse if i == self.button_highlight else color.menu_text,
                     bg=color.white if i == self.button_highlight else color.nigh_black,
                 )
@@ -532,7 +533,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 console.print(
                     button_x,
                     button_y,
-                    "g) Grab All",
+                    text="g) Grab All",
                     fg=color.menu_text_inverse if grab_i == self.button_highlight else color.menu_text,
                     bg=color.white if grab_i == self.button_highlight else color.nigh_black,
                 )
@@ -554,7 +555,7 @@ class InventoryEventHandler(AskUserEventHandler):
 
         self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
 
-        if event.sym == libtcodpy.tcod.event.KeySym.g:
+        if event.sym == libtcodpy.tcod.event.KeySym.G:
             return self.on_items_selected(self.inventory_entries)
         
         if event.sym in CONFIRM_KEYS:
@@ -669,12 +670,12 @@ class SelectIndexHandler(AskUserEventHandler):
         key = event.sym
         if key in MOVE_KEYS:
             modifier = 1  # Holding modifier keys will speed up key movement.
-            if event.mod & (libtcodpy.tcod.event.KMOD_LSHIFT | libtcodpy.tcod.event.KMOD_RSHIFT):
-                modifier *= 5
-            if event.mod & (libtcodpy.tcod.event.KMOD_LCTRL | libtcodpy.tcod.event.KMOD_RCTRL):
-                modifier *= 10
-            if event.mod & (libtcodpy.tcod.event.KMOD_LALT | libtcodpy.tcod.event.KMOD_RALT):
-                modifier *= 20
+            if event.mod & (libtcodpy.tcod.event.Modifier.LSHIFT | libtcodpy.tcod.event.Modifier.RSHIFT):
+                 modifier *= 5
+            if event.mod & (libtcodpy.tcod.event.Modifier.LCTRL | libtcodpy.tcod.event.Modifier.RCTRL):
+                 modifier *= 10
+            if event.mod & (libtcodpy.tcod.event.Modifier.LALT | libtcodpy.tcod.event.Modifier.RALT):
+                 modifier *= 20
 
             x, y = self.engine.mouse_location
             dest_x, dest_y = MOVE_KEYS[key]
@@ -693,9 +694,9 @@ class SelectIndexHandler(AskUserEventHandler):
         self, event: libtcodpy.tcod.event.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """Left click confirms a selection."""
-        if self.engine.game_map.in_bounds(*event.tile):
+        if self.engine.game_map.in_bounds(int(event.position.x), int(event.position.y)):
             if event.button == 1:
-                return self.on_index_selected(*event.tile)
+                return self.on_index_selected(int(event.position.x), int(event.position.y))
         return super().ev_mousebuttondown(event)
 
     def on_index_selected(self, x: int, y: int) -> Optional[ActionOrHandler]:
@@ -800,7 +801,7 @@ class MainGameEventHandler(EventHandler):
 
         # modifier checks if button is held down
         if key == libtcodpy.tcod.event.KeySym.PERIOD and modifier & (
-            libtcodpy.tcod.event.KeySym.LSHIFT | libtcodpy.tcod.event.KeySym.RSHIFT
+            libtcodpy.tcod.event.Modifier.LSHIFT | libtcodpy.tcod.event.Modifier.RSHIFT
         ):
             pass
 
@@ -810,23 +811,23 @@ class MainGameEventHandler(EventHandler):
         elif key in WAIT_KEYS:
             action = actions.WaitAction(player)
 
-        # elif key == libtcodpy.tcod.event.KeySym.ESCAPE:
-        #     raise SystemExit()
+        elif key == libtcodpy.tcod.event.KeySym.ESCAPE:
+            raise SystemExit()
 
-        elif key == libtcodpy.tcod.event.KeySym.l:
+        elif key == libtcodpy.tcod.event.KeySym.L:
             return actions.TakeStairsAction(player)
 
-        elif key == libtcodpy.tcod.event.KeySym.v:
+        elif key == libtcodpy.tcod.event.KeySym.V:
             return HistoryViewer(self.engine)
 
-        elif key == libtcodpy.tcod.event.KeySym.g:
+        elif key == libtcodpy.tcod.event.KeySym.G:
             return PickupHandler(self.engine)
-        elif key == libtcodpy.tcod.event.KeySym.i:
+        elif key == libtcodpy.tcod.event.KeySym.I:
             return InventoryActivateHandler(self.engine, player.inventory)
-        elif key == libtcodpy.tcod.event.KeySym.d:
+        elif key == libtcodpy.tcod.event.KeySym.D:
             return InventoryDropHandler(self.engine, player.inventory)
 
-        elif key == libtcodpy.tcod.event.KeySym.c:
+        elif key == libtcodpy.tcod.event.KeySym.C:
             return CharacterScreenEventHandler(self.engine)
 
         elif key == libtcodpy.tcod.event.KeySym.PERIOD:
@@ -886,8 +887,10 @@ class HistoryViewer(EventHandler):
 
         # Draw a frame with a custom banner title.
         log_console.draw_frame(0, 0, log_console.width, log_console.height)
-        log_console.print_box(
-            0, 0, log_console.width, 1, "┤Message history├", alignment=libtcodpy.CENTER
+        log_console.print(
+            x=0, y=0, text="┤Message history├",
+            width=log_console.width, height=1,
+            alignment=libtcodpy.tcod.CENTER,
         )
 
         # Render the message log using the cursor parameter.

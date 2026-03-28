@@ -121,14 +121,14 @@ class MainMenu(input_handlers.BaseEventHandler):
         console.print(
             console.width // 2,
             console.height // 2 - 4,
-            "Starstranded",
+            text="Starstranded",
             fg=color.menu_title,
             alignment=libtcodpy.CENTER,
         )
         console.print(
             console.width // 2,
             console.height - 2,
-            "By Ryou",
+            text="By Ryou",
             fg=color.menu_title,
             alignment=libtcodpy.CENTER,
         )
@@ -147,7 +147,7 @@ class MainMenu(input_handlers.BaseEventHandler):
             console.print(
                 button_x,
                 button_y,
-                text.center(self.menu_width),
+                text=text.center(self.menu_width),
                 fg=color.menu_text_inverse if text == self.button_highlight else color.menu_text,
                 bg=color.white if text == self.button_highlight else color.black,
                 alignment=libtcodpy.CENTER,
@@ -173,7 +173,7 @@ class MainMenu(input_handlers.BaseEventHandler):
         if event.sym in input_handlers.CONFIRM_KEYS:
             return self.resolve_menu(event)
 
-        if event.sym in (libtcodpy.tcod.event.KeySym.q, libtcodpy.tcod.event.KeySym.ESCAPE):
+        if event.sym in (libtcodpy.tcod.event.KeySym.Q, libtcodpy.tcod.event.KeySym.ESCAPE):
             raise SystemExit()
 
         return None
@@ -206,7 +206,10 @@ class CharacterCreation(input_handlers.BaseEventHandler):
     TITLE = "What is your name?"
     PLAYER = create_player()
     MAX_CHARS = 16
-    
+
+    def on_init(self):
+        g.sdl_window.start_text_input()
+
     def on_render(self, console: libtcodpy.tcod.console.Console) -> None:
         from utilities import generate_name
 
@@ -226,11 +229,11 @@ class CharacterCreation(input_handlers.BaseEventHandler):
         )
 
         console.print(
-            x=x  + 2, y=y + 2, string=f"{self.PLAYER.name}"
+            x=x  + 2, y=y + 2, text=f"{self.PLAYER.name}"
         )
         if len(self.PLAYER.name) < self.MAX_CHARS - 1:
             console.print(
-                x=x + len(self.PLAYER.name) + 2, y=y + 2, string=f"_"
+                x=x + len(self.PLAYER.name) + 2, y=y + 2, text=f"_"
             )
 
     def ev_textinput(self, event: libtcodpy.tcod.event.TextInput) -> Optional[input_handlers.BaseEventHandler]:
@@ -241,12 +244,14 @@ class CharacterCreation(input_handlers.BaseEventHandler):
 
     def ev_keydown(self, event: libtcodpy.tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
         if event.sym == libtcodpy.tcod.event.KeySym.RETURN:
+            g.sdl_window.stop_text_input()
             game_handler = input_handlers.MainGameEventHandler(new_game(self.PLAYER))
             g.handlers = [game_handler]
             return game_handler
         elif event.sym == libtcodpy.tcod.event.KeySym.BACKSPACE:
             name = self.PLAYER.name[:-1]
             self.PLAYER.set_name(name)
-        elif event.sym in (libtcodpy.tcod.event.KeySym.q, libtcodpy.tcod.event.KeySym.ESCAPE):
+        elif event.sym in (libtcodpy.tcod.event.KeySym.Q, libtcodpy.tcod.event.KeySym.ESCAPE):
+            g.sdl_window.stop_text_input()
             return MainMenu()
             

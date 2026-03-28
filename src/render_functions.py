@@ -38,7 +38,7 @@ def render_bar(
         )
 
     console.print(
-        x=x+1, y=y, string=f"{fg_text}: {current_value}/{maximum_value}", fg=fg_color
+        x=x+1, y=y, text=f"{fg_text}: {current_value}/{maximum_value}", fg=fg_color
     )
 
 def render_dungeon_level(
@@ -49,7 +49,7 @@ def render_dungeon_level(
     """
     x, y = location
 
-    console.print(x=x, y=y, string=f"Dungeon level: {dungeon_level}")
+    console.print(x=x, y=y, text=f"Dungeon level: {dungeon_level}")
 
 def render_names_at_mouse_location(
     console: Console, x: int, y: int, engine: Engine
@@ -60,4 +60,4 @@ def render_names_at_mouse_location(
         x=mouse_x, y=mouse_y, game_map=engine.game_map
     )
 
-    console.print(x=x, y=y, string=names_at_mouse_location)
+    console.print(x=x, y=y, text=names_at_mouse_location)

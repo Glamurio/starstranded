@@ -28,24 +28,28 @@ def merge_tileset(tileset: libtcodpy.tcod.tileset.Tileset, incoming: libtcodpy.t
     for i in charmap:
         if i not in incoming:
             continue
-        tile = incoming.get_tile(i)
+        tile = incoming[i]
         if not tile.any():
             continue
-        tileset.set_tile(i, tile)
+        tileset[i] = tile
 
 def convert_coords(event: libtcodpy.tcod.event.Event) -> libtcodpy.tcod.event.Event:
-    """Return an event with mouse coordinates converted into tile coordinates.
-    """
+    """Return an event with mouse coordinates converted into tile coordinates."""
     event_tile = copy.copy(event)
-    if isinstance(event_tile, (libtcodpy.tcod.event.MouseState, libtcodpy.tcod.event.MouseMotion)):
-        event_tile.position = libtcodpy.tcod.event.Point(event.position.x // g.global_tileset.tile_width, event.position.y // g.global_tileset.tile_height)
+    if isinstance(event_tile, (libtcodpy.tcod.event.MouseState, libtcodpy.tcod.event.MouseMotion, libtcodpy.tcod.event.MouseButtonDown)):
+        event_tile.position = libtcodpy.tcod.event.Point(
+            int(event.position.x) // g.global_tileset.tile_width,
+            int(event.position.y) // g.global_tileset.tile_height,
+        )
     if isinstance(event, libtcodpy.tcod.event.MouseMotion):
         prev_tile = (
-            (event.position[0] - event.motion[0]) // g.global_tileset.tile_width,
-            (event.position[1] - event.motion[1]) // g.global_tileset.tile_height,
+            (int(event.position[0]) - int(event.motion[0])) // g.global_tileset.tile_width,
+            (int(event.position[1]) - int(event.motion[1])) // g.global_tileset.tile_height,
         )
-
-        event_tile.motion = libtcodpy.tcod.event.Point(event_tile.position[0] - prev_tile[0], event_tile.position[1] - prev_tile[1])
+        event_tile.motion = libtcodpy.tcod.event.Point(
+            int(event_tile.position[0] - prev_tile[0]),
+            int(event_tile.position[1] - prev_tile[1]),
+        )
     return event_tile
 
 def main() -> None:
@@ -66,9 +70,11 @@ def main() -> None:
                 for event in libtcodpy.tcod.event.get():
 
                     # Manual handing of tile coordinates since context.present is skipped.
-                    if isinstance(event, (libtcodpy.tcod.event.MouseState, libtcodpy.tcod.event.MouseMotion)):
-                        event.tile = libtcodpy.tcod.event.Point(event.position.x // g.global_tileset.tile_width, event.position.y // g.global_tileset.tile_height)
-                    if isinstance(event, libtcodpy.tcod.event.MouseMotion):
+                    if isinstance(event, (
+                            libtcodpy.tcod.event.MouseState,
+                            libtcodpy.tcod.event.MouseMotion,
+                            libtcodpy.tcod.event.MouseButtonDown
+                        )):
                         event = convert_coords(event)
                     handler = handler.handle_events(event)
                 

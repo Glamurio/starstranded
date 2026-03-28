@@ -171,7 +171,7 @@ def is_mouse_in_rectangle(mouse: libtcodpy.tcod.event.MouseState, point: libtcod
 
     `point` indicates the center of the rectangle.
     """
-    mouse_pt = mouse.tile
+    mouse_pt = libtcodpy.tcod.event.Point(int(mouse.position.x), int(mouse.position.y))
 
     return (point.x - width // 2) < (mouse_pt.x) and (point.x + width // 2) > (mouse_pt.x) \
         and (point.y - height // 2) < (mouse_pt.y) and (point.y + height // 2) > (mouse_pt.y)
@@ -236,8 +236,8 @@ def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, co
 
     if mirror:
         char_info["mirror"] = mirror_i
-        inv_tile = np.flip(g.global_tileset.get_tile(char_i), axis=1)
-        g.global_tileset.set_tile(mirror_i, inv_tile)
+        inv_tile = np.flip(g.global_tileset[char_i], axis=1)
+        g.global_tileset[mirror_i] = inv_tile
         values.append(mirror_i)
 
     if corpse_xy:

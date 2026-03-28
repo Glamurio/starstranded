@@ -1,16 +1,21 @@
 [build-system]
-requires = ["setuptools>=68.2.2", "tcod==16.2.1"]
+requires = ["setuptools>=68.2.2", "tcod>=20.1.0,<21"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "starstranded_ryou"
-version = "0.4.0"
+version = "0.4.1"
 authors = [
   { name="Ryou", email="ryou.takeshi@gmail.com" },
 ]
+dependencies = [
+    "tcod>=20.1.0,<21",
+    "numpy",
+    "matplotlib",
+]
 description = "A roguelike survival game set on an alien planet."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

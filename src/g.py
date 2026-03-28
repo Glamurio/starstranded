@@ -47,8 +47,10 @@ sdl_window = libtcodpy.tcod.sdl.video.new_window(
     title="Starstranded",
     flags=libtcodpy.tcod.lib.SDL_WINDOW_RESIZABLE,
 )
-sdl_renderer = libtcodpy.tcod.sdl.render.new_renderer(sdl_window, target_textures=True)
-sdl_renderer.logical_size = logical_size
+sdl_renderer = libtcodpy.tcod.sdl.render.new_renderer(sdl_window)
+sdl_renderer.set_logical_presentation(
+    logical_size, libtcodpy.tcod.sdl.render.LogicalPresentation.STRETCH
+)
 atlas = libtcodpy.tcod.render.SDLTilesetAtlas(sdl_renderer, global_tileset)
 console_render = libtcodpy.tcod.render.SDLConsoleRender(atlas)
 
