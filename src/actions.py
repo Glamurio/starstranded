@@ -256,40 +256,32 @@ class BumpAction(ActionWithDirection):
         return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()
     
 class CraftAction(Action):
-    """Craft a recipe from the player's inventory."""
+    """Craft a recipe and add the result to inventory."""
 
-    def __init__(self, entity: Unit, recipe: Recipe):
+    def __init__(self, entity: Unit, recipe):
         super().__init__(entity)
         self.recipe = recipe
 
     def perform(self) -> None:
-
         inventory = self.entity.inventory
 
         if not self.recipe.can_craft(inventory):
             raise exceptions.Impossible("You don't have the required materials.")
 
         result = self.recipe.craft(inventory)
+        inventory.add(result)
 
-        if self.recipe.is_placeable:
-            # Place it at the player's feet
-            result.place(self.entity.x, self.entity.y, self.engine.game_map)
-            self.engine.message_log.add_message(
-                f"You crafted a {self.recipe.name} and placed it at your feet.",
-                color.white,
-            )
-        else:
-            inventory.add(result)
-            self.engine.message_log.add_message(
-                f"You crafted a {self.recipe.name}!",
-                color.white,
-            )
+        hint = " Use it from your inventory to place it." if self.recipe.is_placeable else ""
+        self.engine.message_log.add_message(
+            f"You crafted a {self.recipe.name}!{hint}",
+            color.menu_text,
+        )
 
         self.engine.game_world.pass_time(unit=self.entity, time=1)
 
 
 class InteractAction(Action):
-    """Interact with an entity at the player's location (e.g. toggle a campfire)."""
+    """Interact with an entity at the player's location."""
 
     def __init__(self, entity: Unit):
         super().__init__(entity)
@@ -302,11 +294,42 @@ class InteractAction(Action):
         )
 
         for target in entities:
-            if isinstance(target, Campfire):
+            if isinstance(target, Campfire) and target.is_placed:
                 message = target.toggle()
-                self.engine.message_log.add_message(message, color.orange if target.is_lit else color.white)
-                self.engine.update_fov()  # Refresh FOV to show/hide campfire light
+                self.engine.message_log.add_message(
+                    message,
+                    color.orange if target.is_lit else color.white,
+                )
+                self.engine.update_fov()
                 self.engine.game_world.pass_time(unit=self.entity, time=1)
                 return
 
         raise exceptions.Impossible("There's nothing to interact with here.")
+    
+class PlaceConstructableAction(Action):
+    """Place a constructable item from inventory onto the map."""
+
+    def __init__(self, entity: Unit, item, dest_x: int, dest_y: int):
+        super().__init__(entity)
+        self.item = item
+        self.dest_x = dest_x
+        self.dest_y = dest_y
+
+    def perform(self) -> None:
+        # Check distance — must be current tile or adjacent
+        dx = abs(self.dest_x - self.entity.x)
+        dy = abs(self.dest_y - self.entity.y)
+        if dx > 1 or dy > 1:
+            raise exceptions.Impossible("Too far away to place that.")
+
+        if not self.engine.can_move(self.dest_x, self.dest_y):
+            # Allow placing on own tile even if "blocked" by self
+            if not (self.dest_x == self.entity.x and self.dest_y == self.entity.y):
+                raise exceptions.Impossible("Can't place that there.")
+
+        self.item.place_on_map(self.dest_x, self.dest_y, self.engine.game_map)
+        self.engine.message_log.add_message(
+            f"You place the {self.item.get_title()}.",
+            color.menu_text,
+        )
+        self.engine.game_world.pass_time(unit=self.entity, time=1)

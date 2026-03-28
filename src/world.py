@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import random
 
-from typing import Iterable, Iterator, Optional, TYPE_CHECKING
+from typing import Iterable, Iterator, List, Optional, TYPE_CHECKING
 
 import numpy as np  # type: ignore
 import tcod
@@ -34,7 +34,7 @@ class GameMap:
         self.world = world
         self.engine = engine
         self.width, self.height = width, height
-        self.entities = set(entities)
+        self.entities= set(entities)
         self.tiles = landscape
 
         self.visible = np.full(

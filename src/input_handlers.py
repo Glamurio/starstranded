@@ -607,14 +607,14 @@ class InventoryEventHandler(AskUserEventHandler):
 
 
 class CraftingMenuHandler(AskUserEventHandler):
-    """Display available RECIPE_LIST and let the player craft items."""
+    """Display available recipes and let the player craft items."""
 
     TITLE = "Crafting"
 
     def __init__(self, engine: Engine):
         super().__init__(engine)
-        from crafting import RECIPE_LIST
-        self.RECIPE_LIST: List[Recipe] = RECIPE_LIST
+        from crafting import RECIPES
+        self.recipes = RECIPES
         self.menu_i: int = 0
         self.button_highlight: int = 0
 
@@ -624,7 +624,7 @@ class CraftingMenuHandler(AskUserEventHandler):
         x = g.screen_width_offset
         y = 1
         width = 36
-        height = len(self.RECIPE_LIST) * 3 + 4
+        height = len(self.recipes) * 3 + 4
 
         console.draw_frame(
             x=x, y=y,
@@ -637,35 +637,34 @@ class CraftingMenuHandler(AskUserEventHandler):
 
         player_inv = self.engine.player.inventory
 
-        for i, recipe in enumerate(self.RECIPE_LIST):
+        for i, recipe in enumerate(self.recipes):
             can_craft = recipe.can_craft(player_inv)
             recipe_y = y + 2 + (i * 3)
 
-            # Recipe name
             name_color = color.menu_text if can_craft else color.impossible
+            highlight_bg = color.white if i == self.button_highlight else color.nigh_black
+            highlight_fg = color.black if i == self.button_highlight else name_color
 
             console.print(
                 x=x + 2, y=recipe_y,
                 text=recipe.name,
-                fg=name_color,
-                bg=color.nigh_black,
+                fg=highlight_fg,
+                bg=highlight_bg,
             )
 
-            # Ingredient list
             parts = []
             for item_type, count in recipe.ingredients.items():
                 available = sum(
                     1 for item in player_inv.items
                     if item.object_type == item_type
                 )
-                part_color = "+" if available >= count else "-"
                 parts.append(f"{item_type} x{count} ({available}/{count})")
 
             ingredient_str = ", ".join(parts)
             console.print(
                 x=x + 4, y=recipe_y + 1,
                 text=ingredient_str,
-                fg=color.menu_text if can_craft else color.impossible,
+                fg=color.white if can_craft else color.impossible,
             )
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
@@ -675,10 +674,10 @@ class CraftingMenuHandler(AskUserEventHandler):
             self.button_highlight = max(0, self.button_highlight - 1)
             return None
         elif key == tcod.event.KeySym.DOWN:
-            self.button_highlight = min(len(self.RECIPE_LIST) - 1, self.button_highlight + 1)
+            self.button_highlight = min(len(self.recipes) - 1, self.button_highlight + 1)
             return None
         elif key in CONFIRM_KEYS:
-            recipe = self.RECIPE_LIST[self.button_highlight]
+            recipe = self.recipes[self.button_highlight]
             if recipe.can_craft(self.engine.player.inventory):
                 return actions.CraftAction(self.engine.player, recipe)
             else:
@@ -690,9 +689,7 @@ class CraftingMenuHandler(AskUserEventHandler):
         return super().ev_keydown(event)
 
     def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[ActionOrHandler]:
-        """Don't allow mouse click to exit."""
         return None
-
 class InventoryActivateHandler(InventoryEventHandler):
     """Handle using an inventory item."""
 
@@ -1016,3 +1013,25 @@ class HistoryViewer(EventHandler):
         else:  # Any other key moves back to the main game state.
             self.reset_to_handler(MainGameEventHandler(self.engine))
         return None
+    
+class PlaceConstructableHandler(SelectIndexHandler):
+    """Lets the player pick a tile to place a constructable item."""
+
+    def __init__(self, engine: Engine, item):
+        super().__init__(engine)
+        self.item = item
+        # Start cursor at player position
+        self.engine.mouse_location = engine.player.x, engine.player.y
+
+    def on_render(self, console: tcod.console.Console) -> None:
+        super().on_render(console)
+        # Highlight valid placement tiles (current + adjacent)
+        px, py = self.engine.player.x, self.engine.player.y
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                tx, ty = px + dx, py + dy
+                if self.engine.game_map.in_bounds(tx, ty):
+                    console.rgb["bg"][tx, ty] = color.menu_text
+
+    def on_index_selected(self, x: int, y: int) -> Optional[ActionOrHandler]:
+        return actions.PlaceConstructableAction(self.engine.player, self.item, x, y)

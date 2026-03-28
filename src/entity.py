@@ -146,3 +146,36 @@ class Item(Entity):
         material_type = f'{self.material} {self.object_type}' if self.material else self.object_type
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         return f'{self.name}, the {description}' if self.name else description
+
+class Constructable(Item):
+    """
+    An Item that can be placed on the map as a structure.
+    
+    While in inventory, it behaves like any other Item.
+    When activated, the player places it on the current or an adjacent tile.
+    """
+    def __init__(self):
+        Item.__init__(self)
+        self.object_type = "Constructable"
+        self.is_placed: bool = False
+
+    def activate(self, user: Unit) -> None:
+        """Activating a constructable triggers placement."""
+        # This will be handled by the input handler to let the player pick a tile
+        from input_handlers import PlaceConstructableHandler
+        import g
+        g.handlers.append(PlaceConstructableHandler(user.game_map.engine, self))
+
+    def place_on_map(self, x: int, y: int, game_map) -> None:
+        """Remove from inventory and place on the game map."""
+        from components.inventory import Inventory
+        if isinstance(self.parent, Inventory):
+            self.parent.remove(self)
+        self.is_placed = True
+        self.place(x, y, game_map)
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        attributes = [] if exclude_attributes else self.attributes
+        material_type = f'{self.material} {self.object_type}' if self.material else self.object_type
+        description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
+        return f'{self.name}, the {description}' if self.name else description
