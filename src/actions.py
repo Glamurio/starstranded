@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from components.unit import Unit
     from engine import Engine
     from entity import Entity, Item
+    from crafting import Recipe
 
 
 class Action:
@@ -253,3 +254,59 @@ class BumpAction(ActionWithDirection):
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
 
         return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()
+    
+class CraftAction(Action):
+    """Craft a recipe from the player's inventory."""
+
+    def __init__(self, entity: Unit, recipe: Recipe):
+        super().__init__(entity)
+        self.recipe = recipe
+
+    def perform(self) -> None:
+
+        inventory = self.entity.inventory
+
+        if not self.recipe.can_craft(inventory):
+            raise exceptions.Impossible("You don't have the required materials.")
+
+        result = self.recipe.craft(inventory)
+
+        if self.recipe.is_placeable:
+            # Place it at the player's feet
+            result.place(self.entity.x, self.entity.y, self.engine.game_map)
+            self.engine.message_log.add_message(
+                f"You crafted a {self.recipe.name} and placed it at your feet.",
+                color.white,
+            )
+        else:
+            inventory.add(result)
+            self.engine.message_log.add_message(
+                f"You crafted a {self.recipe.name}!",
+                color.white,
+            )
+
+        self.engine.game_world.pass_time(unit=self.entity, time=1)
+
+
+class InteractAction(Action):
+    """Interact with an entity at the player's location (e.g. toggle a campfire)."""
+
+    def __init__(self, entity: Unit):
+        super().__init__(entity)
+
+    def perform(self) -> None:
+        from crafting import Campfire
+
+        entities = self.engine.game_map.get_entities_at_location(
+            self.entity.x, self.entity.y
+        )
+
+        for target in entities:
+            if isinstance(target, Campfire):
+                message = target.toggle()
+                self.engine.message_log.add_message(message, color.orange if target.is_lit else color.white)
+                self.engine.update_fov()  # Refresh FOV to show/hide campfire light
+                self.engine.game_world.pass_time(unit=self.entity, time=1)
+                return
+
+        raise exceptions.Impossible("There's nothing to interact with here.")

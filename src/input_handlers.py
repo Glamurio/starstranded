@@ -11,7 +11,6 @@ import actions
 import color
 import exceptions
 from utilities import is_mouse_in_rectangle
-
 from entity import Item, Entity
 
 if TYPE_CHECKING:
@@ -19,6 +18,7 @@ if TYPE_CHECKING:
     from components.unit import Unit
     from components.equippable import Equippable
     from components.inventory import Inventory
+    from crafting import Recipe
 
 MOVE_KEYS = {
     # Arrow keys.
@@ -605,6 +605,93 @@ class InventoryEventHandler(AskUserEventHandler):
                 self.button_highlight = key
 
 
+class CraftingMenuHandler(AskUserEventHandler):
+    """Display available RECIPE_LIST and let the player craft items."""
+
+    TITLE = "Crafting"
+
+    def __init__(self, engine: Engine):
+        super().__init__(engine)
+        from crafting import RECIPE_LIST
+        self.RECIPE_LIST: List[Recipe] = RECIPE_LIST
+        self.menu_i: int = 0
+        self.button_highlight: int = 0
+
+    def on_render(self, console: libtcodpy.tcod.console.Console) -> None:
+        super().on_render(console)
+
+        x = g.screen_width_offset
+        y = 1
+        width = 36
+        height = len(self.RECIPE_LIST) * 3 + 4
+
+        console.draw_frame(
+            x=x, y=y,
+            width=width, height=height,
+            title=self.TITLE,
+            clear=True,
+            fg=color.menu_text,
+            bg=color.nigh_black,
+        )
+
+        player_inv = self.engine.player.inventory
+
+        for i, recipe in enumerate(self.RECIPE_LIST):
+            can_craft = recipe.can_craft(player_inv)
+            recipe_y = y + 2 + (i * 3)
+
+            # Recipe name
+            name_color = color.menu_text if can_craft else color.impossible
+
+            console.print(
+                x=x + 2, y=recipe_y,
+                text=recipe.name,
+                fg=name_color,
+                bg=color.nigh_black,
+            )
+
+            # Ingredient list
+            parts = []
+            for item_type, count in recipe.ingredients.items():
+                available = sum(
+                    1 for item in player_inv.items
+                    if item.object_type == item_type
+                )
+                part_color = "+" if available >= count else "-"
+                parts.append(f"{item_type} x{count} ({available}/{count})")
+
+            ingredient_str = ", ".join(parts)
+            console.print(
+                x=x + 4, y=recipe_y + 1,
+                text=ingredient_str,
+                fg=color.menu_text if can_craft else color.impossible,
+            )
+
+    def ev_keydown(self, event: libtcodpy.tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+        key = event.sym
+
+        if key == libtcodpy.tcod.event.KeySym.UP:
+            self.button_highlight = max(0, self.button_highlight - 1)
+            return None
+        elif key == libtcodpy.tcod.event.KeySym.DOWN:
+            self.button_highlight = min(len(self.RECIPE_LIST) - 1, self.button_highlight + 1)
+            return None
+        elif key in CONFIRM_KEYS:
+            recipe = self.RECIPE_LIST[self.button_highlight]
+            if recipe.can_craft(self.engine.player.inventory):
+                return actions.CraftAction(self.engine.player, recipe)
+            else:
+                self.engine.message_log.add_message(
+                    "You don't have enough materials.", color.impossible
+                )
+                return None
+
+        return super().ev_keydown(event)
+
+    def ev_mousebuttondown(self, event: libtcodpy.tcod.event.MouseButtonDown) -> Optional[ActionOrHandler]:
+        """Don't allow mouse click to exit."""
+        return None
+
 class InventoryActivateHandler(InventoryEventHandler):
     """Handle using an inventory item."""
 
@@ -826,6 +913,10 @@ class MainGameEventHandler(EventHandler):
             return InventoryActivateHandler(self.engine, player.inventory)
         elif key == libtcodpy.tcod.event.KeySym.D:
             return InventoryDropHandler(self.engine, player.inventory)
+        elif key == libtcodpy.tcod.event.KeySym.R:
+            return CraftingMenuHandler(self.engine)
+        elif key == libtcodpy.tcod.event.KeySym.F:
+            return actions.InteractAction(player)
 
         elif key == libtcodpy.tcod.event.KeySym.C:
             return CharacterScreenEventHandler(self.engine)

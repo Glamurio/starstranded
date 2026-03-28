@@ -134,13 +134,29 @@ class Engine:
         return True
 
     def update_fov(self) -> None:
-        """Recompute the visible area based on the players point of view."""
+        """Recompute the visible area based on the players point of view,
+        plus any active light sources (e.g. lit campfires)."""
+        from crafting import Campfire
+
         self.game_map.visible[:] = libtcodpy.tcod.map.compute_fov(
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
             radius=100,
             algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
         )
+
+        # Add light from campfires
+        for entity in self.game_map.entities:
+            if isinstance(entity, Campfire) and entity.is_lit:
+                campfire_fov = libtcodpy.tcod.map.compute_fov(
+                    self.game_map.tiles["transparent"],
+                    (entity.x, entity.y),
+                    radius=entity.light_radius,
+                    algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
+                )
+                # Merge: anything the campfire can see is also visible
+                self.game_map.visible |= campfire_fov
+
         # If a tile is "visible" it should be added to "explored".
         self.game_map.explored |= self.game_map.visible
 
