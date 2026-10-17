@@ -156,8 +156,8 @@ class ActionWithDirection(Action):
         """Return the blocking entity at this actions destination.."""
         return self.engine.game_map.get_entities_at_location(*self.dest_xy, True)
 
-    def get_path(self, ai, x: int, y: int) -> List[Tuple]:
-        return self.engine.get_path_to(ai, x, y)
+    def get_path(self, x: int, y: int) -> List[Tuple]:
+        return self.engine.get_path_to(self.entity, x, y)
 
     def perform(self) -> None:
         super().perform()
@@ -235,7 +235,7 @@ class MovementAction(ActionWithDirection):
 class BumpAction(ActionWithDirection):
 
     def perform(self) -> None:
-        path: List[Tuple] = self.get_path(self.entity.ai, self.dest_x, self.dest_y)
+        path: List[Tuple] = self.get_path(self.dest_x, self.dest_y)
 
         distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.
 

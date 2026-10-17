@@ -245,7 +245,7 @@ class PickupHandler(AskUserEventHandler):
         player = self.engine.player
         mouse_x, mouse_y = self.engine.mouse_location
         distance = self.engine.distance((player.x, player.y), (mouse_x, mouse_y))
-        path = self.engine.get_path_to(player.ai, mouse_x, mouse_y)
+        path = self.engine.get_path_to(player, mouse_x, mouse_y)
         tile = path.pop(0) if path else (player.x, player.y)
         if distance <= 1:
             self.target_location = tcod.event.Point(mouse_x, mouse_y)
@@ -878,7 +878,7 @@ class MainGameEventHandler(EventHandler):
         player = self.engine.player
         if self.mouse_motion and player.is_alive:
             mouse_x, mouse_y = self.engine.mouse_location
-            path: List[Tuple] = self.engine.get_path_to(player.ai, mouse_x, mouse_y)
+            path: List[Tuple] = self.engine.get_path_to(player, mouse_x, mouse_y)
             for x, y in path:
                 console.rgb["bg"][x, y] = color.white
                 console.rgb["fg"][x, y] = color.black

@@ -127,9 +127,8 @@ def bench_turn(kind: str, n: int, turns: int) -> dict:
 def bench_pathfinding(repeat: int) -> dict:
     engine = fresh_engine()
     engine.game_map.explored[:] = True
-    ai = engine.player.ai
     engine.player.place(0, 0)
-    return timed(lambda: engine.get_path_to(ai, engine.game_map.width - 1, engine.game_map.height - 1), repeat)
+    return timed(lambda: engine.get_path_to(engine.player, engine.game_map.width - 1, engine.game_map.height - 1), repeat)
 
 
 def bench_fov(repeat: int) -> dict:

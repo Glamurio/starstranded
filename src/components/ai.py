@@ -31,7 +31,7 @@ class BaseAI(Action):
 
     def get_path(self, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
         """Perform movement action"""
-        return self.engine.get_path_to(self, dest_x, dest_y)
+        return self.engine.get_path_to(self.entity, dest_x, dest_y)
 
     def wander(self) -> None:
         """Choose a random tile to wander to if no relevant entities are within range."""

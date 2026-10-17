@@ -18,6 +18,7 @@ import math
 
 if TYPE_CHECKING:
     from components.ai import BaseAI
+    from entity import Entity
     from entity import Unit
     from world import GameMap, GameWorld
 
@@ -53,42 +54,28 @@ class Engine:
                 except exceptions.Impossible:
                     pass  # Ignore impossible action exceptions from AI.
 
-    def get_path_to(self, ai: BaseAI, dest_x: int, dest_y: int, ignore_obstacles = False) -> List[Tuple[int, int]]:
+    def get_path_to(self, origin: Entity, dest_x: int, dest_y: int, ignore_obstacles: bool = False) -> List[Tuple[int, int]]:
         """
-        Compute and return a path to the target position.
+        Compute and return a path from `origin` to the target position (start excluded, destination included).
 
         If there is no valid path then returns an empty list.
+
+        Unexplored tiles count as walkable, so the path does not reveal hidden terrain. Tiles occupied by
+        movement-blocking entities cost +10 per blocker (a lower number means more enemies will crowd behind
+        each other in hallways, a higher number means they take longer paths to surround the player).
         """
-        if not self.game_map.in_bounds(dest_x, dest_y):
+        game_map = origin.game_map
+        if not game_map.in_bounds(dest_x, dest_y):
             return []
 
-        # Copy the walkable array.
-        walkable = np.array(ai.entity.game_map.tiles["walkable"])
-        # Copy an array of all unexplored tile
-        unexplored = np.logical_not(ai.entity.game_map.explored)
+        cost = game_map.path_base_cost()
+        if not ignore_obstacles:
+            cost = np.where(cost > 0, cost + 10 * game_map.blocked, 0).astype(np.int32)
 
-        # Set up the cost so that unexplored tiles do not factor in the terrain that they have
-        # This prevents the player from knowing if an unexplored terrain is walkable or not
-        cost = np.logical_or(walkable, unexplored).astype(int)
-
-        for entity in ai.entity.game_map.entities:
-            # Check that an entity blocks movement and the cost isn't zero (blocking.)
-            if not ignore_obstacles and entity.blocks_movement and cost[entity.x, entity.y]:
-                # Add to the cost of a blocked position.
-                # A lower number means more enemies will crowd behind each other in
-                # hallways.  A higher number means enemies will take longer paths in
-                # order to surround the player.
-                cost[entity.x, entity.y] += 10
-
-        # Create a graph from the cost array and pass that graph to a new pathfinder.
         graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
         pathfinder = tcod.path.Pathfinder(graph)
-
-        pathfinder.add_root((ai.entity.x, ai.entity.y))  # Start position.
-
-        # Compute the path to the destination and remove the starting point.
+        pathfinder.add_root((origin.x, origin.y))
         path: List[List[int]] = pathfinder.path_to((dest_x, dest_y))[1:].tolist()
-        # Convert from List[List[int]] to List[Tuple[int, int]].
         return [(index[0], index[1]) for index in path]
 
     def distance(self, p1: tuple[int, int], p2: tuple[int, int], diag=True, euclidean=False):

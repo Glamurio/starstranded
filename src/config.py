@@ -11,10 +11,6 @@ class GameConfig:
     (the behaviour of the old hard-coded radius=100). Once the camera is centred on the player (Phase 5), ~41
     (half-diagonal of a 70x40 view) is the sensible value."""
 
-    path_window_margin: int = 12
-    """Pathfinding searches only the bounding box of start and goal, grown by this many tiles on every side
-    (clipped to the map). Routes that would need to leave that window are not found. 0 or negative = whole map."""
-
     flee_attempts: int = 50
     """How many random tiles a fleeing AI tries before giving up (the old loop could spin forever)."""
 

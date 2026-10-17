@@ -159,6 +159,21 @@ class GameMap(SpatialContainer):
             else:
                 self._actors.pop(entity, None)
 
+    def path_base_cost(self) -> np.ndarray:
+        """Static terrain cost for pathfinding: 1 where walkable *or unexplored*, 0 where known to be blocked.
+
+        Cached; recomputed only when the walkable or explored arrays changed since the last call (two cheap
+        array comparisons instead of trusting every caller to report tile edits).
+        """
+        walkable, explored = self.tiles["walkable"], self.explored
+        cache = getattr(self, "_path_cache", None)
+        if cache is None or not (np.array_equal(cache[0], walkable) and np.array_equal(cache[1], explored)):
+            base = np.logical_or(walkable, np.logical_not(explored)).astype(np.int32)
+            base.flags.writeable = False
+            cache = (walkable.copy(), explored.copy(), base)
+            self._path_cache = cache
+        return cache[2]
+
     def terrain_changed(self) -> None:
         """Call after mutating `tiles` walkable/transparent flags outside of map generation."""
         self.terrain_version += 1

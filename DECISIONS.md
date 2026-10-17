@@ -136,8 +136,12 @@ doing it twice is wasteful. Pickles stay circular but compact (pickle memoizes s
 
 ## Performance work
 - Pathfinding: per-map cached base cost (`walkable | ~explored`), invalidated only when tiles change or exploration grows;
-  per call `cost = base + 10 * blocked` masked to passable tiles (vectorised, no entity loop). Search is cropped to a window
-  around origin/destination with a configurable margin (identical results unless the only route leaves the window).
+  per call `cost = base + 10 * blocked` masked to passable tiles (vectorised, no entity loop).
+  *Outcome (measured):* the search window was **dropped** — tcod's Pathfinder was slower on a cropped 14x18 grid (124 µs) than on
+  the whole 70x40 map (88 µs), so cropping buys nothing at this map size (revisit for Phase 5's stitched window, where the
+  cap is a hard requirement). Legacy `tcod.path.AStar` was 5x faster (17 µs) but returned a costlier route in 12 of 1,602
+  random queries, so the exact `Pathfinder` stays. Paths are now *identical* to the old implementation (tested against a
+  copy of it); per call 197 → 134 µs, the remainder being tcod's own search.
 - FOV: `config.fov_radius`, default **80** = ceil(sqrt(69² + 39²)), i.e. the whole 70x40 map remains visible from anywhere
   (unchanged behaviour while the camera is fixed). Phase 5 (camera centred on the player) should lower it to ~41 (half-diagonal of the view).
 - Render: iterate render buckets in order (no per-frame sort).
