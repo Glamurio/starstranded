@@ -141,8 +141,9 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
             x = random.randint(0, map.width - 1)
             y = random.randint(0, map.height - 1)
 
-        unwalkable = not map.tiles[x, y]["walkable"]
-        if not (unwalkable and map.get_entities_at_location(x, y)):
+        # Skip (no retry, as before) unless the tile is walkable and free of blocking entities.
+        # The old check `not (unwalkable and <entity here>)` let monsters/items spawn inside walls and water.
+        if map.tiles[x, y]["walkable"] and not map.is_blocked(x, y):
             map.add_entity(factory(), x, y)
 
 
