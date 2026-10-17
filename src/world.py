@@ -74,7 +74,8 @@ class GameMap:
 
     def get_entities_at_location(
         self, location_x: int, location_y: int, check_block: bool = False
-    ) -> Optional[Entity]:
+    ) -> List[Entity]:
+        """Return every entity at the location (only blocking ones if `check_block`). Never None."""
         entities = []
         for entity in self.entities:
             checker = entity.blocks_movement if check_block else True
