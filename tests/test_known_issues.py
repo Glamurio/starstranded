@@ -12,16 +12,6 @@ from components.consumable import HealthPotion
 from components.unit import Animal
 
 
-def test_current_get_unit_at_location_may_return_a_corpse(small_world):
-    """`units` includes dead units; a corpse and a living unit on one tile are indistinguishable."""
-    e = small_world()
-    corpse = Animal(); corpse.place(5, 5, e.game_map)
-    corpse.hp = 0
-    corpse.die(e.player)
-    alive = Animal(); alive.place(5, 5, e.game_map)
-    assert e.game_map.get_unit_at_location(5, 5) in {corpse, alive}  # which one is set-order luck
-
-
 def test_setup_game_uses_the_game_exceptions_module():
     """`from asyncio import exceptions` used to shadow the game's own `exceptions` module."""
     assert setup_game.exceptions.__name__ == "exceptions"

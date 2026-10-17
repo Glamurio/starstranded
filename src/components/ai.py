@@ -208,7 +208,7 @@ class PassiveAI(BaseAI):
 
         # Run away from the closest unit that's not own species
         for unit in self.engine.game_map.units:
-            if unit.species == self.entity.species:
+            if unit.species == self.entity.species or not unit.is_alive:  # corpses are not a threat
                 continue
             
             if self.engine.distance((self.entity.x, self.entity.y), (unit.x, unit.y)) <= 3:

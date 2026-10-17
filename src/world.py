@@ -174,10 +174,14 @@ class GameMap(SpatialContainer):
         return list(here)
 
     def get_unit_at_location(self, x: int, y: int) -> Optional[Unit]:
+        """The unit at (x, y), preferring a living one over a corpse; None if there is no unit."""
+        corpse = None
         for entity in self._by_pos.get((x, y), ()):
             if entity.category is EntityCategory.UNIT:
-                return entity
-        return None
+                if entity.is_alive:
+                    return entity
+                corpse = corpse or entity
+        return corpse
 
     def is_blocked(self, x: int, y: int) -> bool:
         """True if a movement-blocking entity stands on (x, y)."""
