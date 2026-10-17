@@ -177,17 +177,6 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
         and (point.y - height // 2) < (mouse_pt.y) and (point.y + height // 2) > (mouse_pt.y)
 
 
-def text_input(buffer: str = "") -> str:
-    for event in tcod.event.wait():
-        match event:
-            case tcod.event.KeyDown(sym = tcod.eventKeySym.KeySym.RETURN):
-                return buffer
-            case tcod.event.KeyDown(sym = tcod.eventKeySym.BACKSPACE):
-                buffer = buffer[:-1]
-            case tcod.event.TextInput(text=text):
-                buffer += text
-
-
 def generate_name(origin: str):
     path = Path("./data/namegen").resolve()
     file_names = []
