@@ -62,6 +62,12 @@ WAIT_KEYS = {
     tcod.event.KeySym.CLEAR,
 }
 
+def entity_glyph(entity: Entity) -> str:
+    """Printable glyph of an entity: `char` is a codepoint int for sprites but a plain string for some items."""
+    char = entity.char
+    return chr(char) if isinstance(char, int) else char
+
+
 ActionOrHandler = Union[actions.Action, "BaseEventHandler"]
 """An event handler return value which can trigger an action or switch active handlers.
 
@@ -511,7 +517,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 console.print(
                     button_x,
                     button_y,
-                    text=f"{chr(entity.char)} ",
+                    text=f"{entity_glyph(entity)} ",
                     fg=entity.color,
                     bg=color.nigh_black,
                 )

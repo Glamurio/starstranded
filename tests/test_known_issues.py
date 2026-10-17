@@ -12,19 +12,6 @@ from components.consumable import HealthPotion
 from components.unit import Animal
 
 
-def test_current_inventory_render_crashes_with_a_health_potion(small_world):
-    """InventoryEventHandler.on_render does chr(entity.char); HealthPotion.char is the str '!'."""
-    import g
-
-    e = small_world()
-    e.player.inventory.add(HealthPotion())
-    handler = input_handlers.InventoryActivateHandler(e, e.player.inventory)
-    g.handlers = [input_handlers.MainGameEventHandler(e), handler]
-    g.root_console.clear()
-    with pytest.raises(TypeError):
-        handler.on_render(g.root_console)
-
-
 def test_current_get_unit_at_location_may_return_a_corpse(small_world):
     """`units` includes dead units; a corpse and a living unit on one tile are indistinguishable."""
     e = small_world()
