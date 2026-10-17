@@ -10,9 +10,10 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, NamedTuple, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import color
+from atlas import COLUMNS as SHEET_COLUMNS
 from equipment_types import EquipmentType
 from render_order import RenderOrder
 
@@ -40,6 +41,18 @@ class _Definition:
 
     key: Optional[str]
 
+    @property
+    def sprite_id(self) -> Optional[int]:
+        """Atlas id of the sprite (None if the definition has none)."""
+        sprite = self.sprite  # type: ignore[attr-defined]
+        return None if sprite is None else sprite[1] * SHEET_COLUMNS + sprite[0]
+
+    @property
+    def corpse_sprite_id(self) -> Optional[int]:
+        """Atlas id of the corpse sprite (None for definitions without one)."""
+        sprite = getattr(self, "corpse_sprite", None)
+        return None if sprite is None else sprite[1] * SHEET_COLUMNS + sprite[0]
+
     def __reduce_ex__(self, protocol):
         registry = _REGISTRIES.get(type(self).__name__, {})
         if self.key is not None and registry.get(self.key) is self:
@@ -53,7 +66,6 @@ class ItemKind(_Definition):
     object_type: str
     species: Optional[str] = None
     sprite: Optional[Sprite] = None
-    glyph: Optional[str] = None  # text glyph for items without a sprite (e.g. "!")
     color: RGB = color.white
     shade_sigma: Optional[float] = None  # None: shade is white (the old default for items)
     material: Optional[str] = None
@@ -146,24 +158,24 @@ RABBIT = register(UnitSpecies(
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
-HEALTH_POTION = register(ItemKind("health_potion", "Health Potion", glyph="!", color=(127, 0, 255), heal_amount=4))
+HEALTH_POTION = register(ItemKind("health_potion", "Health Potion", sprite=(29, 19), color=(127, 0, 255), heal_amount=4))
 MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(15, 5), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 21), color=(0, 191, 255), material="Bronze",
                            equipment_type=EquipmentType.WEAPON, power_bonus=2))
-SWORD = register(ItemKind("sword", "Sword", glyph="\\", color=(0, 191, 255), material="Iron",
+SWORD = register(ItemKind("sword", "Sword", sprite=(29, 21), color=(0, 191, 255), material="Iron",
                           equipment_type=EquipmentType.WEAPON, power_bonus=4))
 LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(31, 23), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
-CHAIN_MAIL = register(ItemKind("chain_mail", "Chain Mail", glyph="]", color=(139, 69, 19), material="Iron",
+CHAIN_MAIL = register(ItemKind("chain_mail", "Chain Mail", sprite=(32, 23), color=(139, 69, 19), material="Iron",
                                equipment_type=EquipmentType.ARMOR, defense_bonus=3))
 WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(45, 21), color=(0x8B, 0x6B, 0x3D), material="Wooden",
                                  equipment_type=EquipmentType.WEAPON, power_bonus=3))
 CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(7, 29), color=color.white,
                              lit_color=color.orange, light_radius=8))
-CONFUSION_SCROLL = register(ItemKind("confusion_scroll", "Consumable", glyph="~", color=(207, 63, 255)))
-FIREBALL_SCROLL = register(ItemKind("fireball_scroll", "Consumable", glyph="~", color=(255, 0, 0)))
-LIGHTNING_SCROLL = register(ItemKind("lightning_scroll", "Consumable", glyph="~", color=(255, 255, 0)))
+CONFUSION_SCROLL = register(ItemKind("confusion_scroll", "Consumable", sprite=(33, 24), color=(207, 63, 255)))
+FIREBALL_SCROLL = register(ItemKind("fireball_scroll", "Consumable", sprite=(33, 24), color=(255, 0, 0)))
+LIGHTNING_SCROLL = register(ItemKind("lightning_scroll", "Consumable", sprite=(33, 24), color=(255, 255, 0)))
 
 
 # ── Procedural definitions ───────────────────────────────────────────────────────
@@ -206,41 +218,3 @@ def _random_color(rng: random.Random, threshold: int = 30) -> RGB:
     """`utilities.get_random_color` but driven by `rng`."""
     return (int(max(255 * rng.random(), threshold)), int(max(255 * rng.random(), threshold)),
             int(max(255 * rng.random(), threshold)))
-
-
-# ── Glyphs (tcod-console era; removed in Phase 3) ──────────────────────────────────
-class Glyphs(NamedTuple):
-    sprite: Union[int, str]
-    mirror: Union[int, str]
-    corpse: Union[int, str]
-
-
-_GLYPH_CACHE: Dict[int, Tuple[Definition, Glyphs]] = {}
-
-
-def glyphs(definition: Definition) -> Glyphs:
-    """Codepoints for a definition in the PUA-remapped tileset (or its text glyph).
-
-    Cached by object identity: hashing a frozen dataclass hashes every field, which is too slow per entity per frame.
-    The cache holds a reference to the definition, so an id is never reused while its entry exists.
-    """
-    hit = _GLYPH_CACHE.get(id(definition))
-    if hit is not None and hit[0] is definition:
-        return hit[1]
-    result = _compute_glyphs(definition)
-    _GLYPH_CACHE[id(definition)] = (definition, result)
-    return result
-
-
-def _compute_glyphs(definition: Definition) -> Glyphs:
-    glyph = getattr(definition, "glyph", None)
-    if glyph:
-        return Glyphs(glyph, glyph, glyph)
-    from utilities import map_codepoints
-
-    corpse = getattr(definition, "corpse_sprite", None)
-    mirror = getattr(definition, "mirror", False)
-    key = f"{type(definition).__name__}|{definition.sprite}|{corpse}|{mirror}"
-    info = map_codepoints(key, definition.sprite, mirror, corpse)
-    sprite = info["sprite"]
-    return Glyphs(sprite, info.get("mirror", sprite), info.get("corpse", sprite))

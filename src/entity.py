@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple, TypeVar, TYPE_CHECKING, Union
 
 import color
 from render_order import RenderOrder
-from species import Definition, ItemKind, glyphs
+from species import Definition, ItemKind
 
 if TYPE_CHECKING:
     from components.ai import BaseAI
@@ -101,17 +101,19 @@ class Entity:
         return False
 
     @property
-    def glyph(self) -> Union[int, str]:
-        """Codepoint (or text glyph) to draw: corpse, mirrored or normal sprite."""
-        g = glyphs(self.kind)
+    def sprite_id(self) -> int:
+        """Atlas id of the sprite to draw: the corpse sprite once dead, the live sprite otherwise."""
+        kind = self.kind
         if self.is_corpse:
-            return g.corpse
-        return g.mirror if self.mirrored else g.sprite
+            corpse = kind.corpse_sprite_id
+            if corpse is not None:
+                return corpse
+        return kind.sprite_id
 
     @property
-    def char(self) -> Union[int, str]:
-        """Legacy name for `glyph` (tcod console rendering)."""
-        return self.glyph
+    def flipped(self) -> bool:
+        """Draw the sprite mirrored? Mirroring is a render-time flag: only living, mirrorable kinds face left/right."""
+        return self.mirrored and not self.is_corpse and getattr(self.kind, "mirror", False)
 
     # ── indexed properties ────────────────────────────────────────────────────────
     @property

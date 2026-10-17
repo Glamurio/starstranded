@@ -8,10 +8,12 @@ import pickle
 import traceback
 from typing import TYPE_CHECKING, Optional
 
-from tcod import libtcodpy
-import tcod
+import pygame
 
 import color
+import events
+from events import Key, Point
+from ui import CENTER
 from engine import Engine
 
 import input_handlers
@@ -19,10 +21,17 @@ import input_handlers
 from utilities import is_mouse_in_rectangle
 
 if TYPE_CHECKING:
+    from ui import Canvas
     from components.unit import Unit
 
-# Load the background image and remove the alpha channel.
-background_image = tcod.image.load("menu_background.png")[:, :, :3]
+_background_image = None
+
+def background_image() -> pygame.Surface:
+    """The main menu's backdrop (loaded once, on first use)."""
+    global _background_image
+    if _background_image is None:
+        _background_image = pygame.image.load("menu_background.png")
+    return _background_image
 
 def create_player() -> Unit:
     from components.unit import Player
@@ -126,7 +135,7 @@ class MainMenu(input_handlers.BaseEventHandler):
     def on_init(self) -> None:
         self.buttons = {}  # per-instance (was a class-level dict shared by all menus)
 
-    def resolve_menu(self, event: tcod.event):
+    def resolve_menu(self, event: events.Event):
         """Resolves button and click logic"""
         
         if self.button_highlight == 'New Game':
@@ -145,58 +154,57 @@ class MainMenu(input_handlers.BaseEventHandler):
             # Quit
             raise SystemExit()
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         """Render the main menu on a background image."""
-        self.console_height = console.height
-        self.console_width = console.width
-        console.draw_semigraphics(background_image, 0, 0)
+        self.console_height = canvas.height
+        self.console_width = canvas.width
+        canvas.blit_image(background_image())
 
-        console.print(
-            console.width // 2,
-            console.height // 2 - 4,
+        canvas.print(
+            canvas.width // 2,
+            canvas.height // 2 - 4,
             text="Starstranded",
             fg=color.menu_title,
-            alignment=libtcodpy.CENTER,
+            alignment=CENTER,
         )
-        console.print(
-            console.width // 2,
-            console.height - 2,
+        canvas.print(
+            canvas.width // 2,
+            canvas.height - 2,
             text="By Ryou",
             fg=color.menu_title,
-            alignment=libtcodpy.CENTER,
+            alignment=CENTER,
         )
 
         # Iterate over menu buttons, save their position for highlighting
         for i, text in enumerate(self.button_names):
 
-            button_x = console.width // 2
-            button_y = console.height // 2 - 2 + (i*2)
+            button_x = canvas.width // 2
+            button_y = canvas.height // 2 - 2 + (i*2)
 
             self.buttons[text] = {
                 'x': button_x,
                 'y': button_y,
             }
 
-            console.print(
+            canvas.print(
                 button_x,
                 button_y,
                 text=text.center(self.menu_width),
                 fg=color.menu_text_inverse if text == self.button_highlight else color.menu_text,
-                bg=color.white if text == self.button_highlight else color.black,
-                alignment=libtcodpy.CENTER,
-                bg_blend=libtcodpy.BKGND_ALPHA(64),
+                bg=color.white if text == self.button_highlight else None,
+                alignment=CENTER,
             )
 
     def ev_keydown(
-        self, event: tcod.event.KeyDown
+        self, event: events.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
 
-        if event.sym == tcod.event.KeySym.UP:
+        if event.sym == Key.UP:
             if not self.button_highlight:
                 self.menu_i = 0
             else:
                 self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.button_names)-1
-        elif event.sym == tcod.event.KeySym.DOWN:
+        elif event.sym == Key.DOWN:
             if not self.button_highlight:
                 self.menu_i = 0
             else:
@@ -206,29 +214,29 @@ class MainMenu(input_handlers.BaseEventHandler):
         if event.sym in input_handlers.CONFIRM_KEYS:
             return self.resolve_menu(event)
 
-        if event.sym in (tcod.event.KeySym.Q, tcod.event.KeySym.ESCAPE):
+        if event.sym in (Key.Q, Key.ESCAPE):
             raise SystemExit()
 
         return None
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: events.MouseButtonDown
     ) -> Optional[input_handlers.ActionOrHandler]:
         """Left click confirms a selection."""
 
         for text in self.button_names:
-            button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
+            button_pt = Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
 
             if in_rect:
                 return self.resolve_menu(event)
 
     def ev_mousemotion(
-        self, event: tcod.event.MouseMotion
+        self, event: events.MouseMotion
     ) -> Optional[input_handlers.ActionOrHandler]:
         """Tracks mouse movement"""
         for i, text in enumerate(self.button_names):
-            button_pt = tcod.event.Point(self.buttons[text]['x'], self.buttons[text]['y'])
+            button_pt = Point(self.buttons[text]['x'], self.buttons[text]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
             if in_rect:
                 self.menu_i = i
@@ -241,16 +249,16 @@ class CharacterCreation(input_handlers.BaseEventHandler):
 
     def on_init(self):
         self.player = create_player()  # a fresh player per visit (was one Player built at import and reused)
-        g.sdl_window.start_text_input()
+        g.start_text_input()
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         from utilities import generate_name
 
         width = len(self.TITLE) + 4
-        x = console.width // 2 - width // 2
-        y = console.height // 2 - 4
+        x = canvas.width // 2 - width // 2
+        y = canvas.height // 2 - 4
 
-        console.draw_frame(
+        canvas.draw_frame(
             x,
             y,
             width=width,
@@ -261,30 +269,30 @@ class CharacterCreation(input_handlers.BaseEventHandler):
             bg=(0, 0, 0),
         )
 
-        console.print(
+        canvas.print(
             x=x  + 2, y=y + 2, text=f"{self.player.name}"
         )
         if len(self.player.name) < self.MAX_CHARS - 1:
-            console.print(
+            canvas.print(
                 x=x + len(self.player.name) + 2, y=y + 2, text=f"_"
             )
 
-    def ev_textinput(self, event: tcod.event.TextInput) -> Optional[input_handlers.BaseEventHandler]:
+    def ev_textinput(self, event: events.TextInput) -> Optional[input_handlers.BaseEventHandler]:
         name = self.player.name
         name += event.text
         if len(name) < self.MAX_CHARS:
             self.player.set_name(name)
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym == tcod.event.KeySym.RETURN:
-            g.sdl_window.stop_text_input()
+    def ev_keydown(self, event: events.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
+        if event.sym == Key.RETURN:
+            g.stop_text_input()
             game_handler = input_handlers.MainGameEventHandler(new_game(self.player))
             g.handlers = [game_handler]
             return game_handler
-        elif event.sym == tcod.event.KeySym.BACKSPACE:
+        elif event.sym == Key.BACKSPACE:
             name = self.player.name[:-1]
             self.player.set_name(name)
-        elif event.sym in (tcod.event.KeySym.Q, tcod.event.KeySym.ESCAPE):
-            g.sdl_window.stop_text_input()
+        elif event.sym == Key.ESCAPE:  # (not Q: it is a letter in a name)
+            g.stop_text_input()
             return MainMenu()
             

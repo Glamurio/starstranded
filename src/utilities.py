@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import os
-import tcod
-import g
 import random
 
 import numpy as np # type: ignore
 from typing import TYPE_CHECKING, Dict, Optional, Tuple, List
+
+from events import Point
 
 if TYPE_CHECKING:
     pass
@@ -40,16 +40,6 @@ SHADES = {
  'Magenta': 300,
  'Rose': 330
 }
-
-def get_data(path: str) -> str:
-    """Return the path to a resource in the libtcod data directory,"""
-    SCRIPT_DIR = os.path.dirname(__file__)
-    DATA_DIR = os.path.join(SCRIPT_DIR, "../libtcod/data")
-    assert os.path.exists(DATA_DIR), (
-        "Data directory is missing," " did you forget to run `git submodule update --init`?"
-    )
-    return os.path.join(DATA_DIR, path)
-
 
 def clamp(n: int, smallest: int, largest: int):
     """Clamps `n` to `smallest` or `largest`"""
@@ -164,13 +154,14 @@ def get_gaussian_shade(color: tuple[float, float, float], sigma: float = 20):
     return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))
 
 
-def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point, width: int, height: int) -> bool:
+def is_mouse_in_rectangle(mouse, point, width: int, height: int) -> bool:
     """
-    Check if current mouse position is within a rectangle of given `width` and `height` and return True or False.
+    Check if current mouse position (an event with a cell `position`) is within a rectangle of given
+    `width` and `height` and return True or False.
 
     `point` indicates the center of the rectangle.
     """
-    mouse_pt = tcod.event.Point(int(mouse.position.x), int(mouse.position.y))
+    mouse_pt = Point(int(mouse.position.x), int(mouse.position.y))
 
     return (point.x - width // 2) < (mouse_pt.x) and (point.x + width // 2) > (mouse_pt.x) \
         and (point.y - height // 2) < (mouse_pt.y) and (point.y + height // 2) > (mouse_pt.y)
@@ -178,54 +169,3 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
 
 # generate_name now lives in namegen.py (pure Python, cached); re-exported for existing callers.
 from namegen import generate_name  # noqa: E402,F401
-
-
-def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: Optional[List[tuple]] = None) -> Dict: # type: ignore
-    """
-    Function, which maps class_name to codepoint(s) and coordinates.
-
-    Returns the respective `char_info`
-
-    `char_info['sprite']` returns codepoint for sprite
-
-    `char_info['mirror']` returns codepoint for mirrored sprite
-
-    `char_info['corpse']` returns codepoint for corpse sprite
-    """
-    if class_name in g.char_dict:
-        return g.char_dict[class_name]
-
-    char_info = {}
-    MAX_TILES = g.global_tileset_size[0] * g.global_tileset_size[1]
-    i = char_xy[1] * g.global_tileset_size[0] + char_xy[0]
-    assert i < MAX_TILES
-    char_i = i + 0xE000
-    mirror_i = i + 0xE000 + MAX_TILES
-    corpse_i = i + 0xE000 + MAX_TILES * 2
-        
-    values = [char_i]
-    char_info["sprite"] = char_i
-
-    g.global_tileset.remap(char_i, char_xy[0], char_xy[1])
-
-    if mirror:
-        char_info["mirror"] = mirror_i
-        inv_tile = np.flip(g.global_tileset[char_i], axis=1)
-        g.global_tileset[mirror_i] = inv_tile
-        values.append(mirror_i)
-
-    if corpse_xy:
-        char_info["corpse"] = corpse_i
-        g.global_tileset.remap(corpse_i, corpse_xy[0], corpse_xy[1])
-        values.append(corpse_i)
-
-    for j, variation in enumerate(variations or []):
-        variation_i = 1 + i + int(mirror) + int(bool(corpse_xy)) + j
-        char_info[variation[2]] = variation_i
-        g.global_tileset.remap(variation_i, variation[0], variation[1])
-        values.append(variation_i)
-            
-    g.mapped_chars.extend(values)
-    g.char_dict[class_name] = char_info
-    
-    return char_info

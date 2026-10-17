@@ -1,6 +1,5 @@
 from typing import Iterable, List, Reversible, Tuple
 import textwrap
-import tcod
 
 import color
 
@@ -37,13 +36,13 @@ class MessageLog:
             self.messages.append(Message(text, fg))
 
     def render(
-        self, console: tcod.console.Console, x: int, y: int, width: int, height: int,
+        self, canvas, x: int, y: int, width: int, height: int,
     ) -> None:
         """Render this log over the given area.
-        `x`, `y`, `width`, `height` is the rectangular region to render onto
-        the `console`.
+        `x`, `y`, `width`, `height` is the rectangular region (in cells) to render onto
+        the `canvas`.
         """
-        self.render_messages(console, x, y, width, height, self.messages)
+        self.render_messages(canvas, x, y, width, height, self.messages)
 
     @staticmethod
     def wrap(string: str, width: int) -> Iterable[str]:
@@ -56,7 +55,7 @@ class MessageLog:
     @classmethod
     def render_messages(
         cls,
-        console: tcod.console.Console,
+        canvas,
         x: int,
         y: int,
         width: int,
@@ -71,7 +70,7 @@ class MessageLog:
 
         for message in reversed(messages):
             for line in reversed(list(cls.wrap(message.full_text, width))):
-                console.print(x=x, y=y + y_offset, text=line, fg=message.fg)
+                canvas.print(x, y + y_offset, line, fg=message.fg)
                 y_offset -= 1
                 if y_offset < 0:
                     return  # No more space to print messages.

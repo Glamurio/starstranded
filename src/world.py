@@ -6,14 +6,15 @@ import random
 from typing import Dict, Iterable, Iterator, KeysView, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np  # type: ignore
-import tcod
 
+from atlas import TILE
 from entity import EntityCategory, Item, SpatialContainer
 from render_order import RenderOrder
 import tile_types
 
 if TYPE_CHECKING:
     from engine import Engine
+    from ui import Canvas
     from entity import Entity
     from components.unit import Unit
     from components.plant import Plant
@@ -220,28 +221,63 @@ class GameMap(SpatialContainer):
         """Return True if x and y are inside of the bounds of this map."""
         return 0 <= x < self.width and 0 <= y < self.height
 
-    def render(self, console: tcod.console.Console) -> None:
+    def render(self, canvas: Canvas, origin: Tuple[int, int] = (0, 0)) -> None:
         """
-        Renders the map.
+        Draws the map onto `canvas` with its top-left tile at cell `origin`.
 
-        If a tile is in the "visible" array, then draw it with the "light" colors.
-        If it isn't, but it's in the "explored" array, then draw it with the "dark" colors.
-        Otherwise, the default is "SHROUD".
+        If a tile is in the "visible" array, then draw it with the "light" graphics.
+        If it isn't, but it's in the "explored" array, then draw it with the "dark" graphics.
+        Otherwise nothing is drawn (the canvas is cleared to black beforehand).
+
+        Terrain is drawn in one batched blit: tiles are grouped by their distinct graphic (sprite, flip, tint,
+        background), each group is a cached surface from the sprite atlas, and `Surface.blits` draws them all.
+        Entities then follow in render order, each tinted with its own shade.
         """
-        console.rgb[0 : self.width, 0 : self.height] = np.select(
-            condlist=[self.visible, self.explored],
-            choicelist=[self.tiles["light"], self.tiles["dark"]],
-            default=tile_types.SHROUD,
-        )
+        atlas = canvas.sprites
+        surface = canvas.surface
+        shown = self.visible | self.explored
+        xs, ys = np.nonzero(shown)
+        if xs.size:
+            gfx = np.select(
+                condlist=[self.visible, self.explored],
+                choicelist=[self.tiles["light"], self.tiles["dark"]],
+                default=tile_types.SHROUD,
+            )
+            fg = gfx["fg"].astype(np.int64)
+            bg = gfx["bg"].astype(np.int64)
+            keys = (
+                (gfx["sprite"].astype(np.int64) + 1)
+                | (gfx["flip"].astype(np.int64) << 12)
+                | (((fg[..., 0] << 16) | (fg[..., 1] << 8) | fg[..., 2]) << 13)
+                | (((bg[..., 0] << 16) | (bg[..., 1] << 8) | bg[..., 2]) << 37)
+            )[xs, ys]
+            unique, inverse = np.unique(keys, return_inverse=True)
+            tiles = []
+            for key in unique.tolist():
+                fg_packed = (key >> 13) & 0xFFFFFF
+                bg_packed = key >> 37
+                tiles.append(atlas.get_on(
+                    (key & 0xFFF) - 1,
+                    bool((key >> 12) & 1),
+                    (fg_packed >> 16, (fg_packed >> 8) & 255, fg_packed & 255),
+                    (bg_packed >> 16, (bg_packed >> 8) & 255, bg_packed & 255),
+                ))
+            ox, oy = origin[0] * TILE, origin[1] * TILE
+            surface.blits(
+                [(tiles[i], (ox + x * TILE, oy + y * TILE)) for i, x, y in zip(inverse.tolist(), xs.tolist(), ys.tolist())],
+                doreturn=False,
+            )
 
         visible = self.visible
+        get = atlas.get
+        entity_blits = []
         for entity in self.entities_in_render_order():
-            # Only print entities that are in the FOV
-            if visible[entity.x, entity.y]:
-                glyph = entity.glyph
-                console.print(
-                    x=entity.x, y=entity.y, text=chr(glyph) if isinstance(glyph, int) else glyph, fg=entity.shade
-                )
+            # Only draw entities that are in the FOV
+            x, y = entity.x, entity.y
+            if visible[x, y]:
+                entity_blits.append((get(entity.sprite_id, entity.flipped, entity.shade),
+                                     ((origin[0] + x) * TILE, (origin[1] + y) * TILE)))
+        surface.blits(entity_blits, doreturn=False)
 
 class GameWorld:
     """

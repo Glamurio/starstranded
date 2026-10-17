@@ -3,7 +3,6 @@ from __future__ import annotations
 import lzma
 import os
 import pickle
-import g
 
 from typing import TYPE_CHECKING, List, Optional, Tuple
 from tcod import libtcodpy
@@ -11,6 +10,7 @@ import tcod
 import numpy as np # type: ignore
 
 import exceptions
+from events import Point
 from config import DEFAULT_CONFIG, GameConfig
 from message_log import MessageLog
 import render_functions
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from components.ai import BaseAI
     from entity import Entity
     from entity import Unit
+    from ui import Canvas
     from world import GameMap, GameWorld
 
 
@@ -35,7 +36,7 @@ class Engine:
     def __init__(self, player: Unit, config: Optional[GameConfig] = None):
         self.config = config or DEFAULT_CONFIG
         self.message_log = MessageLog()
-        self.mouse_location = tcod.event.Point(0, 0)
+        self.mouse_location = Point(0, 0)
         self.player = player
 
 
@@ -106,7 +107,7 @@ class Engine:
         return closest_coordinate
 
     def can_see(self, x1, y1, x2, y2, radius: int = 8):
-        if self.distance(tcod.event.Point(x1, y1), tcod.event.Point(x2, y2)) > radius-2:
+        if self.distance(Point(x1, y1), Point(x2, y2)) > radius-2:
             return False
 
         for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
@@ -179,56 +180,22 @@ class Engine:
         self.game_map.explored |= self.game_map.visible
 
 
-    def render(self, console: tcod.console.Console) -> None:
-        self.game_map.render(console)
+    def render(self, canvas: Canvas) -> None:
+        """Draw the map, the bottom panel (status bars, names under the cursor, message log) and the side panel."""
+        self.game_map.render(canvas)
 
-        self.message_log.render(console=console, x=21, y=49, width=40, height=5)
-        
-        # HP
-        render_functions.render_bar(
-            console=console,
-            current_value=self.player.hp,
-            maximum_value=self.player.max_hp,
-            x=0, y=40,
-            total_width=20,
-            bg_full=color.hp_bar_filled,
-            bg_empty=color.hp_bar_empty,
-            fg_color=color.bar_text,
-            fg_text="HP"
-        )
+        player = self.player
+        for row, (value, maximum, full, empty, label) in zip((40, 42, 44), (
+            (player.hp, player.max_hp, color.hp_bar_filled, color.hp_bar_empty, "HP"),
+            (player.hunger, player.max_hunger, color.hunger_bar_filled, color.hunger_bar_empty, "Hunger"),
+            (player.thirst, player.max_thirst, color.thirst_bar_filled, color.thirst_bar_empty, "Thirst"),
+        )):
+            render_functions.render_bar(
+                canvas, current_value=value, maximum_value=maximum, x=0, y=row, total_width=20,
+                bg_full=full, bg_empty=empty, fg_color=color.bar_text, fg_text=label,
+            )
 
-        # Hunger
-        render_functions.render_bar(
-            console=console,
-            current_value=self.player.hunger,
-            maximum_value=self.player.max_hunger,
-            x=0, y=42,
-            total_width=20,
-            bg_full=color.hunger_bar_filled,
-            bg_empty=color.hunger_bar_empty,
-            fg_color=color.bar_text,
-            fg_text="Hunger"
-        )
+        render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self)
+        self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
 
-        # Thirst
-        render_functions.render_bar(
-            console=console,
-            current_value=self.player.thirst,
-            maximum_value=self.player.max_thirst,
-            x=0, y=44,
-            total_width=20,
-            bg_full=color.thirst_bar_filled,
-            bg_empty=color.thirst_bar_empty,
-            fg_color=color.bar_text,
-            fg_text="Thirst"
-        )
-
-        render_functions.render_dungeon_level(
-            console=console,
-            dungeon_level=self.game_world.current_floor,
-            location=(0, 47),
-        )
-
-        render_functions.render_names_at_mouse_location(
-            console=console, x=21, y=42, engine=self
-        )
+        render_functions.render_dungeon_level(canvas, self.game_world.current_floor, (self.game_map.width + 1, 1))

@@ -55,8 +55,7 @@ def test_main_handler_renders_with_cursor_out_of_bounds(small_world):
     handler = input_handlers.MainGameEventHandler(e)
     handler.mouse_motion = True
     e.mouse_location = (99, 99)
-    g.root_console.clear()
-    handler.on_render(g.root_console)
+    g.draw(handler)
 
 
 def test_unexplored_terrain_is_treated_as_walkable(small_world):

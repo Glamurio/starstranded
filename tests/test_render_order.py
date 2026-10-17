@@ -1,5 +1,10 @@
 """GameMap draws entities bucketed by RenderOrder (no per-frame sort); later layers overwrite earlier ones."""
+import numpy as np
+import pygame
+
+import color
 import g
+from render_helpers import cell, expected_sprite_cell
 from components.consumable import Meat
 from components.unit import Animal
 from render_order import RenderOrder
@@ -22,6 +27,12 @@ def test_living_unit_is_drawn_over_corpse_and_item(small_world):
     Meat("x").place(4, 4, m)
     dead = Animal(); dead.place(4, 4, m); dead.hp = 0; dead.die(None)
     e.update_fov()
-    g.root_console.clear()
-    m.render(g.root_console)
-    assert g.root_console.rgb["ch"][4, 4] == alive.glyph
+    g.canvas.clear()
+    m.render(g.canvas)
+    drawn = cell(g.canvas, 4, 4)
+    expected = expected_sprite_cell(alive.sprite_id, alive.shade, alive.flipped, bg=color.nigh_black)
+    # Sprites are transparent between their strokes, so lower layers show through; wherever the unit's own
+    # sprite is opaque it must win over the corpse and the item underneath.
+    opaque = pygame.surfarray.array_alpha(g.canvas.sprites.get(alive.sprite_id, alive.flipped, alive.shade)) > 0
+    assert opaque.any() and np.array_equal(drawn[opaque], expected[opaque])
+    assert not np.array_equal(drawn, expected)  # ... and something is indeed drawn beneath it

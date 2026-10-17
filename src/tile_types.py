@@ -4,16 +4,19 @@ import numpy as np  # type: ignore
 import color
 import random
 
-from utilities import map_codepoints, get_random_color, get_shade
+from atlas import NO_SPRITE, sprite_id
+from utilities import get_random_color, get_shade
 
 # Water/wall colours are rolled once per process. A private RNG keeps that import-time roll from shifting the
 # global `random` stream (which would make world generation depend on *when* this module is first imported).
 _palette_rng = random.Random()
 
-# Tile graphics structured type compatible with Console.rgb.
+# Tile graphics: what one cell looks like. `sprite` is an atlas id (NO_SPRITE draws nothing), `flip` mirrors it
+# horizontally, `fg` is the colour the white sprite is tinted with and `bg` the opaque colour behind it.
 graphic_dt = np.dtype(
     [
-        ("ch", np.int32),  # Unicode codepoint.
+        ("sprite", np.int32),
+        ("flip", np.bool_),
         ("fg", "3B"),  # 3 unsigned bytes, for RGB colors.
         ("bg", "3B"),
     ]
@@ -24,16 +27,17 @@ tile_dt = np.dtype(
     [
         ("walkable", bool),   # type: ignore # True if this tile can be walked over.
         ("transparent", bool),   # type: ignore # True if this tile doesn't block FOV.
-        ("dark", graphic_dt),  # Graphics for when this tile is not in FOV.
+        ("dark", graphic_dt),  # Graphics for when this tile was explored but is not in FOV.
         ("light", graphic_dt),  # Graphics for when the tile is in FOV.
     ]
 )
 
 class Tile(object):
     """
-    Tile sprite is controlled via `sprite_pos` on `global_tilesheet`
+    A kind of terrain. `sprite` is its `(column, row)` on the sprite sheet, `variations` lists extra
+    `(column, row, name)` sprites (edge pieces) that `variation_ids` maps to atlas ids.
 
-    `dark_bg` and `dark_fg` are appearance when not on LoS.
+    `dark_bg` and `dark_fg` are appearance when explored but not in LoS.
 
     `light_bg` and `light_fg` are appearance when in LoS.
     """
@@ -44,7 +48,7 @@ class Tile(object):
         transparent: int = False,
         object_type: str = "Name",
         variations: Optional[List[Tuple[int, int, str]]] = None,
-        sprite_pos: Tuple[int, int] = (0, 0),
+        sprite: Tuple[int, int] = (0, 0),
         dark_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         dark_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         light_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
@@ -55,19 +59,19 @@ class Tile(object):
         self.object_type = object_type
         self.walkable = walkable
         self.transparent = transparent
-        self.sprite_pos = sprite_pos
+        self.sprite_pos = sprite
+        self.sprite = sprite_id(*sprite)
 
         self.variations = variations if variations is not None else []
-        char_info = map_codepoints(self.object_type, sprite_pos, variations=variations)
-        self.codepoint = char_info["sprite"]
+        self.variation_ids = {name: sprite_id(column, row) for column, row, name in self.variations}
 
         self.dark_bg = dark_bg
         self.dark_fg = dark_fg
-        self.dark = (self.codepoint, dark_fg, dark_bg)
+        self.dark = (self.sprite, False, dark_fg, dark_bg)
 
         self.light_bg = light_bg
         self.light_fg = light_fg
-        self.light = (self.codepoint, light_fg, light_bg)
+        self.light = (self.sprite, False, light_fg, light_bg)
 
         self.dtype = dtype
 
@@ -76,13 +80,13 @@ class Tile(object):
         return np.array((self.walkable, self.transparent, self.dark, self.light), dtype=self.dtype)
 
 # SHROUD represents unexplored, unseen tiles
-SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
+SHROUD = np.array((NO_SPRITE, False, (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 floor = Tile(
     object_type="Floor",
     walkable=True,
     transparent=True,
-    sprite_pos=(0, 2),
+    sprite=(0, 2),
     dark_bg=color.black,
     light_bg=color.nigh_black,
     dark_fg=color.gray,
@@ -112,7 +116,7 @@ water = Tile(
     variations=water_variations,
     walkable=False,
     transparent=True,
-    sprite_pos=(9, 32),
+    sprite=(9, 32),
     dark_fg=get_shade(water_color),
     light_fg=water_color,
     light_bg=color.nigh_black,
@@ -123,7 +127,7 @@ roots = Tile(
     object_type="Roots",
     walkable=True,
     transparent=True,
-    sprite_pos=(9, 2),
+    sprite=(9, 2),
     dark_bg=color.black,
     light_bg=color.nigh_black,
     dark_fg=color.dark_brown,
@@ -148,7 +152,7 @@ wall = Tile(
     variations=wall_variations,
     walkable=False,
     transparent=False,
-    sprite_pos=(0, 3),
+    sprite=(0, 3),
     dark_fg=get_shade(wall_color),
     light_fg=wall_color,
     light_bg=color.nigh_black,
@@ -159,7 +163,7 @@ down_stairs = Tile(
     object_type="Downstairs",
     walkable=False,
     transparent=False,
-    sprite_pos=(11, 0),
+    sprite=(11, 0),
     dark_fg=(50, 50, 150),
     light_fg=(200, 180, 50),
     dtype=tile_dt

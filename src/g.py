@@ -1,74 +1,69 @@
 """Global module for all global variables"""
 from __future__ import annotations
 
-import tcod
-import numpy as np # type: ignore
-from typing import List, Dict, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from display import Display
     from input_handlers import BaseEventHandler
-
-CHARMAP_URIZEN = np.arange(0xE000, 0xF8FF+1)
-"""
-Custom `Private Use Area` charmap for Urizen
-"""
-
-mapped_chars: List[int] = [0xE000]
-"""List, which tracks mapped codepoints"""
-
-char_dict: Dict[Dict] = {None: mapped_chars[0]}
-"""
-Used to reference which codepoints belong to which char
-
-Keys are `class`, values are `int`
-"""
-
-global_tileset_size = (50, 50)
-global_tileset = tcod.tileset.load_tilesheet(
-    "urizen_nogrid_white.png", global_tileset_size[0], global_tileset_size[1], CHARMAP_URIZEN
-)
-"""Global tileset, referenced when adding additional tiles"""
-
-text_tileset_site = (16, 16)
-text_tileset = tcod.tileset.load_tilesheet(
-    "Zesty_curses_24x24.png", text_tileset_site[0], text_tileset_site[1], tcod.tileset.CHARMAP_CP437
-)
+    from ui import Canvas
 
 screen_width = 80
 screen_height = 45
 screen_width_offset = 10
 screen_height_offset = 5
-
-root_console = tcod.console.Console(screen_width, screen_height, order="F")
-logical_size = (root_console.width * global_tileset.tile_width, root_console.height * global_tileset.tile_height)
-sdl_window = tcod.sdl.video.new_window(
-    width=logical_size[0],
-    height=logical_size[1],
-    title="Starstranded",
-    flags=tcod.lib.SDL_WINDOW_RESIZABLE,
-)
-sdl_renderer = tcod.sdl.render.new_renderer(sdl_window)
-sdl_renderer.set_logical_presentation(
-    logical_size, tcod.sdl.render.LogicalPresentation.STRETCH
-)
-atlas = tcod.render.SDLTilesetAtlas(sdl_renderer, global_tileset)
-console_render = tcod.render.SDLConsoleRender(atlas)
+"""Cells of the logical screen; the map takes the screen minus these offsets (side panel / bottom panel)."""
 
 handlers: List[BaseEventHandler] = []
+
+display: Optional[Display] = None
+canvas: Optional[Canvas] = None
+
+
+def init(*, headless: bool = False, window_size=None) -> Display:
+    """Create the window (hidden from nothing, but on the dummy video driver when `headless`), font, sprite atlas
+    and the canvas the screens draw on. Safe to call again: the previous window is closed first."""
+    global display, canvas
+    import pygame
+
+    import atlas
+    import display as display_module
+    import ui
+
+    if display is not None:
+        pygame.display.quit()
+    atlas.reset_atlas()
+    display = display_module.Display(headless=headless, window_size=window_size)
+    assert (display_module.COLUMNS, display_module.ROWS) == (screen_width, screen_height)
+    canvas = ui.Canvas(display.surface, ui.Font.load(), atlas.get_atlas())
+    return display
+
+
+def draw(handler: BaseEventHandler) -> None:
+    """Draw `handler` onto the logical surface without presenting it."""
+    assert canvas is not None, "g.init() must be called before drawing"
+    canvas.clear()
+    handler.on_render(canvas)
+
 
 def render(handler: BaseEventHandler) -> None:
     """
     Global render function
-    
-    Expects a `handler: BaseEventHandler` to render.
+
+    Expects a `handler: BaseEventHandler` to render, draws it and presents the window.
     """
-    root_console.clear()
-    handler.on_render(console=root_console)
+    if canvas is None or display is None:
+        return
+    draw(handler)
+    display.present()
 
-    sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.NONE
-    sdl_renderer.copy(console_render.render(root_console))
 
-    # sdl_renderer.draw_blend_mode = tcod.sdl.render.BlendMode.BLEND
-    # sdl_renderer.copy(console_render2.render(console2))
+def start_text_input() -> None:
+    """Ask for text input events (name entry); a no-op when there is no window."""
+    if display is not None:
+        display.start_text_input()
 
-    sdl_renderer.present()
+
+def stop_text_input() -> None:
+    if display is not None:
+        display.stop_text_input()

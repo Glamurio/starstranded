@@ -25,8 +25,8 @@ def old_dilate(lake_map):
 def old_replace_variations(tile, landscape, width, height):
     """Verbatim logic of the pre-Phase-2 implementation (per-cell match statement)."""
     tile_map = landscape == tile.get_array()
-    char_info = g.char_dict[tile.object_type]
-    default = char_info['sprite']
+    char_info = tile.variation_ids
+    default = tile.sprite
     for x, row in enumerate(tile_map):
         for y, is_tile in enumerate(row):
             if not is_tile:
@@ -51,8 +51,8 @@ def old_replace_variations(tile, landscape, width, height):
                 tile_char = center if center and bool(random.getrandbits(1)) else default
             else:
                 tile_char = char_info.get(names[key], default)
-            landscape[x][y] = (tile.walkable, tile.transparent, (tile_char, tile.dark_fg, tile.dark_bg),
-                               (tile_char, tile.light_fg, tile.light_bg))
+            landscape[x][y] = (tile.walkable, tile.transparent, (tile_char, False, tile.dark_fg, tile.dark_bg),
+                               (tile_char, False, tile.light_fg, tile.light_bg))
     return landscape
 
 
@@ -79,13 +79,12 @@ def test_replace_variations_matches_old_loop(seed, tile):
     surrounded = is_tile & l & r & u & d
     old = old_replace_variations(tile, land.copy(), *land.shape)
     new = procgen.replace_variations(tile, land.copy(), *land.shape)
-    info = g.char_dict[tile.object_type]
-    random_cells = (old["dark"]["ch"] != new["dark"]["ch"])
+    random_cells = (old["dark"]["sprite"] != new["dark"]["sprite"])
     assert not (random_cells & ~surrounded).any()
     # Only "surrounded" cells pick randomly (center vs default); every other cell must match exactly.
-    allowed = {info["sprite"], info.get("center", info["sprite"])}
-    assert set(np.unique(old["dark"]["ch"][random_cells])) <= allowed
-    assert set(np.unique(new["dark"]["ch"][random_cells])) <= allowed
+    allowed = {tile.sprite, tile.variation_ids.get("center", tile.sprite)}
+    assert set(np.unique(old["dark"]["sprite"][random_cells])) <= allowed
+    assert set(np.unique(new["dark"]["sprite"][random_cells])) <= allowed
     same = ~random_cells
     assert np.array_equal(old[same], new[same])
     assert np.array_equal(old["walkable"], new["walkable"]) and np.array_equal(old["light"]["fg"], new["light"]["fg"])

@@ -2,6 +2,7 @@
 import pytest
 
 import g
+from render_helpers import cell_has_color
 import input_handlers
 from input_handlers import area_frame_rect
 
@@ -29,10 +30,10 @@ def test_area_handler_on_render_draws_the_frame(small_world):
     handler = input_handlers.AreaRangedAttackHandler(e, radius=2, callback=lambda xy: None)
     g.handlers = [input_handlers.MainGameEventHandler(e), handler]
     e.mouse_location = (6, 5)
-    g.root_console.clear()
-    handler.on_render(g.root_console)  # must not raise
-    fg = g.root_console.rgb["fg"]
+    g.draw(handler)  # must not raise
     x0, y0, w, h = area_frame_rect(6, 5, 2)
     corners = [(x0, y0), (x0 + w - 1, y0), (x0, y0 + h - 1), (x0 + w - 1, y0 + h - 1)]
     red = tuple(input_handlers.color.red)
-    assert all(tuple(fg[c]) == red for c in corners)
+    assert all(cell_has_color(g.canvas, cx, cy, red) for cx, cy in corners)
+    centre_x, centre_y = 6, 5
+    assert not cell_has_color(g.canvas, centre_x, centre_y, red)  # only the ring is drawn

@@ -20,7 +20,7 @@ def test_registries_contain_the_static_content():
     assert {"human", "selenite", "rabbit"} <= set(UNIT_SPECIES)
     assert {"health_potion", "meat", "branch", "dagger", "leather_armor", "wooden_spear", "campfire"} <= set(ITEM_KINDS)
     for key, kind in ITEM_KINDS.items():
-        assert kind.key == key and (kind.sprite or kind.glyph)
+        assert kind.key == key and kind.sprite_id is not None
 
 
 def test_static_definitions_unpickle_to_the_registered_object():
@@ -57,8 +57,13 @@ def test_plant_species_generation_is_reproducible_from_an_rng():
     assert a == b
 
 
-def test_glyphs_are_codepoints_or_text():
-    g = species.glyphs(species.RABBIT)
-    assert all(isinstance(c, int) and c >= 0xE000 for c in g)
-    assert g.sprite != g.mirror != g.corpse
-    assert species.glyphs(species.HEALTH_POTION) == ("!", "!", "!")
+def test_sprite_ids_index_the_sheet_row_major():
+    assert species.RABBIT.sprite == (3, 15) and species.RABBIT.sprite_id == 15 * 50 + 3
+    assert species.RABBIT.corpse_sprite_id == species.RABBIT.corpse_sprite[1] * 50 + species.RABBIT.corpse_sprite[0]
+    assert species.RABBIT.sprite_id != species.RABBIT.corpse_sprite_id
+    assert species.MEAT.corpse_sprite_id is None
+
+
+def test_every_definition_has_a_sprite_on_the_sheet():
+    for definition in list(UNIT_SPECIES.values()) + list(ITEM_KINDS.values()):
+        assert 0 <= definition.sprite_id < 50 * 50

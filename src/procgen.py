@@ -6,7 +6,6 @@ from world import GameMap, GameWorld
 import tile_types
 import random
 import tcod
-import g
 
 import numpy as np  # type: ignore
 
@@ -259,8 +258,8 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
     Returns changed `landscape`
     """
     tile_map = landscape == tile.get_array()
-    char_info: dict = g.char_dict[tile.object_type]
-    default = char_info['sprite']
+    char_info: dict = tile.variation_ids
+    default = tile.sprite
     left, right, up, down = neighbour_masks(tile_map)
     case = left.astype(np.uint8) * 8 + right * 4 + up * 2 + down
     lookup = np.array([char_info.get(name, default) if name else default for name in _VARIATION_NAMES], dtype=np.int32)
@@ -269,8 +268,8 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
     if center:
         surrounded = case == 15
         chars[surrounded & (np.random.random(case.shape) < 0.5)] = center
-    landscape["dark"]["ch"][tile_map] = chars[tile_map]
-    landscape["light"]["ch"][tile_map] = chars[tile_map]
+    landscape["dark"]["sprite"][tile_map] = chars[tile_map]
+    landscape["light"]["sprite"][tile_map] = chars[tile_map]
     return landscape
 
 def spawn_vegetation(tree: PlantSpecies, shrub: PlantSpecies, map: GameMap, tree_map: np.ndarray):

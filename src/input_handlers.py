@@ -4,9 +4,10 @@ import os
 
 from typing import Callable, List, Optional, Tuple, TYPE_CHECKING, Union
 
-from tcod import libtcodpy
-import tcod
 import g
+import events
+from events import Key, Mod, MouseButton, Point
+from ui import CENTER
 
 import actions
 import color
@@ -16,6 +17,7 @@ from entity import Item, Entity
 from components.equippable import Equippable
 
 if TYPE_CHECKING:
+    from ui import Canvas
     from engine import Engine
     from components.unit import Unit
     from components.inventory import Inventory
@@ -23,49 +25,48 @@ if TYPE_CHECKING:
 
 MOVE_KEYS = {
     # Arrow keys.
-    tcod.event.KeySym.UP: (0, -1),
-    tcod.event.KeySym.DOWN: (0, 1),
-    tcod.event.KeySym.LEFT: (-1, 0),
-    tcod.event.KeySym.RIGHT: (1, 0),
-    tcod.event.KeySym.HOME: (-1, -1),
-    tcod.event.KeySym.END: (-1, 1),
-    tcod.event.KeySym.PAGEUP: (1, -1),
-    tcod.event.KeySym.PAGEDOWN: (1, 1),
+    Key.UP: (0, -1),
+    Key.DOWN: (0, 1),
+    Key.LEFT: (-1, 0),
+    Key.RIGHT: (1, 0),
+    Key.HOME: (-1, -1),
+    Key.END: (-1, 1),
+    Key.PAGEUP: (1, -1),
+    Key.PAGEDOWN: (1, 1),
     # Numpad keys.
-    tcod.event.KeySym.KP_1: (-1, 1),
-    tcod.event.KeySym.KP_2: (0, 1),
-    tcod.event.KeySym.KP_3: (1, 1),
-    tcod.event.KeySym.KP_4: (-1, 0),
-    tcod.event.KeySym.KP_6: (1, 0),
-    tcod.event.KeySym.KP_7: (-1, -1),
-    tcod.event.KeySym.KP_8: (0, -1),
-    tcod.event.KeySym.KP_9: (1, -1),
+    Key.KP_1: (-1, 1),
+    Key.KP_2: (0, 1),
+    Key.KP_3: (1, 1),
+    Key.KP_4: (-1, 0),
+    Key.KP_6: (1, 0),
+    Key.KP_7: (-1, -1),
+    Key.KP_8: (0, -1),
+    Key.KP_9: (1, -1),
     # Vi keys.
-    # tcod.event.KeySym.h: (-1, 0),
-    # tcod.event.KeySym.j: (0, 1),
-    # tcod.event.KeySym.k: (0, -1),
-    # tcod.event.KeySym.l: (1, 0),
-    # tcod.event.KeySym.y: (-1, -1),
-    # tcod.event.KeySym.u: (1, -1),
-    # tcod.event.KeySym.b: (-1, 1),
-    # tcod.event.KeySym.n: (1, 1),
+    # Key.h: (-1, 0),
+    # Key.j: (0, 1),
+    # Key.k: (0, -1),
+    # Key.l: (1, 0),
+    # Key.y: (-1, -1),
+    # Key.u: (1, -1),
+    # Key.b: (-1, 1),
+    # Key.n: (1, 1),
 }
 
 CONFIRM_KEYS = {
-    tcod.event.KeySym.RETURN,
-    tcod.event.KeySym.KP_ENTER,
+    Key.RETURN,
+    Key.KP_ENTER,
 }
 
 WAIT_KEYS = {
-    tcod.event.KeySym.SPACE,
-    tcod.event.KeySym.KP_5,
-    tcod.event.KeySym.CLEAR,
+    Key.SPACE,
+    Key.KP_5,
+    Key.CLEAR,
 }
 
-def entity_glyph(entity: Entity) -> str:
-    """Printable glyph of an entity: `char` is a codepoint int for sprites but a plain string for some items."""
-    char = entity.char
-    return chr(char) if isinstance(char, int) else char
+def draw_entity_icon(canvas: Canvas, x: int, y: int, entity: Entity) -> None:
+    """Draw the entity's sprite, tinted with its own colour, into cell (x, y) (menus use this as a list icon)."""
+    canvas.sprite(x, y, entity.sprite_id, entity.color, entity.flipped)
 
 
 ActionOrHandler = Union[actions.Action, "BaseEventHandler"]
@@ -77,7 +78,7 @@ MainGameEventHandler will become the active handler.
 """
 
 
-class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
+class BaseEventHandler(events.EventDispatch):
 
     def __init__(self) -> None:
         super().__init__()
@@ -87,7 +88,7 @@ class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
         """Function that runs after init"""
         pass
 
-    def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
+    def handle_events(self, event: events.Event) -> BaseEventHandler:
         """Handle an event and return the next active event handler."""
         state = self.dispatch(event)
         if isinstance(state, BaseEventHandler):
@@ -95,10 +96,10 @@ class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
         assert not isinstance(state, actions.Action), f"{self!r} can not handle actions."
         return self
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         raise NotImplementedError()
 
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[actions.Action]:
+    def ev_quit(self, event: events.Quit) -> Optional[actions.Action]:
         raise SystemExit()
 
 class PopupMessage(BaseEventHandler):
@@ -108,22 +109,21 @@ class PopupMessage(BaseEventHandler):
         self.parent = parent_handler
         self.text = text
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         """Render the parent and dim the result, then print the message on top."""
-        self.parent.on_render(console)
-        console.rgb["fg"] //= 8
-        console.rgb["bg"] //= 8
+        self.parent.on_render(canvas)
+        canvas.dim()
 
-        console.print(
-            console.width // 2,
-            console.height // 2,
+        canvas.print(
+            canvas.width // 2,
+            canvas.height // 2,
             text=self.text,
             fg=color.white,
             bg=color.black,
-            alignment=libtcodpy.CENTER,
+            alignment=CENTER,
         )
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[BaseEventHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[BaseEventHandler]:
         """Any key returns to the parent handler."""
         return self.parent
 
@@ -146,7 +146,7 @@ class EventHandler(BaseEventHandler):
         return handler
             
 
-    def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
+    def handle_events(self, event: events.Event) -> BaseEventHandler:
         """Handle events for input handlers with an engine."""
         action_or_state = self.dispatch(event)
 
@@ -190,29 +190,29 @@ class EventHandler(BaseEventHandler):
 
         return True
 
-    def ev_mousemotion(self, event: tcod.event.MouseMotion) -> None:
+    def ev_mousemotion(self, event: events.MouseMotion) -> None:
         tx, ty = int(event.position.x), int(event.position.y)
         if self.engine.game_map.in_bounds(tx, ty):
-            self.engine.mouse_location = tcod.event.Point(tx, ty)
+            self.engine.mouse_location = Point(tx, ty)
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        self.engine.render(console)
+    def on_render(self, canvas: Canvas) -> None:
+        self.engine.render(canvas)
 
 
 class AskUserEventHandler(EventHandler):
     """Handles user input for actions which require special input."""
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         """By default any key exits this input handler."""
         if event.sym in {  # Ignore specific keys
-            tcod.event.KeySym.LSHIFT,
-            tcod.event.KeySym.RSHIFT,
-            tcod.event.KeySym.LCTRL,
-            tcod.event.KeySym.RCTRL,
-            tcod.event.KeySym.LALT,
-            tcod.event.KeySym.RALT,
-            tcod.event.KeySym.UP,
-            tcod.event.KeySym.DOWN
+            Key.LSHIFT,
+            Key.RSHIFT,
+            Key.LCTRL,
+            Key.RCTRL,
+            Key.LALT,
+            Key.RALT,
+            Key.UP,
+            Key.DOWN
         }:
             return None
         if event.sym in CONFIRM_KEYS:
@@ -220,7 +220,7 @@ class AskUserEventHandler(EventHandler):
         return self.on_exit()
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """By default any mouse click exits this input handler."""
         return self.on_exit()
@@ -237,10 +237,10 @@ class PickupHandler(AskUserEventHandler):
 
     def __init__(self, engine: Engine):
         super().__init__(engine)
-        self.target_location = tcod.event.Point(0, 0)
+        self.target_location = Point(0, 0)
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
 
         player = self.engine.player
         mouse_x, mouse_y = self.engine.mouse_location
@@ -248,24 +248,22 @@ class PickupHandler(AskUserEventHandler):
         path = self.engine.get_path_to(player, mouse_x, mouse_y)
         tile = path.pop(0) if path else (player.x, player.y)
         if distance <= 1:
-            self.target_location = tcod.event.Point(mouse_x, mouse_y)
-            console.rgb["bg"][mouse_x, mouse_y] = color.white
-            console.rgb["fg"][mouse_x, mouse_y] = color.black
+            self.target_location = Point(mouse_x, mouse_y)
+            canvas.highlight(mouse_x, mouse_y, color.white)
         else:
-            self.target_location = tcod.event.Point(tile[0], tile[1])
-            console.rgb["bg"][tile[0], tile[1]] = color.white
-            console.rgb["fg"][tile[0], tile[1]] = color.black
+            self.target_location = Point(tile[0], tile[1])
+            canvas.highlight(tile[0], tile[1], color.white)
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """By default any mouse click exits this input handler."""
-        if event.button == tcod.event.MouseButton.LEFT:
+        if event.button == MouseButton.LEFT:
             targets = self.engine.game_map.get_entities_at_location(self.target_location.x, self.target_location.y)
             return self.on_tile_selected(targets)
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
-        if event.sym == tcod.event.KeySym.G or event.sym == tcod.event.KeySym.RETURN:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
+        if event.sym == Key.G or event.sym == Key.RETURN:
             targets = self.engine.game_map.get_entities_at_location(self.target_location.x, self.target_location.y)
             return self.on_tile_selected(targets)
 
@@ -289,8 +287,8 @@ class PickupHandler(AskUserEventHandler):
 class CharacterScreenEventHandler(AskUserEventHandler):
     TITLE = "Character Information"
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
 
         if self.engine.player.x <= 30:
             x = 40
@@ -301,7 +299,7 @@ class CharacterScreenEventHandler(AskUserEventHandler):
 
         width = len(self.TITLE) + 4
 
-        console.draw_frame(
+        canvas.draw_frame(
             x=x,
             y=y,
             width=width,
@@ -312,22 +310,22 @@ class CharacterScreenEventHandler(AskUserEventHandler):
             bg=(0, 0, 0),
         )
 
-        console.print(
+        canvas.print(
             x=x + 1, y=y + 1, text=f"Level: {self.engine.player.level.current_level}"
         )
-        console.print(
+        canvas.print(
             x=x + 1, y=y + 2, text=f"XP: {self.engine.player.level.current_xp}"
         )
-        console.print(
+        canvas.print(
             x=x + 1,
             y=y + 3,
             text=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
         )
 
-        console.print(
+        canvas.print(
             x=x + 1, y=y + 4, text=f"Attack: {self.engine.player.power}"
         )
-        console.print(
+        canvas.print(
             x=x + 1, y=y + 5, text=f"Defense: {self.engine.player.defense}"
         )
 
@@ -335,13 +333,13 @@ class CharacterScreenEventHandler(AskUserEventHandler):
 class LevelUpEventHandler(AskUserEventHandler):
     TITLE = "Level Up"
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
 
         x = 0
         y = 0
 
-        console.draw_frame(
+        canvas.draw_frame(
             x=x,
             y=y,
             width=35,
@@ -352,29 +350,29 @@ class LevelUpEventHandler(AskUserEventHandler):
             bg=(0, 0, 0),
         )
 
-        console.print(x=x + 1, y=1, text="Congratulations! You level up!")
-        console.print(x=x + 1, y=2, text="Select an attribute to increase.")
+        canvas.print(x=x + 1, y=1, text="Congratulations! You level up!")
+        canvas.print(x=x + 1, y=2, text="Select an attribute to increase.")
 
-        console.print(
+        canvas.print(
             x=x + 1,
             y=4,
             text=f"a) Constitution (+20 HP, from {self.engine.player.max_hp})",
         )
-        console.print(
+        canvas.print(
             x=x + 1,
             y=5,
             text=f"b) Strength (+1 attack, from {self.engine.player.power})",
         )
-        console.print(
+        canvas.print(
             x=x + 1,
             y=6,
             text=f"c) Agility (+1 defense, from {self.engine.player.defense})",
         )
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         player = self.engine.player
         key = event.sym
-        index = key - tcod.event.KeySym.A
+        index = key - Key.A
 
         if 0 <= index <= 2:
             if index == 0:
@@ -391,7 +389,7 @@ class LevelUpEventHandler(AskUserEventHandler):
         return super().ev_keydown(event)
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """
         Don't allow the player to click to exit the menu, like normal.
@@ -425,7 +423,7 @@ class InventoryEventHandler(AskUserEventHandler):
     button_height: int = 2
     button_highlight: str = None
 
-    def __init__(self, engine: Engine, inventory: Inventory = None, entities: List[Entity] = None, console: tcod.console.Console = None, offset: int = 0):
+    def __init__(self, engine: Engine, inventory: Inventory = None, entities: List[Entity] = None, canvas: Canvas = None, offset: int = 0):
         super().__init__(engine)
         self.inventory_entries = []
         self.buttons = {}
@@ -435,9 +433,9 @@ class InventoryEventHandler(AskUserEventHandler):
         
         self.entities = entities
         self.offset = offset
-        self.console = console
+        self.canvas = canvas
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         """
         Render an inventory menu, which displays the items in the inventory.
         """
@@ -446,9 +444,9 @@ class InventoryEventHandler(AskUserEventHandler):
         parent = g.handlers[prev_index] if prev_index >= 0 else None
 
         if parent: 
-            parent.on_render(console)
+            parent.on_render(canvas)
         else:
-            super().on_render(console)
+            super().on_render(canvas)
         
         if self.inventory:
             self.TITLE = f"{self.inventory.parent.get_title()}"
@@ -478,7 +476,7 @@ class InventoryEventHandler(AskUserEventHandler):
 
         self.menu_width = 24
 
-        console.draw_frame(
+        canvas.draw_frame(
             x=self.console_x,
             y=self.console_y,
             width=self.menu_width,
@@ -490,7 +488,7 @@ class InventoryEventHandler(AskUserEventHandler):
         )
 
         if not self.entries_amount:
-            console.print(self.console_x + 1, self.console_y + 2, text="(Empty)")
+            canvas.print(self.console_x + 1, self.console_y + 2, text="(Empty)")
             return
 
         if self.entries_amount > 0:
@@ -514,14 +512,9 @@ class InventoryEventHandler(AskUserEventHandler):
                     'y': button_y,
                 }
 
-                console.print(
-                    button_x,
-                    button_y,
-                    text=f"{entity_glyph(entity)} ",
-                    fg=entity.color,
-                    bg=color.nigh_black,
-                )
-                console.print(
+                canvas.fill(button_x, button_y, 1, 1, color.nigh_black)
+                draw_entity_icon(canvas, button_x, button_y, entity)
+                canvas.print(
                     button_x + 2,
                     button_y,
                     text=button_string,
@@ -539,7 +532,7 @@ class InventoryEventHandler(AskUserEventHandler):
                     'y': button_y,
                 }
 
-                console.print(
+                canvas.print(
                     button_x,
                     button_y,
                     text="g) Grab All",
@@ -549,22 +542,22 @@ class InventoryEventHandler(AskUserEventHandler):
 
     def on_entity_selected(self, entity: Entity) -> Optional[ActionOrHandler]:
         if entity.has_inventory:
-            return InventoryLootHandler(self.engine, self.engine.player, entity.inventory, console=self.console, offset=1)
+            return InventoryLootHandler(self.engine, self.engine.player, entity.inventory, canvas=self.canvas, offset=1)
 
     def ev_keydown(
-        self, event: tcod.event.KeyDown
+        self, event: events.KeyDown
     ) -> Optional[BaseEventHandler]:
 
-        if event.sym == tcod.event.KeySym.UP:
+        if event.sym == Key.UP:
             self.menu_i = 0 if self.menu_i is None else self.menu_i
             self.menu_i = self.menu_i-1 if self.menu_i > 0 else self.entries_amount
-        elif event.sym == tcod.event.KeySym.DOWN:
+        elif event.sym == Key.DOWN:
             self.menu_i = -1 if self.menu_i is None else self.menu_i
             self.menu_i = self.menu_i+1 if not self.menu_i == self.entries_amount else 0
 
         self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
 
-        if event.sym == tcod.event.KeySym.G:
+        if event.sym == Key.G:
             return self.on_items_selected(self.inventory_entries)
         
         if event.sym in CONFIRM_KEYS:
@@ -583,10 +576,10 @@ class InventoryEventHandler(AskUserEventHandler):
                 
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """Left click confirms a selection."""
-        if not event.button == tcod.event.MouseButton.LEFT:
+        if not event.button == MouseButton.LEFT:
             return self.resolve_handler()
 
         for i, item in enumerate(self.inventory_entries):
@@ -601,12 +594,12 @@ class InventoryEventHandler(AskUserEventHandler):
         return self.resolve_handler()
 
     def ev_mousemotion(
-        self, event: tcod.event.MouseMotion
+        self, event: events.MouseMotion
     ) -> Optional[ActionOrHandler]:
         """Tracks mouse movement"""
 
         for key in self.buttons:
-            button_pt = tcod.event.Point(self.buttons[key]['x'], self.buttons[key]['y'])
+            button_pt = Point(self.buttons[key]['x'], self.buttons[key]['y'])
             in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
 
             if in_rect:
@@ -625,15 +618,15 @@ class CraftingMenuHandler(AskUserEventHandler):
         self.menu_i: int = 0
         self.button_highlight: int = 0
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
 
         x = g.screen_width_offset
         y = 1
         width = 36
         height = len(self.recipes) * 3 + 4
 
-        console.draw_frame(
+        canvas.draw_frame(
             x=x, y=y,
             width=width, height=height,
             title=self.TITLE,
@@ -652,7 +645,7 @@ class CraftingMenuHandler(AskUserEventHandler):
             highlight_bg = color.white if i == self.button_highlight else color.nigh_black
             highlight_fg = color.black if i == self.button_highlight else name_color
 
-            console.print(
+            canvas.print(
                 x=x + 2, y=recipe_y,
                 text=recipe.name,
                 fg=highlight_fg,
@@ -668,19 +661,19 @@ class CraftingMenuHandler(AskUserEventHandler):
                 parts.append(f"{item_type} x{count} ({available}/{count})")
 
             ingredient_str = ", ".join(parts)
-            console.print(
+            canvas.print(
                 x=x + 4, y=recipe_y + 1,
                 text=ingredient_str,
                 fg=color.white if can_craft else color.impossible,
             )
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         key = event.sym
 
-        if key == tcod.event.KeySym.UP:
+        if key == Key.UP:
             self.button_highlight = max(0, self.button_highlight - 1)
             return None
-        elif key == tcod.event.KeySym.DOWN:
+        elif key == Key.DOWN:
             self.button_highlight = min(len(self.recipes) - 1, self.button_highlight + 1)
             return None
         elif key in CONFIRM_KEYS:
@@ -695,7 +688,7 @@ class CraftingMenuHandler(AskUserEventHandler):
 
         return super().ev_keydown(event)
 
-    def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[ActionOrHandler]:
+    def ev_mousebuttondown(self, event: events.MouseButtonDown) -> Optional[ActionOrHandler]:
         return None
 class InventoryActivateHandler(InventoryEventHandler):
     """Handle using an inventory item."""
@@ -722,19 +715,19 @@ class InventoryDropHandler(InventoryEventHandler):
 class InventoryLootHandler(InventoryEventHandler):
     """Handle looting an item."""
 
-    def __init__(self, engine: Engine, looter: Entity, inventory: Inventory = None, entities: Optional[List[Entity]] = None, console: tcod.console.Console = None, offset: int = 0):
+    def __init__(self, engine: Engine, looter: Entity, inventory: Inventory = None, entities: Optional[List[Entity]] = None, canvas: Canvas = None, offset: int = 0):
         entities = [] if entities is None else entities
-        super().__init__(engine, inventory, entities, console, offset)
+        super().__init__(engine, inventory, entities, canvas, offset)
 
         self.looter = looter
         self.entities = entities
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         """
         Render an inventory menu, which displays the items in the inventory.
         """
-        self.console = console if not self.console else self.console
-        super().on_render(self.console)
+        self.canvas = canvas if not self.canvas else self.canvas
+        super().on_render(self.canvas)
     
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         if not self.inventory:
@@ -758,16 +751,16 @@ class SelectIndexHandler(AskUserEventHandler):
         player = self.engine.player
         engine.mouse_location = player.x, player.y
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         """Check for key movement or confirmation keys."""
         key = event.sym
         if key in MOVE_KEYS:
             modifier = 1  # Holding modifier keys will speed up key movement.
-            if event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
+            if event.mod & (Mod.LSHIFT | Mod.RSHIFT):
                  modifier *= 5
-            if event.mod & (tcod.event.Modifier.LCTRL | tcod.event.Modifier.RCTRL):
+            if event.mod & (Mod.LCTRL | Mod.RCTRL):
                  modifier *= 10
-            if event.mod & (tcod.event.Modifier.LALT | tcod.event.Modifier.RALT):
+            if event.mod & (Mod.LALT | Mod.RALT):
                  modifier *= 20
 
             x, y = self.engine.mouse_location
@@ -784,7 +777,7 @@ class SelectIndexHandler(AskUserEventHandler):
         return super().ev_keydown(event)
 
     def ev_mousebuttondown(
-        self, event: tcod.event.MouseButtonDown
+        self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """Left click confirms a selection."""
         if self.engine.game_map.in_bounds(int(event.position.x), int(event.position.y)):
@@ -845,15 +838,15 @@ class AreaRangedAttackHandler(SelectIndexHandler):
         self.radius = radius
         self.callback = callback
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         """Highlight the tile under the cursor."""
-        super().on_render(console)
+        super().on_render(canvas)
 
         x, y = self.engine.mouse_location
 
         # Draw a rectangle around the targeted area, so the player can see the affected tiles.
         frame_x, frame_y, width, height = area_frame_rect(x, y, self.radius)
-        console.draw_frame(
+        canvas.draw_frame(
             x=frame_x,
             y=frame_y,
             width=width,
@@ -871,31 +864,30 @@ class MainGameEventHandler(EventHandler):
         super().__init__(engine)
         self.mouse_motion = False
 
-    def on_render(self, console: tcod.console.Console) -> None:
+    def on_render(self, canvas: Canvas) -> None:
         """Highlight the tile under the cursor."""
-        super().on_render(console)
+        super().on_render(canvas)
 
         player = self.engine.player
         if self.mouse_motion and player.is_alive:
             mouse_x, mouse_y = self.engine.mouse_location
             path: List[Tuple] = self.engine.get_path_to(player, mouse_x, mouse_y)
             for x, y in path:
-                console.rgb["bg"][x, y] = color.white
-                console.rgb["fg"][x, y] = color.black
+                canvas.highlight(x, y, color.white)
 
-    def ev_mousemotion(self, event: tcod.event.MouseMotion) -> None:
+    def ev_mousemotion(self, event: events.MouseMotion) -> None:
         super().ev_mousemotion(event)
         self.mouse_motion = True if event else False
         
 
-    def ev_mousebuttondown(self, event: tcod.event.MouseMotion) -> Optional[ActionOrHandler]:
-        if event.button == tcod.event.MouseButton.LEFT:
+    def ev_mousebuttondown(self, event: events.MouseMotion) -> Optional[ActionOrHandler]:
+        if event.button == MouseButton.LEFT:
             player = self.engine.player
             x, y = self.engine.mouse_location
 
             return actions.BumpAction(player, x, y)
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         action: Optional[actions.Action] = None
 
         key = event.sym
@@ -904,8 +896,8 @@ class MainGameEventHandler(EventHandler):
         player = self.engine.player
 
         # modifier checks if button is held down
-        if key == tcod.event.KeySym.PERIOD and modifier & (
-            tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT
+        if key == Key.PERIOD and modifier & (
+            Mod.LSHIFT | Mod.RSHIFT
         ):
             pass
 
@@ -915,30 +907,30 @@ class MainGameEventHandler(EventHandler):
         elif key in WAIT_KEYS:
             action = actions.WaitAction(player)
 
-        elif key == tcod.event.KeySym.ESCAPE:
+        elif key == Key.ESCAPE:
             raise SystemExit()
 
-        elif key == tcod.event.KeySym.L:
+        elif key == Key.L:
             return actions.TakeStairsAction(player)
 
-        elif key == tcod.event.KeySym.V:
+        elif key == Key.V:
             return HistoryViewer(self.engine)
 
-        elif key == tcod.event.KeySym.G:
+        elif key == Key.G:
             return PickupHandler(self.engine)
-        elif key == tcod.event.KeySym.I:
+        elif key == Key.I:
             return InventoryActivateHandler(self.engine, player.inventory)
-        elif key == tcod.event.KeySym.D:
+        elif key == Key.D:
             return InventoryDropHandler(self.engine, player.inventory)
-        elif key == tcod.event.KeySym.R:
+        elif key == Key.R:
             return CraftingMenuHandler(self.engine)
-        elif key == tcod.event.KeySym.F:
+        elif key == Key.F:
             return actions.InteractAction(player)
 
-        elif key == tcod.event.KeySym.C:
+        elif key == Key.C:
             return CharacterScreenEventHandler(self.engine)
 
-        elif key == tcod.event.KeySym.PERIOD:
+        elif key == Key.PERIOD:
             return LookHandler(self.engine)
 
         # No valid key was pressed
@@ -966,18 +958,18 @@ class GameOverEventHandler(EventHandler):
             os.remove("savegame.sav")  # Deletes the active save file.
         raise exceptions.QuitWithoutSaving()  # Avoid saving a finished game.
 
-    def ev_quit(self, event: tcod.event.Quit) -> None:
+    def ev_quit(self, event: events.Quit) -> None:
         self.on_quit()
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> None:
-        if event.sym == tcod.event.KeySym.ESCAPE:
+    def ev_keydown(self, event: events.KeyDown) -> None:
+        if event.sym == Key.ESCAPE:
             self.on_quit()
 
 CURSOR_Y_KEYS = {
-    tcod.event.KeySym.UP: -1,
-    tcod.event.KeySym.DOWN: 1,
-    tcod.event.KeySym.PAGEUP: -10,
-    tcod.event.KeySym.PAGEDOWN: 10,
+    Key.UP: -1,
+    Key.DOWN: 1,
+    Key.PAGEUP: -10,
+    Key.PAGEDOWN: 10,
 }
 
 class HistoryViewer(EventHandler):
@@ -988,31 +980,25 @@ class HistoryViewer(EventHandler):
         self.log_length = len(engine.message_log.messages)
         self.cursor = self.log_length - 1
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)  # Draw the main state as the background.
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)  # Draw the main state as the background.
 
-        log_console = tcod.console.Console(console.width - 6, console.height - 6)
+        x, y, width, height = 3, 3, canvas.width - 6, canvas.height - 6
 
         # Draw a frame with a custom banner title.
-        log_console.draw_frame(0, 0, log_console.width, log_console.height)
-        log_console.print(
-            x=0, y=0, text="┤Message history├",
-            width=log_console.width, height=1,
-            alignment=tcod.CENTER,
-        )
+        canvas.draw_frame(x, y, width, height, title="Message history", fg=color.white, bg=color.black)
 
         # Render the message log using the cursor parameter.
         self.engine.message_log.render_messages(
-            log_console,
-            1,
-            1,
-            log_console.width - 2,
-            log_console.height - 2,
+            canvas,
+            x + 1,
+            y + 1,
+            width - 2,
+            height - 2,
             self.engine.message_log.messages[: self.cursor + 1],
         )
-        log_console.blit(console, 3, 3)
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[MainGameEventHandler]:
+    def ev_keydown(self, event: events.KeyDown) -> Optional[MainGameEventHandler]:
         # Fancy conditional movement to make it feel right.
         if event.sym in CURSOR_Y_KEYS:
             adjust = CURSOR_Y_KEYS[event.sym]
@@ -1025,9 +1011,9 @@ class HistoryViewer(EventHandler):
             else:
                 # Otherwise move while staying clamped to the bounds of the history log.
                 self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1))
-        elif event.sym == tcod.event.KeySym.HOME:
+        elif event.sym == Key.HOME:
             self.cursor = 0  # Move directly to the top message.
-        elif event.sym == tcod.event.KeySym.END:
+        elif event.sym == Key.END:
             self.cursor = self.log_length - 1  # Move directly to the last message.
         else:  # Any other key moves back to the main game state.
             self.reset_to_handler(MainGameEventHandler(self.engine))
@@ -1042,15 +1028,15 @@ class PlaceConstructableHandler(SelectIndexHandler):
         # Start cursor at player position
         self.engine.mouse_location = engine.player.x, engine.player.y
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
         # Highlight valid placement tiles (current + adjacent)
         px, py = self.engine.player.x, self.engine.player.y
         for dx in range(-1, 2):
             for dy in range(-1, 2):
                 tx, ty = px + dx, py + dy
                 if self.engine.game_map.in_bounds(tx, ty):
-                    console.rgb["bg"][tx, ty] = color.menu_text
+                    canvas.highlight(tx, ty, color.menu_text)
 
     def on_index_selected(self, x: int, y: int) -> Optional[ActionOrHandler]:
         return actions.PlaceConstructableAction(self.engine.player, self.item, x, y)

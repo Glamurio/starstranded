@@ -61,7 +61,7 @@ class Plant(Entity):
         tile = game_map.tiles[self.x, self.y]
         tile['transparent'] = not self.blocks_sight
         tile['walkable'] = not self.blocks_movement
-        tile['dark'] = (self.glyph, tile['dark'][1], tile['dark'][2])
+        tile['dark'] = (self.sprite_id, self.flipped, tile['dark'][2], tile['dark'][3])
         game_map.terrain_changed()
 
     def handle_growth(self):
@@ -111,7 +111,7 @@ class Plant(Entity):
         tile = self.parent.tiles[self.x, self.y]
         tile['transparent'] = False
         tile['walkable'] = False
-        tile['dark'] = (roots.codepoint, roots.dark_fg, roots.dark_bg)
+        tile['dark'] = roots.dark
         self.parent.terrain_changed()
 
 

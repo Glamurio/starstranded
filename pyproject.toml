@@ -10,6 +10,7 @@ authors = [
 ]
 dependencies = [
     "tcod>=21.0.0",
+    "pygame-ce>=2.5",
     "numpy",
 ]
 description = "A roguelike survival game set on an alien planet."

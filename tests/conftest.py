@@ -2,7 +2,7 @@
 
 The game uses flat imports (``import g``) and loads assets relative to ``src/``,
 so tests put ``src`` on ``sys.path`` and run with ``src`` as the working directory.
-SDL must use the dummy video driver *before* ``g`` is imported (it opens a window).
+SDL must use the dummy video driver *before* pygame opens a window (``g.init`` below).
 """
 from __future__ import annotations
 
@@ -17,12 +17,15 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
 _ORIGINAL_CWD = os.getcwd()
-os.chdir(SRC)  # needed only while importing: g.py / setup_game.py load assets at import time
+os.chdir(SRC)  # needed only while importing / initialising: assets are loaded relative to src/
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
+import g  # noqa: E402
 import setup_game  # noqa: E402,F401  (import first: resolves the circular import order)
+
+g.init(headless=True)  # window + atlas + canvas on SDL's dummy driver; tests draw on g.canvas
 
 os.chdir(_ORIGINAL_CWD)  # keep pytest's own path handling (testpaths, rootdir) unaffected
 
