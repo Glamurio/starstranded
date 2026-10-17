@@ -1,4 +1,4 @@
-# StarStranded — Architecture Notes (Phase 0 baseline, written from the full code)
+# StarStranded — Architecture Notes (Phase 0 baseline, written from the full code; Phase 1 deltas marked)
 
 Status: **baseline of the untouched code** (branch `modernize`, forked from `crafting` @ e01d7a4 + owner WIP
 commit). Phase 5 rewrites this file to describe the final architecture.
@@ -28,16 +28,17 @@ main ▲(tcod.event loop, tileset merge)  ─► setup_game ▲(console, tcod.im
    └► g ▲(tileset load, Console, SDL window+renderer, SDLConsoleRender; OPENS A WINDOW AT IMPORT)
 engine ◆(compute_fov, path.SimpleGraph/Pathfinder, los.bresenham) ▲(Engine.render uses console)
 world: GameMap (▲ render(console)), GameWorld (pass_time, generate_floor)
-procgen ◆(tcod.noise, los) + matplotlib(dead)  ─► components.unit/plant/consumable, world, tile_types, g
+procgen ◆(tcod.noise, los)  ─► components.unit/plant/consumable, world, tile_types, g
 tile_types: numpy structured dtype; builds Tile objects at import using utilities.map_codepoints (needs g tileset)
-utilities ◆(namegen via implicit libtcodpy alias) ▲(event types) + g (tileset remap): colour helpers, map_codepoints, generate_name
+utilities ▲(event types) + g (tileset remap): colour helpers, map_codepoints; re-exports namegen.generate_name
+namegen (pure Python, Phase 1): parses data/namegen/*.cfg once; no tcod, no game imports
 entity (Entity/Item/Constructable) ─► render_order ; components/* ─► utilities.map_codepoints (every entity constructor touches g.global_tileset)
 components: unit, plant, ai, inventory, equipment, equippable, level, consumable, names, base_component ; crafting.py (Branch, Spear, Campfire, recipes)
 actions (pure game logic, no tcod) ; message_log ▲(console) ; render_functions ▲(console)
 ```
 ### tcod usage, split
 - **Rendering/IO (to be replaced in Phase 3):** `g.py` (all of it), `main.py` (loop, `convert_coords`, `merge_tileset`), `input_handlers.py` (EventDispatch, KeySym, Modifier, MouseButton, console), `setup_game.py` (MainMenu, CharacterCreation, `tcod.image`), `world.GameMap.render`, `engine.Engine.render` + `mouse_location` (a `tcod.event.Point`), `message_log.render*`, `render_functions.*`, `utilities.is_mouse_in_rectangle`/`text_input`.
-- **Utilities (stay):** `tcod.map.compute_fov` (symmetric shadowcast, `engine.update_fov`), `tcod.path.SimpleGraph/Pathfinder` (`engine.get_path_to`), `tcod.noise` (`procgen`), `tcod.los.bresenham` (`engine.can_see`, dead tunnel code), namegen (`utilities.generate_name`, replace in Phase 1). Also `tcod.event.Point` is abused as a plain point in engine/utilities/handlers.
+- **Utilities (stay):** `tcod.map.compute_fov` (symmetric shadowcast, `engine.update_fov`), `tcod.path.SimpleGraph/Pathfinder` (`engine.get_path_to`), `tcod.noise` (`procgen`), `tcod.los.bresenham` (`engine.can_see`, dead tunnel code). (Namegen moved to pure Python in Phase 1.) Also `tcod.event.Point` is abused as a plain point in engine/utilities/handlers.
 
 ### Import cycles (order matters; `import setup_game` first works)
 `consumable → input_handlers → entity/actions`; `crafting → consumable/equippable/inventory`; `plant → crafting`; `inventory → world(GameMap)`; `Constructable.activate` lazily imports `input_handlers`; `engine.update_fov` lazily imports `crafting`.
@@ -69,8 +70,8 @@ actions (pure game logic, no tcod) ; message_log ▲(console) ; render_functions
 - Tile colours for water/walls are `get_random_color()` at import time → differ per process and are not covered by any seed.
 
 ## Dead / suspicious code (listed, NOT deleted)
-- `procgen`: `generate_map`, `RectangularRoom`, `tunnel_between`, `plant_trees_old`, `construct_old`, `max_*_by_floor` partly; `matplotlib` import & commented plot. `tile_types.down_stairs` only used by `generate_map`.
-- `entity_factories.py` (entirely commented), `utilities.text_input` (unused; references nonexistent `tcod.eventKeySym`), `utilities.get_data`, `utilities.SHADES`, `color.colors`.
+- `procgen`: `generate_map`, `RectangularRoom`, `tunnel_between`, `plant_trees_old`, `construct_old`. `tile_types.down_stairs` only used by `generate_map`.
+- `entity_factories.py` (entirely commented), `utilities.get_data`, `utilities.SHADES`, `color.colors`.
 - `Plant.die` is never called (plants cannot be attacked: `target_unit` only finds units). `Selenite`, `Sword`, `ChainMail`, `ConfusionConsumable`, `FireballDamageConsumable`, `LightningDamageConsumable` (uses nonexistent `take_damage`) are never instantiated. `MainGameEventHandler.get_action_or_event` unused. `world.distance` (module fn) unused. `Unit.has_ai`. `Entity.spawn(new=True)` branch. `g.text_tileset*`, `g.CHARMAP_URIZEN` partially. `max_rooms/room_*_size` plumbed through `GameWorld` but unused by noise generation.
 - `Engine.distance(diag=False, euclidean=False)` manhattan branch compares `p1[0]-p1[0]` (always 0) — unused path.
 - `Unit.__init__` builds Inventory/Equipment/Level, subclasses build them again.
@@ -79,4 +80,4 @@ actions (pure game logic, no tcod) ; message_log ▲(console) ; render_functions
 See DECISIONS.md → "Phase 1 verification" for the verdict on every listed bug plus newly found ones.
 
 ## Performance hot spots (baseline numbers in BENCHMARKS.md)
-`get_path_to` rebuilds cost array + graph for every call and loops over **all** entities; hostile AIs path every turn when visible. `get_entities_at_location`/`get_unit_at_location`/`render_functions.get_names_at_location` linear scans. `GameMap.render` sorts all entities each frame. `update_fov(radius=100)`. `generate_noise`: Python double loop for lake dilation and per-cell `replace_variations`; per-cell `spawn_vegetation`; deepcopy per tree. `generate_name` re-parses 13 cfg files per call (also makes spawning named units very slow).
+`get_path_to` rebuilds cost array + graph for every call and loops over **all** entities; hostile AIs path every turn when visible. `get_entities_at_location`/`get_unit_at_location`/`render_functions.get_names_at_location` linear scans. `GameMap.render` sorts all entities each frame. `update_fov(radius=100)`. `generate_noise`: Python double loop for lake dilation and per-cell `replace_variations`; per-cell `spawn_vegetation`; deepcopy per tree. (`generate_name` used to re-parse 13 cfg files per call — fixed in Phase 1.)

@@ -14,29 +14,29 @@
 - **Characterization convention:** tests that pin a known-buggy behavior are named `test_current_*`; the Phase 1 fix commit
   inverts them.
 
-## Phase 1 verification (verdict per listed item; filled in as fixed)
-| # | Item | Verified against code? | Status |
+## Phase 1 verification (verdict and outcome per item)
+| # | Item | Verified against code? | Outcome |
 |---|---|---|---|
-| 1 | `handle_hunger/thirst` condition `not self.engine.player` | Yes: always False ⇒ **no starvation/dehydration damage and no message, for anyone** (`test_current_starvation_*`) | pending |
-| 2 | `handle_health` clamps to `max_hunger` | Yes: HP can reach 100 with `max_hp` 30 (`test_current_handle_health_clamps_*`) | pending |
-| 3 | Mutable defaults / class-level mutables | Yes. Defaults never mutated today (latent): `map_codepoints(variations=[])`, `Tile(variations=[])`, `MovementAction(path=[])`, `Fruit(factory={})`, `InventoryLootHandler(entities=[])`. **Shared class-level state that is live**: `InventoryEventHandler.buttons/inventory_entries`, `MainMenu.buttons/button_highlight`, `BaseAI.path`, and `CharacterCreation.PLAYER` (a Player built at import). | pending |
-| 4 | `get_entities_at_location` annotation | Yes (returns `list`) | pending |
-| 5 | `get_path_to` returns `None` out of bounds | Yes; `MainGameEventHandler.on_render` iterates the result (crashes if the cursor were out of bounds; cursor is clamped in practice) | pending |
-| 6 | `AreaRangedAttackHandler.on_render` frame | Yes: `width=radius**2`, origin `x-radius-1` | pending |
-| 7 | `matplotlib` import in `procgen` | Yes; also in pyproject deps | pending |
-| 8 | `utilities.text_input` | Yes broken (`tcod.eventKeySym` does not exist in 21.2.1) **and unused** ⇒ delete | pending |
-| 9 | `generate_name` re-parses cfgs per call | Yes. `tcod.namegen_*` still exists but only via the deprecated implicit `libtcodpy` alias (FutureWarning "Soon the 'tcod' module will no longer be an implicit reference to 'libtcodpy'"). Replace with cached pure-Python generator | pending |
-| 10 | `map_codepoints` index scheme | Noted, **not fixed** (removed in Phase 3). Overflow only for sprites in rows ≥ 28 that also use mirror/corpse; variation index `1 + i + …` can collide with neighbouring sprite codepoints | n/a |
-| 11 | Noise axes | Consistent **by luck of tcod's grid axis order**: `grid(shape=(h, w))` → array `(w, h)` in 21.2.1. Documented in ARCHITECTURE_NOTES; Phase 5 must be explicit | documented |
-| 12 | `Plant.die` swaps in a blocking, opaque roots tile | Yes. Also **unreachable today** (plants cannot be attacked) | flagged, **not changed** |
+| 1 | `handle_hunger/thirst` condition `not self.engine.player` | Yes: always False ⇒ no starvation/dehydration damage or message for anyone | **Fixed.** Semantics chosen: at 0 hunger/thirst *any* unit loses 1 HP per tick; the message goes to the player only, once, when the stat first reaches 0; starvation deaths have no killer (no XP). |
+| 2 | `handle_health` clamps to `max_hunger` | Yes: HP could reach 100 with `max_hp` 30 | **Fixed** (clamp to `max_hp`). |
+| 3 | Mutable defaults / class-level mutables | Yes. Latent defaults: `map_codepoints`, `Tile`, `MovementAction`, `Fruit`, `InventoryLootHandler`. Live shared state: `InventoryEventHandler.buttons/inventory_entries`, `MainMenu.buttons`, `BaseAI.path` | **Fixed**, plus a guard test that scans every module for mutable defaults. `CharacterCreation.PLAYER` (shared Player built at import) left as is → Needs owner decision #8. `g.handlers` is an intentional module global (to be reduced in Phase 3). |
+| 4 | `get_entities_at_location` annotation | Yes (returns `list`) | **Fixed** (`List[Entity]`). |
+| 5 | `get_path_to` returns `None` out of bounds | Yes; the hover-path preview iterates it | **Fixed** (returns `[]`); regression test renders the main handler with the cursor out of bounds. |
+| 6 | `AreaRangedAttackHandler.on_render` frame | Yes: `width=radius**2`, origin `x-radius-1` | **Fixed.** The affected area is `2r+1` wide; the frame encloses it on the ring outside, so `2r+3` wide, centred on the cursor (`area_frame_rect`). Note the fireball uses a Euclidean disc, so the square is its bounding box. |
+| 7 | `matplotlib` import in `procgen` | Yes | **Fixed.** Removed from code and `pyproject.toml`; plotting is `scripts/debug_plot_terrain.py` (lazy import). Subprocess test guards it. |
+| 8 | `utilities.text_input` | Broken (`tcod.eventKeySym` does not exist in 21.2.1) **and unused** | **Deleted.** |
+| 9 | `generate_name` re-parses cfgs per call | Yes. `tcod.namegen_*` still works but only via the deprecated implicit `libtcodpy` alias (FutureWarning "Soon the 'tcod' module will no longer be an implicit reference to 'libtcodpy'") | **Replaced** by `src/namegen.py`: same cfg files, parsed once (`lru_cache`), pure Python, supports the documented syntax; `utilities.generate_name` re-exports it. |
+| 10 | `map_codepoints` index scheme | Noted, **not fixed** (deleted in Phase 3). Overflow only for sprites in rows ≥ 28 that also use mirror/corpse; variation index `1 + i + …` can collide with neighbouring sprites | n/a |
+| 11 | Noise axes | Consistent **only because** tcod 21.2.1's `grid(shape=(h, w))` returns `(w, h)`; `requirements.txt` pins 20.1.0, which may differ | **Documented**; `generate_noise` now asserts the shape and tests cover non-square maps (70x40, 33x17, 17x33). |
+| 12 | `Plant.die` swaps in a blocking, opaque roots tile | Yes. Also **unreachable today** (nothing can attack a plant) | **Flagged, not changed** (decision #3). |
 
 ### Additional defects found while reading (not in the brief)
 | Item | Evidence | Plan |
 |---|---|---|
-| Level-up crashes: `Level.increase_max_hp/power/defense` touch `self.max_hp/hp/base_power/base_defense` on the Level component | `test_current_level_up_crashes` | fix in Phase 1 (separate commit): obviously intended to modify `self.parent` |
-| Opening the inventory with a Health Potion crashes: `chr(entity.char)` with `char == "!"` | `test_current_inventory_render_crashes_with_a_health_potion` | The whole `char` mechanism is deleted in Phase 3; minimal Phase 1 fix so the game is playable meanwhile |
+| Level-up crashes: `Level.increase_max_hp/power/defense` touch `self.max_hp/hp/base_power/base_defense` on the Level component | `tests/test_level_up.py` | **Fixed** (separate commit; changes `self.parent`) |
+| Opening the inventory with a Health Potion crashes: `chr(entity.char)` with `char == "!"` | `tests/test_inventory_render.py` | **Fixed** minimally (`entity_glyph`); the whole `char` mechanism is deleted in Phase 3 |
 | `get_unit_at_location` can return a *corpse* when a living unit shares the tile (`units` includes dead units) ⇒ melee/bump can target the corpse | `test_current_get_unit_at_location_may_return_a_corpse` | gameplay semantics ⇒ **Needs owner decision** (proposal below) |
-| `setup_game` does `from asyncio import exceptions` | `test_current_setup_game_uses_asyncio_exceptions_module` | fix (trivial) |
+| `setup_game` does `from asyncio import exceptions` | `test_setup_game_uses_the_game_exceptions_module` | **Fixed** |
 | `Engine.distance` manhattan branch always 0 | `test_distance_helpers` | flag only (unused branch) |
 | `BaseAI.flee` / `get_random_tile` `while True` loops can spin forever with no valid tile | read | flag; revisit in Phase 2 |
 | PassiveAI flees from *corpses* of other species (`units` includes dead) | read | **Needs owner decision** (same root cause as above) |
