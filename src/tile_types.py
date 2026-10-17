@@ -2,7 +2,13 @@ from typing import Tuple, List, Optional
 
 import numpy as np  # type: ignore
 import color
+import random
+
 from utilities import map_codepoints, get_random_color, get_shade
+
+# Water/wall colours are rolled once per process. A private RNG keeps that import-time roll from shifting the
+# global `random` stream (which would make world generation depend on *when* this module is first imported).
+_palette_rng = random.Random()
 
 # Tile graphics structured type compatible with Console.rgb.
 graphic_dt = np.dtype(
@@ -82,7 +88,7 @@ floor = Tile(
     dark_fg=color.gray,
     dtype=tile_dt
 )
-water_color = get_random_color()
+water_color = get_random_color(rng=_palette_rng)
 water_variations = [
     (0, 32, "north_west"),
     (1, 32, "north"),
@@ -124,7 +130,7 @@ roots = Tile(
     light_fg=color.brown,
     dtype=tile_dt
 )
-wall_color = get_random_color()
+wall_color = get_random_color(rng=_palette_rng)
 wall_variations = [
     (0, 8, "north_west"),
     (1, 3, "north"),

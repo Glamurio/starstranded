@@ -292,22 +292,26 @@ def generate_noise(
     height_noise = tcod.noise.Noise(
         dimensions=2,
         algorithm= tcod.noise.Algorithm.PERLIN,
+        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
     )
     height_samples = height_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
     height_noise = tcod.noise.Noise(
             dimensions=2,
             algorithm= tcod.noise.Algorithm.PERLIN,
+        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
     )
     height_samples = (height_samples + height_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
 
     vegetation_noise = tcod.noise.Noise(
         dimensions=2,
         algorithm= tcod.noise.Algorithm.PERLIN,
+        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
     )
     vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
     vegetation_noise = tcod.noise.Noise(
         dimensions=2,
         algorithm= tcod.noise.Algorithm.PERLIN,
+        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
     )
     vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.1, origin=(0, 0))]
 

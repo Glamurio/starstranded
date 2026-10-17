@@ -146,9 +146,9 @@ def get_color_group(rgb: Tuple[int, int, int]):
     return min_colors[min(min_colors.keys())]
 
 
-def get_random_color(threshold: int = 30) -> Tuple(int, int, int):
+def get_random_color(threshold: int = 30, rng: random.Random = random) -> Tuple[int, int, int]:
     """Gets random color, excluding colors that exceed `threshold`"""
-    return (int(max((255 * random.random()), threshold)), int(max((255 * random.random()), threshold)), int(max((255 * random.random()), threshold)))
+    return (int(max((255 * rng.random()), threshold)), int(max((255 * rng.random()), threshold)), int(max((255 * rng.random()), threshold)))
 
 
 def get_shade(color: tuple[float, float, float], factor: float = -0.5):
