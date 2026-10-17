@@ -53,7 +53,7 @@ class Engine:
         If there is no valid path then returns an empty list.
         """
         if not self.game_map.in_bounds(dest_x, dest_y):
-            return
+            return []
 
         # Copy the walkable array.
         walkable = np.array(ai.entity.game_map.tiles["walkable"])

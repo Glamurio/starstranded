@@ -41,10 +41,22 @@ def test_path_is_empty_when_destination_enclosed(small_world):
     assert path == []
 
 
-def test_current_out_of_bounds_returns_none(small_world):
-    """BUG (Phase 1): annotated as List but returns None."""
+def test_out_of_bounds_returns_empty_list(small_world):
     e = small_world()
-    assert e.get_path_to(e.player.ai, 99, 99) is None
+    for dest in [(99, 99), (-1, 0), (0, -1), (12, 5), (5, 10)]:
+        assert e.get_path_to(e.player.ai, *dest) == []
+
+
+def test_main_handler_renders_with_cursor_out_of_bounds(small_world):
+    """The hover-path preview iterates get_path_to()'s result; it must not crash for [] ."""
+    import g
+    import input_handlers
+    e = small_world()
+    handler = input_handlers.MainGameEventHandler(e)
+    handler.mouse_motion = True
+    e.mouse_location = (99, 99)
+    g.root_console.clear()
+    handler.on_render(g.root_console)
 
 
 def test_unexplored_terrain_is_treated_as_walkable(small_world):
