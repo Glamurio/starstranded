@@ -2,6 +2,20 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Phase 2 — data/instance split, spatial index, performance
+- **Saves from earlier versions no longer load** (save format version 2). The main menu reports "Failed to load save".
+- **Monsters and items no longer spawn inside walls or water** (placement now requires a walkable, unoccupied tile).
+- **Attacks and lookups target the living unit** when a creature stands on a corpse (it could hit the corpse before);
+  rabbits no longer flee from corpses.
+- **Each plant has its own growth period** (gaussian around its species' cycle); previously all plants on a floor were
+  copies of one prototype and shared it. Plants without fruit no longer run an (empty) AI each turn.
+- A fresh player is created for every New Game (a name typed, abandoned and retyped no longer carries over).
+- Fleeing animals give up after a bounded number of tries instead of potentially looping forever.
+- Ties between equally close food items are resolved in ring order around the animal (previously set order).
+- Same `random`/`numpy` seed now generates the same floor (terrain noise used to ignore it). New games still differ.
+- FOV radius is configurable (`GameConfig.fov_radius`, default 80 = whole map, unchanged behaviour).
+- Faster floor generation (~2.4x), spawning (~4x) and AI turns (1.1–2.5x); see BENCHMARKS.md.
+
 ## Phase 1 — bug fixes
 - **Starvation and dehydration now work.** At 0 hunger/thirst any unit loses 1 HP per tick (previously nobody did, and the
   player never saw the messages). The player gets one "is starving!" / "is severely dehydrated!" message when the stat first hits 0.

@@ -1,8 +1,33 @@
-# StarStranded — Architecture Notes (Phase 0 baseline, written from the full code; Phase 1 deltas marked)
+# StarStranded — Architecture Notes
 
 Status: **baseline of the untouched code** (branch `modernize`, forked from `crafting` @ e01d7a4 + owner WIP
 commit). Phase 5 rewrites this file to describe the final architecture.
 Where this differs from the original task description, the code wins (see "Differences from the brief").
+
+## Current architecture (after Phase 2) — read this first
+The sections further down describe the **Phase 0 baseline**; where they disagree with this section, this section wins.
+
+- **Definitions vs instances.** `species.py`: frozen `UnitSpecies`, `PlantSpecies`, `ItemKind` (+ `AIKind`, `PlantCategory`),
+  registries `UNIT_SPECIES`/`ITEM_KINDS` for static content, `make_plant_species()`/`make_fruit_kind()` for procedural content,
+  `glyphs(kind)` (identity-cached PUA codepoints; tcod era only). Every entity has `kind`; it stores only per-instance state.
+  Subclasses carry behaviour only (`Player/Selenite/Animal(Unit)`, `Tree/Shrub(Plant)`, `HealthPotion/Meat/Fruit/Branch/Dagger/
+  …/Campfire(Item)`).
+- **Ownership.** `GameMap(engine, landscape, entities=())` is the only mutator of positions: `add_entity`, `remove_entity`,
+  `move_entity`. It maintains `_by_pos`, per-`EntityCategory` collections (`units`, `plants`, `items`), `actors` (has AI),
+  render buckets per `RenderOrder`, `blocked` (int16 per tile), `path_base_cost()` (cached), `entities_on_ring()`.
+  `Entity.x/y/blocks_movement/render_order/ai` are properties that notify the map (`SpatialContainer` protocol in `entity.py`;
+  `Inventory.remove_entity` implements the detach side for inventories).
+- **Entity identity.** Objects move, never copy. `uid` (process-unique, bumped past loaded entities) for Phase 5.
+- **Back-references kept:** `Entity.parent` (map or inventory), `Component.parent`, `AI.entity`, `GameMap.engine`,
+  `GameWorld.engine`. `entity.game_map`/`.engine` are derived properties.
+- **Config.** `config.GameConfig` (frozen) on `Engine.config`: `fov_radius` (80), `flee_attempts` (50).
+- **Pathfinding.** `Engine.get_path_to(origin_entity, x, y, ignore_obstacles=False)`: cached base cost + `10 * blocked` overlay,
+  exact tcod `Pathfinder` (same paths as before).
+- **Saves.** `{"version": SAVE_VERSION (2), "engine": Engine}` lzma-pickled, written atomically; `load_game` raises
+  `exceptions.IncompatibleSave` otherwise.
+- **Generation** is reproducible from `random`/`numpy` seeds; vectorised dilation/variations (`procgen.dilate`,
+  `procgen.neighbour_masks`); one tree species + one shrub species per floor.
+- **Still tcod-rendered** (`g.py`, console). Phase 3 replaces rendering/input; the `char`/`glyph`/`map_codepoints` layer goes then.
 
 ## Differences from the brief (verified)
 | Brief said | Code says |

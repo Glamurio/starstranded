@@ -138,13 +138,40 @@ doing it twice is wasteful. Pickles stay circular but compact (pickle memoizes s
 - Pathfinding: per-map cached base cost (`walkable | ~explored`), invalidated only when tiles change or exploration grows;
   per call `cost = base + 10 * blocked` masked to passable tiles (vectorised, no entity loop).
   *Outcome (measured):* the search window was **dropped** — tcod's Pathfinder was slower on a cropped 14x18 grid (124 µs) than on
-  the whole 70x40 map (88 µs), so cropping buys nothing at this map size (revisit for Phase 5's stitched window, where the
-  cap is a hard requirement). Legacy `tcod.path.AStar` was 5x faster (17 µs) but returned a costlier route in 12 of 1,602
-  random queries, so the exact `Pathfinder` stays. Paths are now *identical* to the old implementation (tested against a
-  copy of it); per call 197 → 134 µs, the remainder being tcod's own search.
+  the whole 70x40 map (88 µs), so cropping buys nothing at this map size (revisit for Phase 5's stitched window, where a cap
+  is a hard requirement). Legacy `tcod.path.AStar` was 5x faster (17 µs) but returned a costlier route in 12 of 1,602 random
+  queries, so the exact `Pathfinder` stays. Paths are *identical* to the old implementation (tested against a copy of it).
+  The gain is modest: 1.0x–1.26x per query depending on entity count (150 → 394 entities) and 1.05x in the fixed-scenario
+  benchmark, because tcod's search dominates. (An earlier single-route figure of 197 → 134 µs overstated it.)
 - FOV: `config.fov_radius`, default **80** = ceil(sqrt(69² + 39²)), i.e. the whole 70x40 map remains visible from anywhere
   (unchanged behaviour while the camera is fixed). Phase 5 (camera centred on the player) should lower it to ~41 (half-diagonal of the view).
 - Render: iterate render buckets in order (no per-frame sort).
 - Procgen: lake dilation via array shifts; `replace_variations` vectorised (neighbour masks → 16-case lookup); vegetation via
   `np.argwhere`. Old implementations kept in tests as reference to prove identical output.
 - AI: only `actors` are iterated per turn; food search is a ring scan over the index; `flee` gets a bounded number of tries.
+
+
+# Phase 2 outcome (what was actually done; supersedes the plan where they differ)
+- **Definitions:** `species.py` holds frozen `UnitSpecies`/`PlantSpecies`/`ItemKind` plus registries; `entity.kind` points at one.
+  Static ones pickle by key (identity preserved on load); procedural plant/fruit kinds pickle by value. Subclasses
+  (`Player`, `Animal`, `Tree`, `Meat`, `Dagger`, `Campfire`, …) remain as thin behaviour carriers that pick a definition.
+- **No deepcopy:** `Entity.spawn`/`Plant.spawn` removed; spawning = constructor + `GameMap.add_entity`. `place_entities` picks
+  factories and constructs one instance per placement.
+- **Type checks:** every `hasattr` replaced by `isinstance`, `EntityCategory` (class attribute) or `has_inventory`.
+- **Spatial index:** as planned (`_by_pos`, categories, actors, render buckets, `blocked` counts); `x/y`, `blocks_movement`,
+  `render_order`, `ai` are notifying properties. Index invariants are checked by `tests/index_helpers.assert_index_consistent`
+  (incl. a 600-step random soak test).
+- **Back-references remaining (by design, see plan):** `Entity.parent` (container), `Component.parent`, `AI.entity`,
+  `GameMap.engine`, `GameWorld.engine`; `entity.game_map`/`entity.engine` are derived. Removed: `GameMap.world`, the
+  `ai` argument of `get_path_to`, all per-entity codepoint fields, the shared class-level state.
+- **Save format v2** (`{"version": 2, "engine": …}`), atomic write, uid counter bumped past loaded entities; v1 saves rejected.
+- **Determinism:** seeding `random`+`numpy` now reproduces a whole floor (noise seeds drawn from `random`; tile palette uses a
+  private RNG). Needed for comparable benchmarks and for Phase 5 chunk regeneration.
+- **Benchmarks** rebuilt on a fixed scenario; the Phase 0 table was on unseeded terrain and is not comparable (see BENCHMARKS.md).
+- **Decided along the way (owner-delegated):** living units preferred over corpses (#2), fresh player per New Game (#8),
+  requirements.txt aligned (#5); plus a spawn-placement bug fix (monsters/items could spawn in walls/water).
+- **Process note:** one commit (42ab790) was made with a failing test and fixed in the next commit (20fcbca); the commit helper
+  now runs the test suite and refuses to commit on failure. 22 `tests/__pycache__` files were committed by mistake in Phases
+  0–2 and untracked in f6e2376 (history not rewritten).
+- **Commit messages** up to and including 2f0fa2f carry AI attribution trailers; per the project instructions ("never mention
+  Claude in any commit") later commits do not. History is not rewritten.
