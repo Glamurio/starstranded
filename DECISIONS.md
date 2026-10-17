@@ -210,3 +210,139 @@ performance overhaul), fullscreen toggle, key rebinding, sound. `utilities.get_d
 
 Not done on purpose: dimming/greying corpses (they keep their entity's tint), a scrollable "what is here" window beyond the names line and the
 pickup list, per-pile marker counts.
+
+# Phase 5 design plan: chunked world (written before implementation)
+
+Goal (brief): an unbounded world of 70x40 chunks, generated deterministically per chunk, simulated in tiers, seen and
+pathfound through a stitched window, saved as per-chunk files plus a manifest. This plan is meant to be implementable
+by another session; "Phase 5 outcome" (written at the end) records where the implementation differs.
+
+## Coordinates and conventions
+- **World tile coordinates** `(x, y)`: plain ints, unbounded, negative allowed. Every entity stores world coordinates.
+- **Chunk key** `(cx, cy) = (x // 70, y // 40)` (floor division); **local** `(lx, ly) = (x % 70, y % 40)` (Python `%` is
+  non-negative). Chunk arrays are `[lx, ly]`, shape `(70, 40)`, numpy order F, exactly like the old map arrays.
+- **Window coordinates**: a stitched window covers the chunks `cx-r..cx+r`, `cy-r..cy+r` around the player's chunk
+  (`r = GameConfig.near_radius`, default 1, so 210x120 tiles). Window origin `(ox, oy) = ((pcx-r)*70, (pcy-r)*40)`;
+  window index `[x-ox, y-oy]`.
+- **Screen**: the map viewport is the top-left 70x40 cells. Camera origin `(camx, camy) = (px-35, py-20)`, screen cell
+  `(sx, sy)` <-> world `(camx+sx, camy+sy)`. For bounded test maps the camera is clamped to the map bounds (a map no
+  larger than the viewport is drawn at (0, 0), as before). `Engine.mouse_location` holds **world** coordinates.
+- Noise is sampled in world coordinates: `tcod.noise.grid(shape=(h, w), scale=s, offset=(y0, x0))` (verified: equals the
+  matching slice of one big grid exactly; `offset` follows `shape` order (rows, cols) and is scaled by `scale`).
+
+## Modules
+- `chunks.py`: constants `CHUNK_W/CHUNK_H`, `chunk_key()`, `local()`, `Chunk` (terrain `tiles`, `explored`, `blocked`, the
+  per-chunk entity index that `GameMap` had: `_by_pos`, categories, actors, render buckets; `terrain_version`;
+  `generated_at` time).
+- `world.py`: `World` (one floor): the `SpatialContainer` every map entity has as `parent`. Routes `add/remove/move_entity`
+  and queries by world position to the owning chunk; owns the loaded-chunk dict, the `ViewWindow`, the chunk source and
+  the in-memory store of unloaded chunks. `GameMap(engine, landscape)` = a **bounded** World made from a fixed landscape
+  that fits chunk (0, 0) (tests, benchmark scenario); it keeps the old array properties (`tiles`, `explored`,
+  `visible`, `width`, `height`) as live views. `GameWorld` stays the floor/time manager.
+- `worldgen.py`: deterministic chunk generation (terrain + plants + spawns) from `(floor_seed, cx, cy)`; replaces
+  `procgen.generate_noise` (spawn tables and helpers stay in `procgen.py`; dead `generate_map`/rooms code goes).
+- `view.py`: `ViewWindow` (stitched arrays + FOV result) and `Camera`.
+- `simulation.py`: tiers, per-turn scheduling, `upkeep()` (exact and analytic catch-up), simplified NEAR AI.
+- `savegame.py`: directory save format (manifest + chunk files), persistent-id pickling, load.
+
+## Entities and chunk membership
+- An entity on the map has `parent = World`; the World indexes it in the chunk containing its position. `World.move_entity`
+  re-indexes it in another chunk when it crosses a border: the same object moves between the chunks' sets (identity,
+  hp, hunger, inventory, AI untouched). `uid` stays the identity key for saves.
+- Plants never move (no code path moves them). Units and items move/are dropped like any entity.
+- Entities can only be added to / move into **loaded** chunks. `in_bounds(x, y)` = "tile belongs to a loaded chunk"
+  (and to the landscape for bounded maps), so `can_move` refuses steps into unloaded chunks; NEAR units therefore stay
+  inside the loaded ring.
+- Terrain edits (plants writing `walkable/transparent/dark` on their tile, stairs) go through `World.modify_tile()`,
+  which writes the chunk array and bumps that chunk's `terrain_version`.
+
+## Simulation tiers (all configurable in `GameConfig`)
+- **ACTIVE** = the player's chunk (`active_radius`, default 0): full AI every turn, exactly the old per-turn behaviour.
+- **NEAR** = chunks within `near_radius` (default 1, the 8 neighbours): every `near_interval` turns (default 2) each actor
+  gets upkeep and one **simplified step**: hostile -> greedy step towards the player when within 15 tiles; passive ->
+  greedy step away from a non-own-species unit within 3, eat adjacent food when hungry, otherwise a random step half of
+  the time; plants only grow. No pathfinding, no messages. Enough for animals to walk onto the screen.
+- **FAR** = everything else: **not loaded**. Chunks beyond `unload_radius` (default `near_radius + 1`; the band between
+  is loaded but frozen = hysteresis so walking back and forth over a border does not thrash) are serialised
+  (pickle + lzma) into an in-memory store and dropped; the same bytes are written at save time.
+- **Catch-up is per entity**, not per chunk: every Unit/Plant stores `last_upkeep` (game time). `upkeep(entity, now)`
+  applies every hunger/thirst/growth step in `(last_upkeep, now]` and sets `last_upkeep = now`. For one elapsed turn it
+  calls the original per-turn code (so ACTIVE behaviour is unchanged); for more it is analytic: `k` hunger steps =
+  multiples of 4 in the interval, thirst = multiples of 2, damage `max(0, k - max(h - 1, 0))` (exactly what `k` calls of
+  `handle_hunger(-1)` do), death if hp hits 0 (quietly, no message); plants: growth steps = even times in the interval,
+  `cycles` full cycles each add a branch + fruit while the inventory has room (the per-turn "drop onto a neighbour tile
+  when full" is not modelled). Units entering from FAR are assumed to have **foraged** if their chunk has food: hunger and
+  thirst are not taken below half their maximum (otherwise every animal left behind for ~400 turns would starve, which
+  the full simulation does not do). Because it is per entity, a unit that crossed from a lagging NEAR chunk into the
+  ACTIVE chunk is never charged twice. Reloaded chunks get `upkeep(..., now)` for all their entities at load time.
+- `GameWorld.pass_time` (player turns only, as before) calls `simulation.run_turn(engine)`: ACTIVE actors every turn,
+  NEAR chunks on their interval; it never iterates FAR or frozen entities. After the player moves, `World.update_tiers()`
+  loads/generates/unloads chunks around the player's chunk.
+
+## Stitched view window
+- `ViewWindow` holds, for the window rectangle: `transparent`, `walkable` (copies stitched from the chunk arrays; unloaded
+  chunks = opaque/unwalkable), the `visible` FOV result and window-sized scratch for pathfinding.
+- **Invalidation**: the cache key is `(window origin, tuple((key, id(chunk), chunk.terrain_version) for the 9 chunks))`.
+  It is rebuilt when the player's chunk changes, a chunk in it is loaded/unloaded, or a chunk's terrain changes.
+  `blocked` (changes every move) is never cached: it is stitched on demand for the pathfinding crop.
+- **FOV**: `compute_fov` on the window `transparent` (radius `fov_radius`, now default 41 = half-diagonal of the 70x40 view
+  plus one); campfire light likewise; `explored |= visible` is written back into each chunk's `explored`.
+- **Rendering**: terrain for the camera rectangle is assembled from the chunks' `light`/`dark` arrays with `visible` from
+  the window and drawn with the Phase 3 batch; entities come from the (at most 4) chunks intersecting the camera, layer by
+  layer across chunks, culled to the camera and to `visible`; clutter safeguard per tile as before.
+- **Pathfinding**: `Engine.get_path_to` crops the window to `path_radius` (default 40) around the origin; destination
+  outside the crop (or window) -> `[]`. Cost = walkable-or-unexplored, `+10 * blocked`, as before.
+
+## Generation (deterministic per chunk)
+- Seeds: `GameWorld.seed` (from `random`, so a seeded game is reproducible) -> `floor_seed = mix(seed, floor)` ->
+  `chunk_seed = mix(floor_seed, cx, cy)` with `mix` = blake2b over the packed ints (stable across processes/platforms,
+  negative coordinates fine).
+- Noise: 4 tcod `Noise` generators (2 height, 2 vegetation, as before) seeded from `floor_seed`, kept on the World and
+  rebuilt from the seed after loading.
+- A chunk is generated on a **padded** 74x44 region (margin 2) so the neighbour-dependent steps (lake dilation, edge
+  variations) see the same neighbours on both sides of a border; the 70x40 interior is kept. Everything random inside a
+  chunk (variation "center" pick, tree map, tree/shrub choice, spawns, and the incidental `random` use in constructors:
+  shades, names, mirroring) runs inside `seeded_rng(chunk_seed)`, which seeds the global `random`/`np.random` and
+  restores their previous state afterwards. So regenerating a chunk gives identical terrain and identical entities
+  (kinds, positions, stats, colours); only uids differ.
+- Per floor (World): one tree species and one shrub species (as before), made from `floor_seed`.
+- Spawns: per chunk, the old per-map rules (`max_monsters_by_floor`, `max_items_by_floor`, walkable + unblocked tiles).
+- Player start: a deterministic walkable, unblocked tile in chunk (0, 0) (spiralling to other chunks if none).
+
+## Persistence: whole chunks, not deltas
+- **Decision: once a chunk has been generated it is persisted whole and never regenerated.** Deltas would need every
+  mutation path (AI eating, plant growth, inventories, crafting, campfires, deaths) to emit replayable events and the
+  delta replay to reproduce internal AI state; that is a large, fragile surface. Whole-chunk pickles reuse the Phase 2
+  picklable entities, and a chunk is ~5-15 KiB lzma-compressed. Determinism is still required and tested, because chunks
+  that were never generated are not stored at all and must come out the same whenever they are first generated.
+- **Save = a directory** (default `savegame/`):
+  - `manifest.lzma`: `{"version": 4, "floor", "time", "seed", "player" (pickled), "message_log", "loaded": [keys],
+    "chunks": {key: filename}, "next_uid", "downstairs", "procedural": [species/fruit definitions]}`.
+  - `floor<N>/chunk_<cx>_<cy>.<generation>.lzma`: `{"key", "tiles", "explored", "entities" (positions included)}`.
+  - Atomicity: chunk files are written under a **new generation number** (temp file + `os.replace`), then the manifest is
+    written the same way (the commit point), then files no longer referenced are deleted. A crash at any point leaves
+    the previous manifest pointing at complete files. Unchanged chunk blobs are not rewritten.
+  - Pickling uses `persistent_id`: the World, the Engine, the player and the floor's procedural definitions are written
+    as references and re-bound on load, so a chunk file never drags the rest of the world in. References to entities of
+    other chunks (not expected; AI targets are transient) are stored by uid and resolve to None if not loaded.
+  - Loading reads the manifest, rebuilds the World from the seed, loads only the chunks in the loaded set (unvisited
+    chunks are not needed; visited-but-far ones are read when the player comes back), places the player and applies
+    catch-up. Older single-file saves (version <= 3) raise `IncompatibleSave`.
+
+## Floors and stairs (open question, default taken)
+- **Each floor is its own `World`** (own seed, own chunk grid). `TakeStairsAction` on the down staircase makes
+  `GameWorld` create the next floor's World and moves the player there; the previous floor is discarded (there is no way
+  back up; its files are deleted at the next save). The staircase is placed deterministically in chunk (0, 0) at a
+  walkable tile 8-20 tiles from the start, and the `down_stairs` tile becomes walkable so it can be stood on (it was
+  unreachable before: the noise map never placed stairs and the old room generator that did is dead code).
+
+## UI
+- The camera follows the player; mouse cells are converted to world coordinates; highlights, the area-target frame and
+  cursor clamping use the camera. Side panel shows floor, position and chunk. Smooth pixel scrolling (nice-to-have,
+  behind `GameConfig.smooth_scroll`) only if time allows.
+
+## Tests and benchmark (acceptance)
+- Walk the player across chunk borders in all four directions; terrain continuity at the border (deterministic base
+  terrain + edge variations match a single large generation); an NPC crossing a border keeps identity and state; save/load
+  mid-world round trip; far chunks unload and reload with catch-up applied; regenerating a chunk is identical.
+- Benchmark: one turn with the NEAR ring populated (plus world generation and chunk load/unload costs).
