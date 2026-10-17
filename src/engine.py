@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import lzma
+import os
 import pickle
 import g
 
@@ -21,6 +22,10 @@ if TYPE_CHECKING:
     from world import GameMap, GameWorld
 
 
+SAVE_VERSION = 2
+"""Bump whenever the pickled object layout changes incompatibly. Version 1 = the pre-Phase-2 raw Engine pickle."""
+
+
 class Engine:
     game_map: GameMap
     game_world: GameWorld
@@ -32,10 +37,12 @@ class Engine:
 
 
     def save_as(self, filename: str) -> None:
-        """Save this Engine instance as a compressed file."""
-        save_data = lzma.compress(pickle.dumps(self))
-        with open(filename, "wb") as f:
+        """Save this Engine as a versioned, compressed file (written to a temp file, then renamed: atomic)."""
+        save_data = lzma.compress(pickle.dumps({"version": SAVE_VERSION, "engine": self}))
+        tmp = f"{filename}.tmp"
+        with open(tmp, "wb") as f:
             f.write(save_data)
+        os.replace(tmp, filename)
 
 
     def handle_enemy_turns(self) -> None:

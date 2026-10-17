@@ -75,11 +75,40 @@ def new_game(player: Unit) -> Engine:
     return engine
 
 def load_game(filename: str) -> Engine:
-    """Load an Engine instance from a file."""
+    """Load an Engine from a save file written by `Engine.save_as`.
+
+    Raises `exceptions.IncompatibleSave` for saves from other versions (old saves are not migrated).
+    """
+    from engine import SAVE_VERSION
+    from entity import bump_uid_counter
+
     with open(filename, "rb") as f:
-        engine = pickle.loads(lzma.decompress(f.read()))
+        raw = f.read()
+    try:
+        payload = pickle.loads(lzma.decompress(raw))
+    except Exception as exc:  # corrupt file, or classes that no longer exist
+        raise exceptions.IncompatibleSave(f"Unreadable save file ({type(exc).__name__}).") from exc
+    if not isinstance(payload, dict) or payload.get("version") != SAVE_VERSION:
+        found = payload.get("version", "unknown") if isinstance(payload, dict) else 1
+        raise exceptions.IncompatibleSave(
+            f"Save file version {found} is not supported (this game uses version {SAVE_VERSION})."
+        )
+    engine = payload["engine"]
     assert isinstance(engine, Engine)
+    bump_uid_counter(_max_uid(engine) + 1)  # entities created after loading must not reuse uids
     return engine
+
+
+def _max_uid(engine: Engine) -> int:
+    highest = 0
+    stack = list(engine.game_map.entities) + [engine.player]
+    while stack:
+        entity = stack.pop()
+        highest = max(highest, entity.uid)
+        inventory = getattr(entity, "inventory", None)
+        if inventory is not None:
+            stack.extend(inventory.items)
+    return highest
 
 class MainMenu(input_handlers.BaseEventHandler):
     """Handle the main menu rendering and input."""
