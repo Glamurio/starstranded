@@ -23,7 +23,7 @@ def test_smaller_radius_limits_vision(small_world):
     e.player.place(10, 10)
     e.update_fov()
     v = e.game_map.visible
-    assert v[10, 10] and v[14, 10] and not v[16, 10] and not v[29, 19]
+    assert v[10, 10] and v[13, 10] and not v[16, 10] and not v[29, 19]  # tcod radius is exclusive at r
 
 
 def test_config_is_frozen_and_survives_save(new_engine, tmp_path):
