@@ -110,3 +110,17 @@ def test_health_potion_heals_or_raises_when_full(small_world):
     p.hp = 10
     pot.activate(p)
     assert p.hp == 14 and pot not in p.inventory.items
+
+
+def test_only_the_players_drops_are_announced(small_world):
+    from components.consumable import Meat
+    from components.unit import Animal
+    e = small_world()
+    rabbit = Animal(); rabbit.place(5, 5, e.game_map)
+    meat = Meat("x", rabbit.inventory); rabbit.inventory.add(meat)
+    before = len(e.message_log.messages)
+    rabbit.inventory.drop(meat, (5, 6))
+    assert len(e.message_log.messages) == before and meat.parent is e.game_map
+    mine = Meat("y", e.player.inventory); e.player.inventory.add(mine)
+    e.player.inventory.drop(mine, None)
+    assert e.message_log.messages[-1].plain_text.startswith("You dropped")
