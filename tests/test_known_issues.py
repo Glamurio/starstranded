@@ -12,17 +12,6 @@ from components.consumable import HealthPotion
 from components.unit import Animal
 
 
-def test_current_level_up_crashes(small_world):
-    """Level.increase_* read/write max_hp, hp, base_power on the *Level component*, not the unit."""
-    e = small_world()
-    with pytest.raises(AttributeError):
-        e.player.level.increase_max_hp()
-    with pytest.raises(AttributeError):
-        e.player.level.increase_power()
-    with pytest.raises(AttributeError):
-        e.player.level.increase_defense()
-
-
 def test_current_inventory_render_crashes_with_a_health_potion(small_world):
     """InventoryEventHandler.on_render does chr(entity.char); HealthPotion.char is the str '!'."""
     import g
