@@ -9,7 +9,6 @@ import tcod
 import g
 
 import numpy as np  # type: ignore
-import matplotlib.pyplot as plt #just for visual
 
 import components.unit as units
 import components.consumable as consumables
@@ -408,7 +407,4 @@ def generate_noise(
     player.place(x, y, map)
     place_entities(map, engine.game_world.current_floor)
     
-    # plt.imshow(vegetation, vmin=0, vmax=255)
-    # plt.savefig('figure.jpg')
-
     return map
