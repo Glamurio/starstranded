@@ -18,6 +18,8 @@ Sections (milliseconds unless noted):
   render_*           one frame of the in-game view: tcod era = console / texture / present (vsync-capped);
                      Phase 3+ = map only / map + UI / full draw / draw + scale + present
   save_load          Engine.save_as + load_game, plus file size in KiB
+  chunked.*          Phase 5: chunk generation / unload / reload, a turn with the NEAR ring populated, a border
+                     crossing and the save directory (see bench_chunked). `floor_generation` is 9 chunks since Phase 5.
 """
 from __future__ import annotations
 
@@ -54,6 +56,7 @@ from world import GameMap  # noqa: E402
 
 NEW_API = hasattr(GameMap, "add_entity")  # Phase 2+: spatial index, species definitions
 PYGAME_API = "sprite" in (tile_types.graphic_dt.names or ())  # Phase 3+: pygame-ce rendering, sprite-id tiles
+CHUNKED = (SRC / "chunks.py").exists()  # Phase 5+: chunked world
 # The scenario terrain exists in both tile layouts (codepoints for the tcod-era code, sprite ids for Phase 3+).
 LANDSCAPE = np.load(HERE / "bench_data" / ("scenario_landscape.npy" if PYGAME_API else "scenario_landscape_tcod.npy"))
 
@@ -248,6 +251,12 @@ def bench_render_pygame(repeat: int) -> dict:
     }
 
 
+def _size_kib(path: str) -> float:
+    if os.path.isdir(path):
+        return round(sum(os.path.getsize(os.path.join(d, f)) for d, _, files in os.walk(path) for f in files) / 1024, 1)
+    return round(os.path.getsize(path) / 1024, 1)
+
+
 def bench_save_load(repeat: int) -> dict:
     engine = scenario(units=50)
     with tempfile.TemporaryDirectory() as d:
@@ -256,7 +265,101 @@ def bench_save_load(repeat: int) -> dict:
             "save": timed(lambda: engine.save_as(save_path), repeat),
             "load": timed(lambda: setup_game.load_game(save_path), repeat),
         }
-        res["size_kib"] = round(os.path.getsize(save_path) / 1024, 1)
+        res["size_kib"] = _size_kib(save_path)
+    return res
+
+
+# ── Phase 5: chunked world ────────────────────────────────────────────────────────
+def bench_chunked(repeat: int, turns: int) -> dict:
+    """Seeded floor 1 (3x3 chunks around the start). Sections:
+      chunk_generate        one new chunk: terrain + plants + spawns (load of a never-visited chunk)
+      chunk_unload/reload   serialise a chunk to bytes / restore it (with catch-up)
+      turn_near_ring_0/200  one turn (WaitAction) with the natural spawns / +200 rabbits spread over the 8 NEAR chunks;
+                            .near_tick = only the turns on which NEAR chunks are simulated (every 2nd)
+      border_crossing       a player step into the next chunk (loads 3 new chunks, unloads beyond unload_radius)
+      save_load             the save directory after the crossings (manifest + chunk files)
+    """
+    import actions
+    from chunks import CHUNK_H, CHUNK_W, chebyshev, keys_around
+    from components.unit import Animal
+
+    res: dict = {}
+    engine = seeded_engine()
+    world = engine.game_map
+    keys = [(20 + i, 20) for i in range(repeat)]
+    samples = []
+    for key in keys:
+        t0 = time.perf_counter()
+        world.load_chunk(key)
+        samples.append((time.perf_counter() - t0) * 1000)
+    res["chunk_generate"] = summarize(samples)
+    res["entities_per_chunk"] = round(sum(len(world.chunks[k].entities) for k in keys) / len(keys), 1)
+    unload, reload = [], []
+    for key in keys:
+        t0 = time.perf_counter()
+        world.unload_chunk(key)
+        unload.append((time.perf_counter() - t0) * 1000)
+        t0 = time.perf_counter()
+        world.load_chunk(key)
+        reload.append((time.perf_counter() - t0) * 1000)
+        world.unload_chunk(key)
+    res["chunk_unload"] = summarize(unload)
+    res["chunk_reload"] = summarize(reload)
+    res["chunk_kib"] = round(sum(len(world.stored[k]) for k in keys) / len(keys) / 1024, 1)
+    for key in keys:
+        world.stored.pop(key)
+
+    def turn_bench(engine, label):
+        all_turns, near_ticks = [], []
+        for _ in range(turns):
+            t0 = time.perf_counter()
+            actions.WaitAction(engine.player).perform()
+            ms = (time.perf_counter() - t0) * 1000
+            all_turns.append(ms)
+            if engine.game_world.current_time % engine.config.near_interval == 0:
+                near_ticks.append(ms)
+        res[label] = summarize(all_turns)
+        res[label + ".near_tick"] = summarize(near_ticks)
+
+    random.seed(99)
+    np.random.seed(99)
+    turn_bench(engine, "turn_near_ring_0")
+    engine = seeded_engine()
+    world = engine.game_map
+    rng = random.Random(5)
+    near = [k for k in world.chunks if chebyshev(k, world.center_key()) == 1]
+    for key in near:
+        chunk = world.chunks[key]
+        placed = 0
+        while placed < 25:
+            x, y = chunk.x0 + rng.randrange(CHUNK_W), chunk.y0 + rng.randrange(CHUNK_H)
+            if engine.can_move(x, y):
+                world.add_entity(Animal(), x, y)
+                placed += 1
+    random.seed(99)
+    np.random.seed(99)
+    turn_bench(engine, "turn_near_ring_200")
+
+    crossing = []
+    player = engine.player
+    for _ in range(max(3, repeat // 2)):
+        key = world.center_key()
+        x = (key[0] + 1) * CHUNK_W  # first column of the next chunk east
+        spot = next(((x, y) for y in range(key[1] * CHUNK_H, (key[1] + 1) * CHUNK_H)
+                     if world.is_walkable(x, y) and not world.is_blocked(x, y)), None)
+        if spot is None:
+            break
+        player.place(spot[0] - 1, spot[1])  # stand just west of the border (teleport inside loaded chunks)
+        t0 = time.perf_counter()
+        player.move(*spot)
+        crossing.append((time.perf_counter() - t0) * 1000)
+    res["border_crossing"] = summarize(crossing)
+    with tempfile.TemporaryDirectory() as d:
+        save_path = os.path.join(d, "world")
+        res["save"] = timed(lambda: engine.save_as(save_path), max(3, repeat // 3))
+        res["load"] = timed(lambda: setup_game.load_game(save_path), max(3, repeat // 3))
+        res["save_kib"] = _size_kib(save_path)
+        res["chunks_saved"] = len(world.chunks) + len(world.stored)
     return res
 
 
@@ -266,7 +369,7 @@ def main() -> None:
     def r(n: int) -> int:
         return max(3, int(n * q))
 
-    results: dict = {"api": "phase3+" if PYGAME_API else ("phase2" if NEW_API else "pre-phase2")}
+    results: dict = {"api": "phase5" if CHUNKED else "phase3+" if PYGAME_API else ("phase2" if NEW_API else "pre-phase2")}
     results["floor_generation"] = bench_floor_generation(r(20))
     results["spawn_trees_x500"] = bench_spawn_trees(r(5))
     for kind in ("passive", "hungry", "hostile"):
@@ -277,6 +380,8 @@ def main() -> None:
     results["fov"] = bench_fov(r(100))
     results["render"] = bench_render(r(100))
     results["save_load"] = bench_save_load(r(10))
+    if CHUNKED:
+        results["chunked"] = bench_chunked(r(12), 16 if not ARGS.quick else 8)
 
     print(f"[{results['api']}] src={SRC}")
     print(f"{'benchmark':<28}{'median':>10}{'mean':>10}{'min':>10}{'max':>10}  n")
