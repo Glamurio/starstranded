@@ -2,6 +2,21 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Phase 5 — chunked world
+- **The world is endless:** each floor is made of 70x40 chunks generated as you walk; the view follows the player and
+  scrolls across chunk borders seamlessly. The side panel shows your position.
+- **Creatures off-screen keep living:** the chunk you are in is fully simulated, the 8 around it move every other turn with
+  simpler behaviour (they still wander, flee and approach), far chunks are stored and caught up when you return (hunger, thirst,
+  plant growth; animals with food nearby are assumed to have foraged).
+- **Each floor has a down staircase** a short walk from the start (press `L` on it); it used to be missing. Going down creates a
+  new world; there is no way back up.
+- Vision radius is 41 tiles (the screen around you) instead of the whole map.
+- Wandering and fleeing animals pick destinations near themselves (before: anywhere on the map). Pathfinding searches at most
+  40 tiles around the walker.
+- **Saves are a folder** (`savegame/` next to the game files) with one file per visited chunk; saving is atomic. Saves from
+  earlier versions no longer load. Only visited chunks are stored.
+- Plants dropping fruit no longer print "You dropped ..." messages; deaths in chunks far away are silent.
+
 ## Phase 4 — sprite layering
 - **Everything on a tile is drawn in a fixed stack:** corpses, then items, then shrubs, then creatures, then trees, each with its own colour and facing.
   You can now see the corpse and item you are standing on, or that an animal stands on.

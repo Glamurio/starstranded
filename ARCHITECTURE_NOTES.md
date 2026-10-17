@@ -1,120 +1,114 @@
 # StarStranded — Architecture Notes
 
-Status: **baseline of the untouched code** (branch `modernize`, forked from `crafting` @ e01d7a4 + owner WIP
-commit). Phase 5 rewrites this file to describe the final architecture.
-Where this differs from the original task description, the code wins (see "Differences from the brief").
+Final architecture after the modernization (branch `modernize`, Phases 0–5). The Phase 0 description of the original
+code is in git history (`git show 28249f2:ARCHITECTURE_NOTES.md`); DECISIONS.md explains why things are the way they are.
 
-## Current architecture (after Phase 4) — read this first
-The sections further down describe the **Phase 0 baseline** (tcod console rendering, `map_codepoints`, `g.root_console`, …);
-where they disagree with this section, this section wins.
+## Overview
+A roguelike on an unbounded, chunked alien world. pygame-ce draws and reads input; tcod is used only for FOV, pathfinding,
+noise and line drawing; numpy holds terrain. `src/` is a flat-import package run with cwd = `src/` (assets, `data/namegen`
+and the save directory are cwd-relative).
 
-- **Definitions vs instances.** `species.py`: frozen `UnitSpecies`, `PlantSpecies`, `ItemKind` (+ `AIKind`, `PlantCategory`),
-  registries `UNIT_SPECIES`/`ITEM_KINDS` for static content, `make_plant_species()`/`make_fruit_kind()` for procedural content,
-  `kind.sprite_id` / `kind.corpse_sprite_id` (atlas ids). Every entity has `kind`; it stores only per-instance state.
-  Subclasses carry behaviour only (`Player/Selenite/Animal(Unit)`, `Tree/Shrub(Plant)`, `HealthPotion/Meat/Fruit/Branch/Dagger/
-  …/Campfire(Item)`).
-- **Ownership.** `GameMap(engine, landscape, entities=())` is the only mutator of positions: `add_entity`, `remove_entity`,
-  `move_entity`. It maintains `_by_pos`, per-`EntityCategory` collections (`units`, `plants`, `items`), `actors` (has AI),
-  render buckets per `RenderOrder`, `blocked` (int16 per tile), `path_base_cost()` (cached), `entities_on_ring()`.
-  `Entity.x/y/blocks_movement/render_order/ai` are properties that notify the map (`SpatialContainer` protocol in `entity.py`;
-  `Inventory.remove_entity` implements the detach side for inventories).
-- **Entity identity.** Objects move, never copy. `uid` (process-unique, bumped past loaded entities) for Phase 5.
-- **Back-references kept:** `Entity.parent` (map or inventory), `Component.parent`, `AI.entity`, `GameMap.engine`,
-  `GameWorld.engine`. `entity.game_map`/`.engine` are derived properties.
-- **Config.** `config.GameConfig` (frozen) on `Engine.config`: `fov_radius` (80), `flee_attempts` (50).
-- **Pathfinding.** `Engine.get_path_to(origin_entity, x, y, ignore_obstacles=False)`: cached base cost + `10 * blocked` overlay,
-  exact tcod `Pathfinder` (same paths as before).
-- **Saves.** `{"version": SAVE_VERSION (3), "engine": Engine}` lzma-pickled, written atomically; `load_game` raises
-  `exceptions.IncompatibleSave` otherwise.
-- **Generation** is reproducible from `random`/`numpy` seeds; vectorised dilation/variations (`procgen.dilate`,
-  `procgen.neighbour_masks`); one tree species + one shrub species per floor.
-- **Rendering & input (Phase 3, pygame-ce).** `atlas.py` `SpriteAtlas` (Urizen sheet as white alpha mask; cached tinted/flipped
-  variants; sprite id = row*50+col), `ui.py` `Font` (CP437 sheet) + `Canvas` (24 px cell grid: print/frame/bar/sprite/highlight/dim),
-  `display.py` `Display` (1920x1080 logical surface, integer/fractional scale + letterbox, pixel->cell mapping, event polling),
-  `events.py` (internal events, `Key/Mod/MouseButton`, `EventDispatch`, `translate`), `g.py` (`g.init()`, `g.draw(handler)`,
-  `g.render(handler)`, handler stack `g.handlers`, `g.canvas`, `g.display`), `main.py` (`run()` loop: redraw on events, 60 FPS).
-  Entities expose `sprite_id` and `flipped`; tiles carry `(sprite, flip, fg, bg)` for `light`/`dark`. `GameMap.render(canvas, origin)`
-  batches terrain; `Engine.render(canvas)` adds panels. Handlers get cell-based events and draw on a `Canvas` (`on_render(canvas)`).
-  Tests init the window headlessly in `conftest` (`g.init(headless=True)`); `tests/render_helpers.py` inspects drawn pixels.
-  tcod remains only for FOV, `tcod.path`, noise and `bresenham` (`test_no_tcod_rendering` enforces it).
-- **Layering (Phase 4).** `render_order.LAYERS` = CORPSE < ITEM < SHRUB < UNIT < TREE over the terrain; all visible entities are drawn.
-  `GameConfig.clutter_safeguard` (default on) caps corpses+items at 2 per tile (`MAX_GROUND_OBJECTS_PER_TILE`) with a `Canvas.badge`
-  "+" marker; `GameMap.hidden_ground_counts()` reports what is hidden; `GameMap.stack_at(x, y)` lists a tile top-first for names/loot.
+```
+main.run ──► handlers (input_handlers, setup_game) ──► actions ──► GameWorld.pass_time ──► simulation.run_turn
+   │              │ on_render(canvas)                                                     └► Engine.update_fov
+   │              └► Engine.render ──► World.render (camera) + panels (render_functions, message_log)
+   └► display.Display (window, letterbox, events.translate) ; g (handler stack, canvas, display)
+World (one floor) ──► chunks.Chunk × N (terrain + entity index) ; view.ViewWindow (stitched arrays, FOV) ; source
+source = worldgen.NoiseWorldSource (generated floors) | world.FixedLandscape (bounded test maps) | worldgen.FlatWorldSource
+savegame: chunk (de)serialisation (also used for unloading) and the save directory
+```
 
-## Differences from the brief (verified)
-| Brief said | Code says |
+## Modules
+| Module | Responsibility |
 |---|---|
-| tcod 16.2.1 | `pyproject.toml`: `tcod>=21.0.0`; `requirements.txt`: `tcod==20.1.0` (conflict); tested here with **21.2.1** |
-| Python >= 3.11 | `pyproject.toml`: `requires-python >= 3.13` (uses `match`); tested on 3.13 |
-| `map_codepoints` index scheme | as described; urizen sheet is loaded as 50x50 grid of **24x24 px** tiles (`tile_width == 24`) |
-| Selenite is an enemy | Defined but **never spawned** (`enemy_chances` only has `Animal`) |
-| stairs mechanic | `generate_noise` never places stairs; `downstairs_location` stays `(0, 0)`; `L` only works if the player stands on (0,0) |
-| deps: tcod, numpy | `matplotlib` is also imported unconditionally by `procgen` (and listed in pyproject) |
-| `copy.deepcopy` spawning | `Entity.spawn` and `Plant.spawn` deepcopy; `place_entities` also *constructs* every entity first (`[e() for e in chosen]`) then spawns a deepcopy |
-| noise is seeded by `random`/`numpy` seeds | **No**: `tcod.noise.Noise()` takes its own random seed. Map generation is only partly deterministic under `random.seed`/`np.random.seed` (tree map and entity placement are; terrain heights are not) |
+| `main.py` | `run()` loop: poll events, redraw only after events, 60 FPS cap, save on exit/crash. |
+| `g.py` | Handler stack `g.handlers`, `g.display`, `g.canvas`, `g.init()`, `g.draw()`, `g.render()`. (Kept small; not extended.) |
+| `display.py` / `events.py` | Window, 1920x1080 logical surface, integer/fractional scaling with letterbox, pixel → cell; internal events, `Key/Mod/MouseButton`, `EventDispatch`. |
+| `atlas.py` / `ui.py` | `SpriteAtlas` (Urizen sheet as white alpha mask, cached tinted/flipped variants); CP437 `Font` and `Canvas` (cell-grid text, frames, bars, sprites, highlights, dimming, badges). |
+| `input_handlers.py`, `setup_game.py` | All screens (main game, menus, inventory/loot, targeting, look, history, level-up, popups, crafting, placement, game over); `new_game`, `load_game`. Screen cells ↔ world tiles via `Engine.camera`. |
+| `actions.py` | Player/AI actions; every action that passes time calls `GameWorld.pass_time`. |
+| `engine.py` | `Engine`: player, current `game_map` (the floor's World), `game_world`, message log, config, `camera`; FOV (`update_fov`), pathfinding (`get_path_to`), LOS, `can_move`, `render`. |
+| `world.py` | `World` (entity container + chunk management + terrain queries + rendering), `GameMap` (bounded single-chunk World with array views), `FixedLandscape`, `GameWorld` (seed, floors, clock). |
+| `chunks.py` | `CHUNK_W/CHUNK_H = 70/40`, `chunk_key/local/chunk_origin/keys_around/chebyshev`, `Chunk`. |
+| `view.py` | `ViewWindow` (stitched `transparent/walkable/in_bounds` + `visible`), `Camera`. |
+| `worldgen.py` | `mix_seed`, `seeded_rng`, `TerrainNoise`, `base_terrain`, `generate_terrain`, `NoiseWorldSource`, `FlatWorldSource`. |
+| `procgen.py` | Spawn tables, `place_entities(world, floor, area)`, `neighbour_masks/dilate/replace_variations`. |
+| `simulation.py` | Tiers, `run_turn`, `upkeep` (exact / analytic catch-up), `near_step` (simplified AI). |
+| `savegame.py` | `SAVE_VERSION = 4`, `serialize_chunk/restore_chunk`, `save_game/load_game` (directory format). |
+| `species.py`, `entity.py`, `components/*` | Frozen definitions (`UnitSpecies`, `PlantSpecies`, `ItemKind`) and instances (`Unit`, `Plant`, `Item`…) with components (AI, inventory, equipment, level, consumables). |
+| `tile_types.py`, `render_order.py`, `config.py` | Tile dtype and terrain kinds (`VOID`, `SHROUD`, floor, water, wall, roots, stairs); draw layers; `GameConfig`. |
 
-## Repo layout
-- `src/` flat-import package (`import g`, `import engine`, …); must be run with cwd = `src` (assets and `data/namegen` are cwd-relative).
-- Assets (do not modify): `urizen_nogrid_white.png` (sprites, 50x50 grid of 24px), `Zesty_curses_24x24.png` (CP437 text, 16x16 grid), `menu_background.png`; unused: `urizen_nogrid.png`, `dejavu10x10_gs_tc.png`, `figure.jpg`.
-- `tests/` (pytest, 60 characterization tests), `scripts/benchmark.py`, `scripts/screenshot_baseline.py`, `docs/baseline/*.png`.
+## Coordinates and conventions
+- World tiles `(x, y)` are unbounded ints (negative allowed); every entity stores world coordinates.
+- Chunk `(cx, cy) = (x // 70, y // 40)`, local `(x % 70, y % 40)`. All arrays are indexed `[x, y]` (width first), order F.
+- Noise: `tcod.noise.grid(shape=(h, w), scale, offset=(y0, x0))` returns `(w, h)`; `offset` is in sample units and follows
+  `shape` order. Asserted in `TerrainNoise.sample` and tested (`test_noise_axes.py`).
+- View window: chunks within `near_radius` of the player's chunk (3x3 = 210x120 by default), origin `((pcx-1)*70, (pcy-1)*40)`.
+- Screen: map viewport = top-left 70x40 cells; `Camera.follow` centres on the player (`(px-35, py-20)`), clamped for bounded maps;
+  `Engine.mouse_location` is in world tiles.
+- Tile record: `walkable`, `transparent`, `light` and `dark` graphics `(sprite, flip, fg, bg)`; `light` when visible, `dark` when
+  explored, nothing otherwise.
 
-## Module map (who imports whom; ▲ = tcod rendering/IO, ◆ = tcod utility)
-```
-main ▲(tcod.event loop, tileset merge)  ─► setup_game ▲(console, tcod.image, libtcodpy blend/alignment, g.sdl_window)
-   │                                         ├► input_handlers ▲(tcod.event.EventDispatch, console draw_frame/print/rgb)
-   └► g ▲(tileset load, Console, SDL window+renderer, SDLConsoleRender; OPENS A WINDOW AT IMPORT)
-engine ◆(compute_fov, path.SimpleGraph/Pathfinder, los.bresenham) ▲(Engine.render uses console)
-world: GameMap (▲ render(console)), GameWorld (pass_time, generate_floor)
-procgen ◆(tcod.noise, los)  ─► components.unit/plant/consumable, world, tile_types, g
-tile_types: numpy structured dtype; builds Tile objects at import using utilities.map_codepoints (needs g tileset)
-utilities ▲(event types) + g (tileset remap): colour helpers, map_codepoints; re-exports namegen.generate_name
-namegen (pure Python, Phase 1): parses data/namegen/*.cfg once; no tcod, no game imports
-entity (Entity/Item/Constructable) ─► render_order ; components/* ─► utilities.map_codepoints (every entity constructor touches g.global_tileset)
-components: unit, plant, ai, inventory, equipment, equippable, level, consumable, names, base_component ; crafting.py (Branch, Spear, Campfire, recipes)
-actions (pure game logic, no tcod) ; message_log ▲(console) ; render_functions ▲(console)
-```
-### tcod usage, split
-- **Rendering/IO (to be replaced in Phase 3):** `g.py` (all of it), `main.py` (loop, `convert_coords`, `merge_tileset`), `input_handlers.py` (EventDispatch, KeySym, Modifier, MouseButton, console), `setup_game.py` (MainMenu, CharacterCreation, `tcod.image`), `world.GameMap.render`, `engine.Engine.render` + `mouse_location` (a `tcod.event.Point`), `message_log.render*`, `render_functions.*`, `utilities.is_mouse_in_rectangle`/`text_input`.
-- **Utilities (stay):** `tcod.map.compute_fov` (symmetric shadowcast, `engine.update_fov`), `tcod.path.SimpleGraph/Pathfinder` (`engine.get_path_to`), `tcod.noise` (`procgen`), `tcod.los.bresenham` (`engine.can_see`, dead tunnel code). (Namegen moved to pure Python in Phase 1.) Also `tcod.event.Point` is abused as a plain point in engine/utilities/handlers.
+## World, chunks and entities
+- `Entity.parent` is the World (or an `Inventory`). The World owns `_by_pos` for loaded entities and routes the per-chunk index
+  (`Chunk.entities`, `by_category`, `actors`, `buckets` per render layer, `blocked`) by position. `x/y`, `blocks_movement`,
+  `render_order` and `ai` are properties that notify the container (`SpatialContainer`). Crossing a border re-indexes the same
+  object in the other chunk; a player crossing triggers `World.update_tiers()`.
+- Only loaded chunks exist for queries (`in_bounds`), so nothing steps into unloaded terrain. Terrain edits go through
+  `World.modify_tile/set_tile` (bump `Chunk.terrain_version`, which invalidates the view window).
+- Queries: `get_entities_at_location`, `get_unit_at_location` (living first), `stack_at` (top layer first), `entities_on_ring`,
+  `is_walkable/is_transparent/is_explored/is_visible/is_blocked`, `tile_at`, `region(field, rect)`; collections `entities`,
+  `units`, `plants`, `items`, `actors` are live views over loaded chunks.
+- `GameMap(engine, landscape, entities)` = bounded world (landscape at (0, 0) in chunk (0, 0)) with `tiles/explored/visible/blocked`
+  array views and `width/height`; used by tests, the screenshot script and the benchmark scenario.
 
-### Import cycles (order matters; `import setup_game` first works)
-`consumable → input_handlers → entity/actions`; `crafting → consumable/equippable/inventory`; `plant → crafting`; `inventory → world(GameMap)`; `Constructable.activate` lazily imports `input_handlers`; `engine.update_fov` lazily imports `crafting`.
+## Simulation
+- `GameWorld.pass_time` (player turns): advance the clock, player hunger/thirst, `simulation.run_turn`, `update_fov`.
+- ACTIVE (`active_radius`, default the player's chunk): full AI each turn. NEAR (`near_radius`, default the 8 neighbours): every
+  `near_interval` (2) turns `near_step` (upkeep + flee / approach / eat adjacent / random step; no pathfinding, no messages).
+  Loaded chunks beyond `near_radius` (the `unload_radius` hysteresis band) are frozen; beyond `unload_radius` they are unloaded.
+- `upkeep(entity, now)` per entity (`last_upkeep`): one turn = the original code; longer = analytic (hunger/thirst steps and
+  starvation damage, foraging floor at half when the chunk has food and the absence is long, plant growth cycles).
+- Pathfinding: tcod `Pathfinder` on the window crop of `path_radius` (40) around the origin; cost = in-bounds & (walkable or
+  unexplored), +10 per blocker. FOV: `compute_fov` on the window (`fov_radius` 41) + lit campfires; `explored` is written back.
 
-## Data model (current)
-- `Entity` (x, y, name, species(str), `object_type`, sprite_pos tuples, `char/char_left/char_right/char_corpse` = **PUA codepoints** or sometimes plain strings, colour, shade, `mirrored`, flags `blocks_movement/blocks_sight`, `render_order`).
-  - `Unit(Entity)`: hp/max_hp, hunger/thirst, base_power/defense, `radius`, `inventory`, `equipment`, `level`, `ai`, `is_alive`. Subclasses `Player`, `Selenite`, `Animal` (always species "Rabbit", random colour).
-  - `Plant(Entity)`: growth, `growth_cycle`, `avg_cycle` (gaussian), `inventory`, `fruit` class + `fruit_factory` dict, `PlantAI`; `Tree`, `Shrub` pick a random sprite/name at construction.
-  - `Item(Entity)`: `material`; `Consumable` → `HealingConsumable`/`FoodConsumable`(`Meat`, `Fruit`)/`CraftingConsumable`(`Branch`); `Equippable` (`Dagger`, `LeatherArmor`, `WoodenSpear`, unused `Sword`, `ChainMail`); `Constructable` → `Campfire`.
-  - Type discrimination is by **duck typing**: `hasattr(e, "is_alive")` (units, includes corpses), `hasattr(e, "growth")` (plants), `hasattr(item, "material")` (== "is an Item"), `hasattr(e, "inventory")` (units AND plants), `hasattr(item, "equipped")`, `hasattr(enemy, "growth_cycle")`, `hasattr(item, "hunger_amount")`.
-- `GameMap`: `tiles` ndarray `(w,h)` of `tile_dt` (walkable, transparent, dark(ch,fg,bg), light(ch,fg,bg)); `visible`, `explored` bool `(w,h)` (order F); `entities: set[Entity]` (the **only** store; every lookup is a linear scan); `downstairs_location`; back-refs `engine`, `world`.
-- `GameWorld`: dims, `current_floor`, **`current_time` (minutes)**, `generate_floor()` (always `generate_noise`), `pass_time()`.
-- `Engine`: `player`, `game_map`, `game_world`, `message_log`, `mouse_location`; owns FOV, pathfinding, LOS, save.
-- Save = `lzma(pickle(Engine))` to `savegame.sav` in cwd (typically ~5 KiB compressed).
+## Rendering and input
+- `World.render(canvas, camera)`: terrain for the camera rectangle from chunk `light/dark` + window `visible`, grouped by distinct
+  graphic and drawn with one `Surface.blits`; entities from the chunks under the camera layer by layer (CORPSE < ITEM < SHRUB < UNIT
+  < TREE), each with its own tint and mirror flag; clutter safeguard (top 2 ground objects + "+" badge).
+- `Engine.render`: map + bars (rows 40/42/44), names under the cursor (top-first), message log, side panel (floor, position).
+- Handlers get cell-based events; world positions go through `Engine.camera` (`screen_to_world`, `highlight_world`).
 
-## Back-references (what makes pickles circular and the refactor subtle)
-- `Entity.parent` → `GameMap` **or** `Inventory`; `Entity.game_map`/`.engine` walk the parent chain (`Inventory.parent` → owning Entity → …). An item in an NPC's inventory reaches the engine via NPC → map → engine.
-- `GameMap.engine`, `GameMap.world`, `GameWorld.engine`, `Engine.game_map/game_world/player`.
-- `BaseComponent.parent` (Inventory, Equipment, Level → owning Entity). `Action.entity`; **AIs are `Action` subclasses** holding `entity`, so `Unit.ai.entity is unit`.
-- Global mutable state in `g`: `handlers` (the handler stack), `char_dict`/`mapped_chars` (codepoint registry), `global_tileset` (mutated at runtime by `map_codepoints`), `root_console`, SDL window/renderer. Handlers hold `engine`.
-- Because `Engine` is pickled whole, the entire object graph (all entities, inventories, items, AI) is in the save.
+## Generation
+- Seeds: `GameWorld.seed` → `floor_seed = mix_seed(seed, floor)` → `chunk_seed = mix_seed(floor_seed, cx, cy)` (blake2b).
+- `generate_terrain` works on a 2-tile padded region (lake dilation + edge variations see the true neighbours) and keeps the interior;
+  all chunk randomness runs inside `seeded_rng(chunk_seed)` (restores the global RNG state afterwards).
+- Per floor: one tree and one shrub species. Per chunk: plants on roots, `place_entities` (old per-map rules). Chunk (0, 0): start
+  tile closest to the centre, walkable down staircase 8–20 tiles away.
 
-## Turn flow
-`main` loop: `g.render(handler)` → `tcod.event.get()` → (mouse coords converted pixel→tile by `main.convert_coords`) → `handler.handle_events` → `EventDispatch` → returns Action or next handler → `EventHandler.handle_action` → `action.perform()` (repeating while it returns True, re-rendering) → `Action.perform` ⇒ `GameWorld.pass_time(unit, 1)` — **time only advances when the acting unit is the player**: hunger −1 every 4 min, thirst −1 every 2 min, then `Engine.handle_enemy_turns()` (every non-player entity with an `ai` attribute performs once), then `update_fov()`. NPC hunger/thirst tick inside `BaseAI.perform` using the same `current_time % n`. `PlantAI.perform` (growth every 2nd minute) does not call `super().perform()`. Free actions (no time): Pickup, MassPickup, Equip. Exceptions: `Impossible` → red message, no turn.
+## Saves
+- `savegame/manifest.lzma` (`{"version": 4, "world_class", "body"}`) + `savegame/floor<N>/chunk_<cx>_<cy>.<gen>.lzma`.
+  Manifest body: floor, seeds, source (with species), clock, player, message log, config, stairs, loaded set, chunk file table,
+  next uid. Chunk files: tiles, explored, entities (persistent ids for World/Engine/player/procedural definitions).
+- Writes: changed chunks under a new generation, then the manifest (atomic replace), then unreferenced files are deleted.
+- Loading reads the manifest and the visited chunks' bytes, restores the loaded set, re-adds the player, applies catch-up.
 
-## Conventions verified
-- **Axes:** tiles/visible/explored are indexed `[x, y]` (width first), numpy order F. `tcod.noise.grid(shape=(map_height, map_width), …)` returns an array shaped `(map_width, map_height)` in tcod 21.2.1 (asserted by `test_axis_convention_noise_grid_shape`), so noise samples already come out `[x, y]`: **consistent, but only by virtue of tcod's grid axis order — fragile across tcod versions** (requirements.txt pins 20.1.0). Phase 5 must state the axis order explicitly when sampling with `origin=`.
-- Console is order F, 80x45; the map occupies columns 0–69, rows 0–39 (screen 80x45 minus offsets 10/5). UI: bars at rows 40/42/44, names at row 42 (collides with the Hunger bar), message log at row 49 and "Dungeon level" at row 47 — **both off-screen** (console has 45 rows), so they are never visible today.
-- Tile colours for water/walls are `get_random_color()` at import time → differ per process and are not covered by any seed.
+## Floors
+Each floor is its own World (own seed and chunk grid). `TakeStairsAction` on the staircase → `GameWorld.generate_floor()`; the
+previous floor is dropped (no way back up).
 
-## Dead / suspicious code (listed, NOT deleted)
-- `procgen`: `generate_map`, `RectangularRoom`, `tunnel_between`, `plant_trees_old`, `construct_old`. `tile_types.down_stairs` only used by `generate_map`.
-- `entity_factories.py` (entirely commented), `utilities.get_data`, `utilities.SHADES`, `color.colors`.
-- `Plant.die` is never called (plants cannot be attacked: `target_unit` only finds units). `Selenite`, `Sword`, `ChainMail`, `ConfusionConsumable`, `FireballDamageConsumable`, `LightningDamageConsumable` (uses nonexistent `take_damage`) are never instantiated. `MainGameEventHandler.get_action_or_event` unused. `world.distance` (module fn) unused. `Unit.has_ai`. `Entity.spawn(new=True)` branch. `g.text_tileset*`, `g.CHARMAP_URIZEN` partially. `max_rooms/room_*_size` plumbed through `GameWorld` but unused by noise generation.
-- `Engine.distance(diag=False, euclidean=False)` manhattan branch compares `p1[0]-p1[0]` (always 0) — unused path.
-- `Unit.__init__` builds Inventory/Equipment/Level, subclasses build them again.
+## Testing and tools
+- `tests/` (pytest, headless via `SDL_VIDEODRIVER=dummy`, `conftest.g.init(headless=True)`): `small_world` (bounded GameMap) and
+  `new_engine` (generated floor) fixtures, `index_helpers.assert_index_consistent`, `render_helpers` (pixel checks),
+  `test_chunked_world.py` (Phase 5 acceptance), `test_screens.py` (every handler), `test_main_loop.py`.
+- `scripts/benchmark.py` (fixed scenario + chunked-world sections), `scripts/screenshots.py`, `scripts/debug_plot_terrain.py`.
 
-## Known-behavior catalogue (characterized in `tests/`; fixes tracked in DECISIONS.md)
-See DECISIONS.md → "Phase 1 verification" for the verdict on every listed bug plus newly found ones.
-
-## Performance hot spots (baseline numbers in BENCHMARKS.md)
-`get_path_to` rebuilds cost array + graph for every call and loops over **all** entities; hostile AIs path every turn when visible. `get_entities_at_location`/`get_unit_at_location`/`render_functions.get_names_at_location` linear scans. `GameMap.render` sorts all entities each frame. `update_fov(radius=100)`. `generate_noise`: Python double loop for lake dilation and per-cell `replace_variations`; per-cell `spawn_vegetation`; deepcopy per tree. (`generate_name` used to re-parse 13 cfg files per call — fixed in Phase 1.)
+## Differences from the brief (verified at Phase 0)
+| Brief said | Code said |
+|---|---|
+| tcod 16.2.1 | `pyproject.toml`: `tcod>=21.0.0`; tested with **21.2.1** |
+| Python >= 3.11 | `requires-python >= 3.13` (uses `match`); tested on 3.13 |
+| Selenite is an enemy | Defined but never spawned (still true) |
+| stairs mechanic | the noise generator never placed stairs (fixed in Phase 5) |
+| deps: tcod, numpy | `matplotlib` was imported by `procgen` (removed in Phase 1) |
+| noise seeded by `random` | it was not (fixed in Phase 2; per-chunk seeds since Phase 5) |

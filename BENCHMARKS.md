@@ -121,5 +121,48 @@ Python list building by drawing tiles through a pre-baked per-chunk surface (fit
 
 Reproduce: `python scripts/benchmark.py --json new.json` (older checkouts via `--src`).
 
-## Phase 5 results
-_Filled in when the phase completes._
+## Phase 5: chunked world
+
+New sections (`chunked.*`, seed 7, floor 1 = 3x3 chunks around the start; median ms):
+
+| benchmark | median ms | range (min–max) | notes |
+|---|---:|---|---|
+| `chunked.chunk_generate` | 2.760 | 2.371–4.700 | one never-visited chunk: terrain + ~133 entities (mostly plants) |
+| `chunked.chunk_unload` | 9.389 | 7.526–10.852 | pickle + lzma of one chunk (4.9 KiB) |
+| `chunked.chunk_reload` | 1.860 | 1.355–4.008 | restore + catch-up |
+| `chunked.turn_near_ring_0` | 1.217 | 0.221–2.007 | natural spawns only |
+| `chunked.turn_near_ring_0.near_tick` | 1.649 | 1.273–2.007 | the turns on which NEAR chunks run |
+| **`chunked.turn_near_ring_200`** | **1.945** | 0.248–3.619 | +200 rabbits over the 8 NEAR chunks |
+| **`chunked.turn_near_ring_200.near_tick`** | **3.071** | 2.826–3.619 | NEAR step for ~230 units + plant upkeep |
+| `chunked.border_crossing` | 38.593 | 8.007–46.957 | player step into a new chunk: generates 3 chunks, unloads 3 |
+| `chunked.save` / `.load` | 107.6 / 19.1 | | 27 chunks (9 loaded + 18 stored), 142.7 KiB on disk |
+
+For comparison, 200 rabbits in the ACTIVE chunk cost `turn_passive_200` ≈ 2–6 ms and hungry ones `turn_hungry_200` ≈ 43 ms:
+the NEAR tier makes a populated ring about as cheap as idle units. The visible cost of the chunked world is the border
+crossing (~40 ms once per 70/40 steps; serialising the chunks that leave the window dominates) and saving a large explored
+area (all generated chunks are written; unchanged chunk files are reused on later saves).
+
+`floor_generation` now generates 9 chunks (26.6 ms ≈ 2.9 ms per chunk, vs 8.1 ms for the old single 70x40 map).
+
+## Baseline vs final (same script, same machine, fixed scenario)
+
+Baseline = the original code (`d3f5361`, owner WIP on `crafting`, run with `--src`); final = this branch. Rendering is not
+comparable 1:1 (tcod GPU console vs pygame CPU blits, see Phase 3); the scenario runs on a bounded 70x40 map in both.
+
+| benchmark | baseline ms | final ms | change |
+|---|---:|---:|---:|
+| `floor_generation` | 8.124 (1 map) | 26.564 (9 chunks) | 2.9 ms per 70x40 chunk |
+| `spawn_trees_x500` | 12.402 | 4.401 | 2.8x faster |
+| `turn_passive_200` | 4.281 | 6.019 | noisy (min 3.6 vs 2.9) |
+| `turn_hungry_50` | 14.256 | 10.363 | 1.4x faster |
+| `turn_hungry_200` | 73.114 | 43.055 | 1.7x faster |
+| `turn_hostile_50` | 10.962 | 8.389 | 1.3x faster |
+| `turn_hostile_200` | 55.537 | 36.396 | 1.5x faster |
+| `pathfinding` (per query) | 0.265 | 0.214 | 1.2x faster |
+| `fov` | 0.018 | 0.067 | now on the 210x120 window (radius 41) |
+| frame (draw, no present) | 1.185 (GPU) | 2.551 (CPU) | different pipeline; drawn only on change |
+| frame with present | 16.664 (vsync) | 4.371 | |
+| `save_load.save` / `.load` | 9.475 / 0.848 | 12.333 / 1.493 | bounded map, now a directory |
+
+Reproduce: `git archive d3f5361 src | tar -x -C /tmp/p0 && python scripts/benchmark.py --src /tmp/p0/src --json base.json`,
+then `python scripts/benchmark.py --json final.json`. (The original code needs `matplotlib` installed to import.)

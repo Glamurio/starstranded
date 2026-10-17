@@ -346,3 +346,20 @@ by another session; "Phase 5 outcome" (written at the end) records where the imp
   terrain + edge variations match a single large generation); an NPC crossing a border keeps identity and state; save/load
   mid-world round trip; far chunks unload and reload with catch-up applied; regenerating a chunk is identical.
 - Benchmark: one turn with the NEAR ring populated (plus world generation and chunk load/unload costs).
+
+# Phase 5 outcome (what was built; supersedes the plan where they differ)
+
+The plan above was implemented as written, with these specifics and deviations:
+
+| Topic | Outcome | Why |
+|---|---|---|
+| Tier radii | `GameConfig.active_radius` (0), `near_radius` (1), `unload_radius` (2), `near_interval` (2), `path_radius` (40), `fov_radius` 41. | All configurable as required; ACTIVE radius added so the player's neighbours can be made fully simulated without code changes. |
+| NEAR movers | Cannot step into unloaded chunks (`in_bounds` is False there), so no separate frozen margin is needed for them; the hysteresis band between `near_radius` and `unload_radius` is loaded but frozen. | Simplest correct rule; a unit never ends up in a chunk that is not loaded. |
+| Identity across unload | Crossing a border while loaded keeps the *same object*. After a chunk is unloaded and reloaded its entities are new objects with the same uid and state (pickled). | Objects cannot survive serialisation; `uid` is the stable identity (save, `World.find_uid`). |
+| Catch-up rules | Units: exact hunger/thirst arithmetic for the gap; if the gap is longer than `2 * near_interval` and the chunk has food, hunger/thirst do not drop below half (foraging assumption), otherwise starvation damage applies and the unit can die (no message). Plants: growth cycles add branch + fruit while there is room; the per-turn "drop onto a neighbour when full" is not modelled. | Analytic and cheap; documented as approximations. |
+| Wander / flee targets | Picked within 12 tiles (wander) / 2 x flee distance around the unit instead of anywhere on the 70x40 map. | There is no "whole map" any more; the old loops could also spin forever. |
+| Window | Rebuilt on centre change, chunk load/unload or `terrain_version` change; keeps the FOV result for the overlap. `explored` and `blocked` are read live from the chunks. | `explored` changes every FOV update and `blocked` every move; caching them would only add invalidation work. |
+| Bounded maps | `GameMap` is a single-chunk World (landscape must fit 70x40) with the old array views; used by tests, the screenshot script and the benchmark scenario. | Keeps the 290 earlier tests meaningful with minimal churn. |
+| Saves | As planned (directory, generation-numbered chunk files, manifest as commit point, persistent ids). In-memory unloaded chunks are the same lzma bytes that are written. Default location `src/savegame/`; game over deletes it. | – |
+| Stairs | Placed in chunk (0, 0) 8–20 tiles from the start and made walkable; the previous floor is dropped. | Default from the brief; the old stairs were unreachable. |
+| Not done | Smooth pixel scrolling (`GameConfig.smooth_scroll` is reserved, the camera moves per tile); no performance pass (owner postponed it): border crossings cost ~40 ms (serialising leaving chunks), saving a large explored area ~100 ms; `g.py` was not reduced further (it only holds the handler stack, display and canvas, nothing was added). | Scope / owner instruction. |

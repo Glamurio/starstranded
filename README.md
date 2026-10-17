@@ -12,6 +12,9 @@ Requires Python 3.13+.
   the screenshot script do this themselves.
 - **Tests:** `python -m pytest -q` from the repository root.
 - **Screenshots of every screen:** `python scripts/screenshots.py [outdir]` (default `docs/phase3`).
-- **Benchmark:** `python scripts/benchmark.py [--json out.json] [--quick]` (see `BENCHMARKS.md`).
+- **Benchmark:** `python scripts/benchmark.py [--json out.json] [--quick]` (see `BENCHMARKS.md`); `--src PATH` runs it against
+  another checkout's `src/` for A/B comparisons.
+- **Saves** go to `src/savegame/` (a folder: manifest + one file per visited chunk).
+- **Configuration:** `src/config.py` (`GameConfig`: FOV and path radius, simulation tiers, clutter safeguard).
 
 Project notes for contributors: `ARCHITECTURE_NOTES.md`, `DECISIONS.md`, `CHANGELOG.md`, `HANDOFF.md`.
