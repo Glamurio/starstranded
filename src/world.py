@@ -126,6 +126,17 @@ class World(SpatialContainer):
         self.loads = 0
         self.unloads = 0
 
+    def init_loaded(self, engine: Engine, source: ChunkSource, *, floor: int, seed: int) -> None:
+        """Initialise a World object created empty while loading a save (entities already point at it)."""
+        World.__init__(self, engine, source, floor=floor, seed=seed)
+
+    def find_uid(self, uid: int) -> Optional[Entity]:
+        """The loaded entity with this uid (linear scan; only used for rare cross-chunk references in saves)."""
+        for entity in self.entities:
+            if entity.uid == uid:
+                return entity
+        return None
+
     @property
     def game_map(self) -> World:
         return self
@@ -537,6 +548,11 @@ class GameMap(World):
         for entity in entities:
             self.add_entity(entity, entity.x, entity.y)
 
+    def init_loaded(self, engine: Engine, source: ChunkSource, *, floor: int, seed: int) -> None:
+        World.__init__(self, engine, source, floor=floor, seed=seed)
+        self.width, self.height = source.landscape.shape
+        self._center = (0, 0)
+
     @property
     def _chunk(self) -> Chunk:
         return self.chunks[(0, 0)]
@@ -566,50 +582,46 @@ class GameMap(World):
 
 class GameWorld:
     """
-    Holds the settings for the GameMap, and generates new maps when moving down the stairs.
+    The floors and the clock: holds the game seed, the current floor number and time, and creates a new `World`
+    (own seed, own chunk grid) for every floor when the player takes the stairs.
     """
 
     def __init__(
         self,
         *,
         engine: Engine,
-        map_width: int,
-        map_height: int,
-        max_rooms: int,
-        room_min_size: int,
-        room_max_size: int,
+        seed: Optional[int] = None,
         current_floor: int = 0,
-        current_time: int = 0
+        current_time: int = 0,
+        **_legacy,  # map_width/map_height/max_rooms/room_*: accepted for old callers, unused (worlds are unbounded)
     ):
         self.engine = engine
-
-        self.map_width = map_width
-        self.map_height = map_height
-
-        self.max_rooms = max_rooms
-
-        self.room_min_size = room_min_size
-        self.room_max_size = room_max_size
-
+        self.seed = seed if seed is not None else random.getrandbits(62)  # from `random`: seeding it reproduces a game
         self.current_floor = current_floor
         self.current_time = current_time
 
-        self.game_maps = []
+    def floor_seed(self, floor: int) -> int:
+        from worldgen import mix_seed
+        return mix_seed(self.seed, floor)
+
+    def make_world(self, floor: int) -> World:
+        from worldgen import NoiseWorldSource
+        floor_seed = self.floor_seed(floor)
+        return World(self.engine, NoiseWorldSource(floor_seed, floor), floor=floor, seed=floor_seed)
 
     def generate_floor(self) -> None:
-        from procgen import generate_noise
-
+        """Create the next floor's World and put the player on its start tile (the previous floor is dropped)."""
         self.current_floor += 1
-
-        self.engine.game_map = generate_noise(
-            map_width=self.map_width,
-            map_height=self.map_height,
-            engine=self.engine,
-            world=self
-        )
+        world = self.make_world(self.current_floor)
+        world.load_chunk((0, 0))  # chunk (0, 0) holds the start and the staircase
+        player = self.engine.player
+        player.place(*world.source.spawn_point, world)
+        self.engine.game_map = world
+        world.update_tiers()
+        self.engine.update_fov()
 
     def pass_time(self, unit: Unit, time: int) -> int:
-        """Passes game time in minutes after every player turn. Returns current game time"""
+        """Passes game time in minutes after every player turn and runs the tiered simulation. Returns the time."""
 
         if unit == self.engine.player:
             self.current_time += time
@@ -617,8 +629,10 @@ class GameWorld:
                 unit.handle_hunger(-1)
             if not self.current_time % 2:
                 unit.handle_thirst(-1)
+            unit.last_upkeep = self.current_time
 
-            self.engine.handle_enemy_turns()
+            from simulation import run_turn
+            run_turn(self.engine)
             self.engine.update_fov()
-            
+
         return self.current_time

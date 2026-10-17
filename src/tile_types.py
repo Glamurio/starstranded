@@ -162,12 +162,14 @@ wall = Tile(
     dark_bg=color.black,
     dtype=tile_dt
 )
-down_stairs = Tile(
+down_stairs = Tile(  # walkable: stand on it and press L to descend
     object_type="Downstairs",
-    walkable=False,
-    transparent=False,
+    walkable=True,
+    transparent=True,
     sprite=(11, 0),
     dark_fg=(50, 50, 150),
     light_fg=(200, 180, 50),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
     dtype=tile_dt
 )

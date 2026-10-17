@@ -1,51 +1,58 @@
-"""Characterization: terrain generation (procgen.generate_noise via GameWorld.generate_floor)."""
+"""Characterization of a generated floor: a chunked world around the start in chunk (0, 0)."""
 import numpy as np
-import pytest
 
 import tile_types
+from chunks import CHUNK_H, CHUNK_W, chunk_key, keys_around
 
 
-def test_floor_shapes_and_dtypes(new_engine):
+def test_loaded_chunks_shapes_and_dtypes(new_engine):
     m = new_engine.game_map
-    assert (m.width, m.height) == (70, 40)
-    assert m.tiles.shape == (70, 40)  # [x, y] indexing, width first
-    assert m.tiles.dtype == tile_types.tile_dt
-    assert m.visible.shape == m.explored.shape == (70, 40)
-    assert m.visible.dtype == m.explored.dtype == np.bool_
+    assert set(m.chunks) == set(keys_around((0, 0), new_engine.config.near_radius))
+    for chunk in m.chunks.values():
+        assert chunk.tiles.shape == chunk.explored.shape == (CHUNK_W, CHUNK_H)  # [x, y] indexing, width first
+        assert chunk.tiles.dtype == tile_types.tile_dt and chunk.explored.dtype == np.bool_
+    window = m.window.ensure()
+    assert window.visible.shape == (3 * CHUNK_W, 3 * CHUNK_H) and window.origin == (-CHUNK_W, -CHUNK_H)
 
 
 def test_walkable_ratio_is_sane(new_engine):
-    ratio = new_engine.game_map.tiles["walkable"].mean()
+    ratio = np.mean([c.tiles["walkable"].mean() for c in new_engine.game_map.chunks.values()])
     # Noise terrain is mostly floor; trees/water/walls carve some out. Wide band on purpose.
     assert 0.5 < ratio < 0.99
 
 
-def test_player_spawns_on_walkable_tile_and_is_owned_by_map(new_engine):
+def test_player_starts_on_a_walkable_tile_of_chunk_0_0(new_engine):
     p, m = new_engine.player, new_engine.game_map
-    assert m.in_bounds(p.x, p.y)
-    assert m.tiles["walkable"][p.x, p.y]
+    assert chunk_key(p.x, p.y) == (0, 0)
+    assert m.in_bounds(p.x, p.y) and m.is_walkable(p.x, p.y)
     assert p.parent is m and p in m.entities
 
 
-def test_entities_are_inside_the_map_and_have_ai_or_are_static(new_engine):
+def test_entities_sit_in_the_chunk_that_indexes_them(new_engine):
     m = new_engine.game_map
     assert len(m.entities) > 1
-    for e in m.entities:
-        assert m.in_bounds(e.x, e.y)
+    for key, chunk in m.chunks.items():
+        for e in chunk.entities:
+            assert chunk_key(e.x, e.y) == key and m.in_bounds(e.x, e.y)
 
 
-def test_first_floor_counter_and_stairs_default(new_engine):
-    # generate_noise never places stairs: downstairs_location stays at its (0, 0) default.
+def test_first_floor_has_a_reachable_staircase_near_the_start(new_engine):
+    m, p = new_engine.game_map, new_engine.player
     assert new_engine.game_world.current_floor == 1
-    assert new_engine.game_map.downstairs_location == (0, 0)
+    sx, sy = m.downstairs_location
+    assert chunk_key(sx, sy) == (0, 0)
+    tile = m.tile_at(sx, sy)
+    assert tile["light"]["sprite"] == tile_types.down_stairs.sprite and tile["walkable"]
+    assert 8 <= max(abs(sx - p.x), abs(sy - p.y)) <= 20
 
 
 def test_trees_make_their_tile_blocking(new_engine):
     from components.plant import Tree
-    trees = [e for e in new_engine.game_map.entities if isinstance(e, Tree)]
+    m = new_engine.game_map
+    trees = [e for e in m.entities if isinstance(e, Tree)]
+    assert trees
     for t in trees:
-        assert not new_engine.game_map.tiles["walkable"][t.x, t.y]
-        assert not new_engine.game_map.tiles["transparent"][t.x, t.y]
+        assert not m.is_walkable(t.x, t.y) and not m.is_transparent(t.x, t.y)
 
 
 def test_axis_convention_noise_grid_shape():
@@ -57,10 +64,7 @@ def test_axis_convention_noise_grid_shape():
     assert samples.shape == (70, 40)
 
 
-def test_replace_variations_only_touches_matching_tiles(new_engine):
-    """Water/wall edge-variation pass keeps walkability flags of the tiles it rewrites."""
-    m = new_engine.game_map
-    water_walkable = m.tiles["walkable"][
-        (m.tiles["walkable"] == False) & (m.tiles["transparent"] == True)  # noqa: E712
-    ]
-    assert not water_walkable.any()
+def test_water_is_never_walkable(new_engine):
+    for chunk in new_engine.game_map.chunks.values():
+        water = chunk.tiles["light"]["sprite"] == tile_types.water.sprite
+        assert not chunk.tiles["walkable"][water].any()

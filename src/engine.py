@@ -26,8 +26,7 @@ if TYPE_CHECKING:
     from world import GameMap, GameWorld
 
 
-SAVE_VERSION = 3
-"""Bump whenever the pickled object layout changes incompatibly. 1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = tile graphics hold sprite ids (pygame port)."""
+from savegame import SAVE_VERSION  # noqa: E402,F401  (re-exported; the save format lives in savegame.py)
 
 
 class Engine:
@@ -41,22 +40,16 @@ class Engine:
         self.player = player
 
 
-    def save_as(self, filename: str) -> None:
-        """Save this Engine as a versioned, compressed file (written to a temp file, then renamed: atomic)."""
-        save_data = lzma.compress(pickle.dumps({"version": SAVE_VERSION, "engine": self}))
-        tmp = f"{filename}.tmp"
-        with open(tmp, "wb") as f:
-            f.write(save_data)
-        os.replace(tmp, filename)
+    def save_as(self, directory: str) -> None:
+        """Save the game into `directory` (manifest + chunk files, written atomically; see `savegame`)."""
+        import savegame
+        savegame.save_game(self, directory)
 
 
     def handle_enemy_turns(self) -> None:
-        for entity in list(self.game_map.actors):  # snapshot: AIs may add/remove entities
-            if entity is not self.player and entity.ai:
-                try:
-                    entity.ai.perform()
-                except exceptions.Impossible:
-                    pass  # Ignore impossible action exceptions from AI.
+        """Run one turn of the tiered simulation (ACTIVE chunk fully, NEAR chunks on their interval)."""
+        from simulation import run_turn
+        run_turn(self)
 
     def get_path_to(self, origin: Entity, dest_x: int, dest_y: int, ignore_obstacles: bool = False) -> List[Tuple[int, int]]:
         """

@@ -24,11 +24,9 @@ class BaseAI(Action):
         self.path = []  # per-instance; a class-level list would be shared by every AI
 
     def perform(self) -> None:
-        time = self.engine.game_world.current_time
-        if time % 4 == 0:
-            self.entity.handle_hunger(-1)
-        if time % 2 == 0:
-            self.entity.handle_thirst(-1)
+        """Survival upkeep up to now (hunger every 4th turn, thirst every 2nd; catches up after an absence)."""
+        from simulation import upkeep
+        upkeep(self.entity, self.engine.game_world.current_time)
 
     def get_path(self, dest_x: int, dest_y: int) -> List[Tuple[int, int]]:
         """Perform movement action"""
@@ -251,6 +249,6 @@ class PlantAI(BaseAI):
         self.entity: Plant
 
     def perform(self) -> None:
-        time = self.engine.game_world.current_time
-        if time % 2 == 0:
-            self.entity.handle_growth()
+        """Growth every 2nd turn (caught up analytically after an absence)."""
+        from simulation import upkeep
+        upkeep(self.entity, self.engine.game_world.current_time)

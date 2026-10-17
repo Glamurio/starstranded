@@ -42,6 +42,7 @@ class Plant(Entity):
         self.shade = get_gaussian_shade(self.color)
         self.mirrored = bool(random.getrandbits(1))
         self.dead = False
+        self.last_upkeep: Optional[int] = None  # game time of the last growth update (simulation.upkeep)
         self.ai = PlantAI(self) if species.fruit else None  # only fruiting plants do anything per turn
 
     @property

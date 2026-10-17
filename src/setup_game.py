@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import g
 import exceptions
-import lzma
-import pickle
 import traceback
 from typing import TYPE_CHECKING, Optional
 
@@ -52,30 +50,10 @@ def create_player() -> Unit:
 def new_game(player: Unit) -> Engine:
     """Return a brand new game session as an Engine instance."""
     from world import GameWorld
-    
-    map_width = g.screen_width - g.screen_width_offset
-    map_height = g.screen_height - g.screen_height_offset
 
-    room_max_size = 10
-    room_min_size = 6
-    max_rooms = 30
-
-    try:
-        engine = Engine(player=player)
-    except:
-        raise exceptions.Impossible("No player found.")
-
-    engine.game_world = GameWorld(
-        engine=engine,
-        max_rooms=max_rooms,
-        room_min_size=room_min_size,
-        room_max_size=room_max_size,
-        map_width=map_width,
-        map_height=map_height,
-    )
-
-    engine.game_world.generate_floor()
-    engine.update_fov()
+    engine = Engine(player=player)
+    engine.game_world = GameWorld(engine=engine)  # the game seed is drawn from `random`
+    engine.game_world.generate_floor()  # floor 1: a chunked world around the start in chunk (0, 0)
     
     engine.message_log.add_message(
         f"Hello and welcome, {player.name}, to yet another dungeon!", color.welcome_text
@@ -83,41 +61,15 @@ def new_game(player: Unit) -> Engine:
 
     return engine
 
-def load_game(filename: str) -> Engine:
-    """Load an Engine from a save file written by `Engine.save_as`.
-
-    Raises `exceptions.IncompatibleSave` for saves from other versions (old saves are not migrated).
-    """
-    from engine import SAVE_VERSION
-    from entity import bump_uid_counter
-
-    with open(filename, "rb") as f:
-        raw = f.read()
-    try:
-        payload = pickle.loads(lzma.decompress(raw))
-    except Exception as exc:  # corrupt file, or classes that no longer exist
-        raise exceptions.IncompatibleSave(f"Unreadable save file ({type(exc).__name__}).") from exc
-    if not isinstance(payload, dict) or payload.get("version") != SAVE_VERSION:
-        found = payload.get("version", "unknown") if isinstance(payload, dict) else 1
-        raise exceptions.IncompatibleSave(
-            f"Save file version {found} is not supported (this game uses version {SAVE_VERSION})."
-        )
-    engine = payload["engine"]
-    assert isinstance(engine, Engine)
-    bump_uid_counter(_max_uid(engine) + 1)  # entities created after loading must not reuse uids
-    return engine
+SAVE_PATH = "savegame"
+"""The save directory (relative to the working directory, i.e. src/)."""
 
 
-def _max_uid(engine: Engine) -> int:
-    highest = 0
-    stack = list(engine.game_map.entities) + [engine.player]
-    while stack:
-        entity = stack.pop()
-        highest = max(highest, entity.uid)
-        inventory = getattr(entity, "inventory", None)
-        if inventory is not None:
-            stack.extend(inventory.items)
-    return highest
+def load_game(path: str = SAVE_PATH) -> Engine:
+    """Load a game saved with `Engine.save_as` (see `savegame.load_game`)."""
+    import savegame
+    return savegame.load_game(path)
+
 
 class MainMenu(input_handlers.BaseEventHandler):
     """Handle the main menu rendering and input."""
@@ -144,7 +96,7 @@ class MainMenu(input_handlers.BaseEventHandler):
         elif self.button_highlight == 'Continue':
             # Continue Game
             try:
-                return input_handlers.MainGameEventHandler(load_game("savegame.sav"))
+                return input_handlers.MainGameEventHandler(load_game(SAVE_PATH))
             except FileNotFoundError:
                 return input_handlers.PopupMessage(self, "No saved game to load.")
             except Exception as exc:

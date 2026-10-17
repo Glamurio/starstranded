@@ -63,7 +63,7 @@ def test_play_through_menu_creation_and_game_then_quit_saves(loop):
     with pytest.raises(SystemExit):
         main.run(setup_game.MainMenu(), g.display)
     (handler, filename), = loop
-    assert isinstance(handler, ih.MainGameEventHandler) and filename == "savegame.sav"
+    assert isinstance(handler, ih.MainGameEventHandler) and filename == "savegame"
     assert handler.engine.player.name.endswith("Q")
 
 

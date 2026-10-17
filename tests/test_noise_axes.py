@@ -1,23 +1,18 @@
-"""Terrain noise must come out indexed [x, y] with a non-square map (70 x 40), so a transposition is visible."""
+"""World-coordinate noise: chunk samples are exact slices of one big grid, indexed [x, y], for any rectangle."""
 import numpy as np
 import pytest
 
-import tile_types
-from world import GameWorld
-from engine import Engine
-from setup_game import create_player
+from worldgen import TerrainNoise
 
 
 @pytest.mark.parametrize("width,height", [(70, 40), (33, 17), (17, 33)])
-def test_generated_landscape_is_width_by_height(width, height):
-    engine = Engine(player=create_player())
-    engine.game_world = GameWorld(engine=engine, map_width=width, map_height=height,
-                                  max_rooms=1, room_min_size=1, room_max_size=2)
-    engine.game_world.generate_floor()
-    m = engine.game_map
-    assert m.tiles.shape == m.visible.shape == (width, height)
-    assert m.tiles["walkable"].dtype == np.bool_
-    p = engine.player
-    assert 0 <= p.x < width and 0 <= p.y < height and m.tiles["walkable"][p.x, p.y]
-    for e in m.entities:
-        assert 0 <= e.x < width and 0 <= e.y < height
+def test_samples_are_width_by_height(width, height):
+    assert TerrainNoise(5).sample(0, 0.05, 0, 0, width, height).shape == (width, height)
+
+
+@pytest.mark.parametrize("x0,y0", [(70, 0), (0, 40), (-70, -40), (140, -80)])
+def test_offset_rectangles_are_slices_of_one_big_grid(x0, y0):
+    noise = TerrainNoise(5)
+    big = noise.sample(0, 0.05, -140, -80, 420, 240)
+    part = noise.sample(0, 0.05, x0, y0, 70, 40)
+    assert np.array_equal(part, big[x0 + 140:x0 + 210, y0 + 80:y0 + 120])

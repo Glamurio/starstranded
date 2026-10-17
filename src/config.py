@@ -15,6 +15,9 @@ class GameConfig:
     first, and draw a stack marker when more are hidden. Off: draw them all (a big pile becomes an unreadable blob).
     Units, shrubs and trees are always drawn; hidden objects are still listed when you look at the tile."""
 
+    active_radius: int = 0
+    """Chunks within this distance of the player's chunk run the full AI every turn (ACTIVE tier)."""
+
     near_radius: int = 1
     """Chunks within this Chebyshev distance of the player's chunk are loaded and simulated (NEAR tier, the player's own
     chunk is ACTIVE). Also the radius of the stitched view window (1 -> 3x3 chunks = 210x120 tiles)."""

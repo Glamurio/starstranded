@@ -51,6 +51,7 @@ class Unit(Entity):
         self.level = Level(self, level_up_base=species.level_up_base, xp_given=species.xp_given)
 
         self.is_alive: bool = True
+        self.last_upkeep: Optional[int] = None  # game time of the last hunger/thirst update (simulation.upkeep)
         self.blocks_movement = True
         ai_class = _AI_FOR_KIND.get(species.ai)
         self.ai = ai_class(self) if ai_class else None
@@ -90,7 +91,8 @@ class Unit(Entity):
         else:
             return 0
 
-    def die(self, killer: Unit = None) -> None:
+    def die(self, killer: Unit = None, quiet: bool = False) -> None:
+        """Become a corpse (with two pieces of meat). `quiet`: no message (deaths in chunks the player cannot see)."""
         if self is self.engine.player:
             death_message = "You died!"
             death_message_color = color.player_die
@@ -108,7 +110,8 @@ class Unit(Entity):
         self.inventory.add(Meat(self.species, self.inventory))
 
 
-        self.engine.message_log.add_message(death_message, death_message_color)
+        if not quiet:
+            self.engine.message_log.add_message(death_message, death_message_color)
 
         if killer:
             killer.level.add_xp(self.level.xp_given)

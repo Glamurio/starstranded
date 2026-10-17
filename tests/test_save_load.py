@@ -1,4 +1,4 @@
-"""Characterization: save/load round trip (pickle + lzma of the whole Engine)."""
+"""Save/load round trip: a save directory with a manifest and one file per chunk."""
 import numpy as np
 
 import setup_game
@@ -16,9 +16,12 @@ def test_save_load_roundtrip(new_engine, tmp_path):
     assert isinstance(loaded, Engine)
     assert loaded.player.hp == 17
     assert (loaded.player.x, loaded.player.y) == (e.player.x, e.player.y)
-    assert np.array_equal(loaded.game_map.tiles, e.game_map.tiles)
-    assert np.array_equal(loaded.game_map.explored, e.game_map.explored)
+    assert loaded.game_map.chunks.keys() == e.game_map.chunks.keys()
+    for key, chunk in e.game_map.chunks.items():
+        assert np.array_equal(loaded.game_map.chunks[key].tiles, chunk.tiles)
+        assert np.array_equal(loaded.game_map.chunks[key].explored, chunk.explored)
     assert len(loaded.game_map.entities) == len(e.game_map.entities)
+    assert loaded.game_map.downstairs_location == e.game_map.downstairs_location
     assert loaded.message_log.messages[-1].plain_text == "hello"
     assert loaded.game_world.current_time == e.game_world.current_time
 
@@ -42,15 +45,18 @@ def test_identity_survives_roundtrip(new_engine, tmp_path):
     assert loaded.game_map.engine is loaded
 
 
-def test_save_payload_is_versioned(new_engine, tmp_path):
+def test_save_directory_layout_is_versioned(new_engine, tmp_path):
     import lzma
     import pickle
     from engine import SAVE_VERSION
-    path = tmp_path / "v.sav"
+    path = tmp_path / "v"
     new_engine.save_as(str(path))
-    payload = pickle.loads(lzma.decompress(path.read_bytes()))
-    assert payload["version"] == SAVE_VERSION == 3 and payload["engine"].player.name
-    assert not (tmp_path / "v.sav.tmp").exists()  # atomic write cleaned up
+    payload = pickle.loads(lzma.decompress((path / "manifest.lzma").read_bytes()))
+    assert payload["version"] == SAVE_VERSION == 4 and "engine" not in payload  # no whole-engine pickle
+    chunk_files = sorted(p.name for p in (path / "floor1").iterdir())
+    assert len(chunk_files) == len(new_engine.game_map.chunks)
+    assert all(name.startswith("chunk_") and name.endswith(".1.lzma") for name in chunk_files)
+    assert not list(path.rglob("*.tmp"))  # atomic writes cleaned up
 
 
 def test_old_unversioned_saves_are_rejected_with_a_clear_error(tmp_path):
@@ -90,7 +96,7 @@ def test_static_species_identity_survives_load(new_engine, tmp_path):
 def test_main_menu_reports_incompatible_save(tmp_path, monkeypatch):
     import input_handlers
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "savegame.sav").write_bytes(b"old")
+    (tmp_path / "savegame").write_bytes(b"old")
     menu = setup_game.MainMenu()
     menu.button_highlight = "Continue"
     result = menu.resolve_menu(None)

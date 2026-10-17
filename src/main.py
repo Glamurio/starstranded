@@ -56,10 +56,10 @@ def run(handler: input_handlers.BaseEventHandler, display) -> None:
     except exceptions.QuitWithoutSaving:
         raise
     except SystemExit:  # Save and quit.
-        save_game(handler, "savegame.sav")
+        save_game(handler, "savegame")
         raise
     except BaseException:  # Save on any other unexpected exception.
-        save_game(handler, "savegame.sav")
+        save_game(handler, "savegame")
         raise
 
 def main() -> None:

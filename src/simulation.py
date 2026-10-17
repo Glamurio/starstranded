@@ -1,0 +1,216 @@
+"""Tiered simulation.
+
+Tiers are defined around the player's chunk (see `GameConfig`):
+
+- ACTIVE: chunks within `active_radius` (default 0 = the player's chunk): every actor runs its full AI every turn.
+- NEAR: loaded chunks within `near_radius`: every `near_interval` turns each actor gets its upkeep and one
+  simplified step (`near_step`): no pathfinding, no messages.
+- FAR: not loaded (or loaded but beyond `near_radius`: frozen). Nothing runs.
+
+Survival upkeep (hunger, thirst, plant growth) is accounted *per entity* with `last_upkeep`: `upkeep(entity, now)`
+applies every step in `(last_upkeep, now]`. One elapsed turn runs the original per-turn code; longer gaps (an entity
+coming back from a frozen or unloaded chunk) are applied analytically in one go.
+"""
+from __future__ import annotations
+
+import random
+from typing import Optional, Tuple, TYPE_CHECKING
+
+import exceptions
+from chunks import chebyshev, chunk_key
+from entity import EntityCategory
+
+if TYPE_CHECKING:
+    from engine import Engine
+    from entity import Entity
+
+HUNGER_PERIOD = 4  # hunger -1 every 4th turn
+THIRST_PERIOD = 2  # thirst -1 every 2nd turn
+GROWTH_PERIOD = 2  # plants grow every 2nd turn
+SEEK_THRESHOLD = 90  # passive animals look for food at or below this hunger/thirst (PassiveAI)
+HOSTILE_SIGHT = 15  # NEAR hostiles head for the player within this many tiles
+
+
+def steps_between(last: int, now: int, period: int) -> int:
+    """How many multiples of `period` lie in (last, now]."""
+    return now // period - last // period
+
+
+# ── upkeep ─────────────────────────────────────────────────────────────────────────
+def upkeep(entity: Entity, now: int) -> None:
+    """Bring `entity`'s hunger/thirst (units) or growth (plants) up to time `now`."""
+    last = getattr(entity, "last_upkeep", None)
+    if last is None:
+        last = now - 1  # never simulated: one ordinary turn, exactly like the old per-turn upkeep
+    if now <= last:
+        return
+    entity.last_upkeep = now
+    elapsed = now - last
+    if entity.category is EntityCategory.PLANT:
+        _plant_upkeep(entity, last, now, elapsed)
+    elif entity.category is EntityCategory.UNIT:
+        _unit_upkeep(entity, last, now, elapsed)
+
+
+def _unit_upkeep(unit, last: int, now: int, elapsed: int) -> None:
+    hunger_steps = steps_between(last, now, HUNGER_PERIOD)
+    thirst_steps = steps_between(last, now, THIRST_PERIOD)
+    if elapsed == 1:
+        if hunger_steps:
+            unit.handle_hunger(-1)
+        if thirst_steps:
+            unit.handle_thirst(-1)
+        return
+    if not unit.is_alive:
+        return
+    # A long absence: assume the unit kept itself fed if its chunk has food (the full simulation lets animals forage;
+    # without this every animal left behind for ~400 turns would starve).
+    world = unit.game_map
+    chunk = world.chunks.get(chunk_key(unit.x, unit.y)) if world is not None else None
+    foraged = elapsed > 2 * world.config.near_interval and chunk is not None and chunk.has_food()
+    unit.hunger, hunger_damage = _bulk(unit.hunger, hunger_steps, unit.max_hunger if foraged else 0)
+    unit.thirst, thirst_damage = _bulk(unit.thirst, thirst_steps, unit.max_thirst if foraged else 0)
+    damage = hunger_damage + thirst_damage
+    if damage:
+        unit.hp = max(0, unit.hp - damage)
+        if unit.hp == 0 and unit.ai:
+            unit.die(None, quiet=True)
+
+
+def _bulk(value: int, steps: int, foraged_max: int) -> Tuple[int, int]:
+    """Value and starvation damage after `steps` calls of `handle_*(-1)` (damage 1 per call at 0).
+
+    With `foraged_max`, the value does not fall below half of it (or its current value, if lower) and causes no damage.
+    """
+    new = max(0, value - steps)
+    if foraged_max:
+        return max(new, min(value, foraged_max // 2)), 0
+    return new, max(0, steps - max(value - 1, 0))
+
+
+def _plant_upkeep(plant, last: int, now: int, elapsed: int) -> None:
+    if not plant.fruit or plant.dead:
+        return
+    steps = steps_between(last, now, GROWTH_PERIOD)
+    if not steps:
+        return
+    if elapsed == 1:
+        plant.handle_growth()
+        return
+    # handle_growth: growth += 1 per step; when growth > avg_cycle it resets to 0 and a branch + fruit are added.
+    cycle = int(plant.avg_cycle) + 1
+    total = plant.growth + steps
+    cycles, plant.growth = divmod(total, cycle)
+    from components.consumable import Fruit
+    from crafting import Branch
+    for _ in range(cycles):
+        if plant.inventory.is_full():
+            break  # (the per-turn version drops an item on a neighbouring tile; not modelled for absent chunks)
+        plant.inventory.add(Branch(plant))
+        plant.inventory.add(Fruit(plant.inventory, plant.fruit))
+
+
+# ── the turn ───────────────────────────────────────────────────────────────────────
+def run_turn(engine: Engine) -> None:
+    """Simulate one turn after the player acted: ACTIVE actors fully, NEAR chunks on their interval."""
+    world = engine.game_map
+    config = engine.config
+    now = engine.game_world.current_time
+    player = engine.player
+    center = world.center_key()
+    active, near = [], []
+    for key, chunk in world.chunks.items():
+        distance = chebyshev(key, center)
+        if distance <= config.active_radius:
+            active.append(chunk)
+        elif distance <= config.near_radius:
+            near.append(chunk)
+
+    for chunk in active:
+        for entity in list(chunk.actors):  # snapshot: AIs may add/remove/move entities
+            if entity is player or not entity.ai or entity.parent is not world:
+                continue
+            try:
+                entity.ai.perform()
+            except exceptions.Impossible:
+                pass  # Ignore impossible action exceptions from AI.
+
+    if config.near_interval > 0 and now % config.near_interval == 0:
+        for chunk in near:
+            for entity in list(chunk.actors):
+                if entity is player or not entity.ai or entity.parent is not world:
+                    continue
+                near_step(engine, entity, now)
+
+
+def near_step(engine: Engine, entity: Entity, now: int) -> None:
+    """Upkeep plus one cheap step for an actor in a NEAR chunk (wander / flee / approach / eat adjacent food)."""
+    upkeep(entity, now)
+    if entity.category is not EntityCategory.UNIT or not entity.is_alive or not entity.ai:
+        return
+    from components.ai import HostileAI
+    player = engine.player
+    if isinstance(entity.ai, HostileAI):
+        if max(abs(player.x - entity.x), abs(player.y - entity.y)) <= HOSTILE_SIGHT:
+            _step_towards(engine, entity, player.x, player.y)
+        elif random.getrandbits(1):
+            _random_step(engine, entity)
+        return
+    threat = _nearest_threat(engine, entity)
+    if threat is not None:
+        _step_towards(engine, entity, threat.x, threat.y, away=True)
+    elif (entity.hunger <= SEEK_THRESHOLD or entity.thirst <= SEEK_THRESHOLD) and _eat_adjacent(engine, entity):
+        return
+    elif random.getrandbits(1):
+        _random_step(engine, entity)
+
+
+def _nearest_threat(engine: Engine, unit) -> Optional[Entity]:
+    world = unit.game_map
+    for radius in range(1, 4):
+        for other in world.entities_on_ring(unit.x, unit.y, radius):
+            if other.category is EntityCategory.UNIT and other.is_alive and other.species != unit.species:
+                return other
+    return None
+
+
+def _eat_adjacent(engine: Engine, unit) -> bool:
+    from components.consumable import FoodConsumable
+    world = unit.game_map
+    for radius in (0, 1):
+        for other in world.entities_on_ring(unit.x, unit.y, radius):
+            food = None
+            if isinstance(other, FoodConsumable):
+                food = other
+            elif other.category is EntityCategory.PLANT and other.fruit and not other.inventory.is_empty():
+                food = next((item for item in other.inventory.items if isinstance(item, FoodConsumable)), None)
+            if food is not None:
+                unit.inventory.loot(food)
+                food.consume(unit)
+                return True
+    return False
+
+
+_DIRECTIONS = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+
+
+def _random_step(engine: Engine, unit) -> None:
+    dx, dy = random.choice(_DIRECTIONS)
+    if engine.can_move(unit.x + dx, unit.y + dy):
+        unit.move(unit.x + dx, unit.y + dy)
+
+
+def _step_towards(engine: Engine, unit, x: int, y: int, away: bool = False) -> None:
+    """Greedy: the free neighbouring tile that most reduces (or, `away`, increases) the Chebyshev distance."""
+    best = None
+    current = max(abs(x - unit.x), abs(y - unit.y))
+    for dx, dy in _DIRECTIONS:
+        nx, ny = unit.x + dx, unit.y + dy
+        distance = max(abs(x - nx), abs(y - ny))
+        better = distance > current if away else distance < current
+        if better and engine.can_move(nx, ny):
+            score = -distance if away else distance
+            if best is None or score < best[0]:
+                best = (score, nx, ny)
+    if best is not None:
+        unit.move(best[1], best[2])

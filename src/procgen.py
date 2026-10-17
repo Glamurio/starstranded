@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 from typing import Dict, Iterator, List, Tuple, TYPE_CHECKING, Callable
-from world import GameMap, GameWorld
 
 import tile_types
 import random
-import tcod
 
 import numpy as np  # type: ignore
 
 import components.unit as units
 import components.consumable as consumables
-import components.plant
-from species import PlantCategory, PlantSpecies, make_plant_species
 
 if TYPE_CHECKING:
+    from world import World
     from engine import Engine
     from entity import Entity
 
@@ -41,13 +38,6 @@ enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     # 5: [(entity_funities.troll, 30)],
     # 7: [(entity_funities.troll, 60)],
 }
-plant_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(components.plant.Tree, 100)],
-    # 3: [(entity_funities.troll, 15)],
-    # 5: [(entity_funities.troll, 30)],
-    # 7: [(entity_funities.troll, 60)],
-}
-
 
 def get_max_value_for_floor(
     max_value_by_floor: List[Tuple[int, int]], floor: int
@@ -89,36 +79,13 @@ def get_entities_at_random(
     )
 
 
-class RectangularRoom:
-    def __init__(self, x: int, y: int, width: int, height: int):
-        self.x1 = x
-        self.y1 = y
-        self.x2 = x + width
-        self.y2 = y + height
+def place_entities(world: World, floor_number: int, area: Tuple[int, int, int, int], reserved=()) -> None:
+    """Spawn this floor's monsters and items at random tiles of `area` (a world rectangle, normally one chunk).
 
-    @property
-    def center(self) -> Tuple[int, int]:
-        center_x = int((self.x1 + self.x2) / 2)
-        center_y = int((self.y1 + self.y2) / 2)
-
-        return center_x, center_y
-
-    @property
-    def inner(self) -> Tuple[slice, slice]:
-        """Return the inner area of this room as a 2D array index."""
-        return slice(self.x1 + 1, self.x2), slice(self.y1 + 1, self.y2)
-
-    def intersects(self, other: RectangularRoom) -> bool:
-        """Return True if this room overlaps with another RectangularRoom."""
-        return (
-            self.x1 <= other.x2
-            and self.x2 >= other.x1
-            and self.y1 <= other.y2
-            and self.y2 >= other.y1
-        )
-
-
-def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None) -> None:
+    Uses the global RNGs (chunk generation wraps this in `worldgen.seeded_rng`). A spawn is skipped (no retry, as
+    before) unless the tile is walkable, free of blocking entities and not `reserved` (the player's start).
+    """
+    x0, y0, width, height = area
     number_of_monsters = random.randint(
         0, get_max_value_for_floor(max_monsters_by_floor, floor_number)
     )
@@ -133,93 +100,13 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
         item_chances, number_of_items, floor_number
     )
     for factory in monsters + items:
-        if room:
-            x = random.randint(room.x1 + 1, room.x2 - 1)
-            y = random.randint(room.y1 + 1, room.y2 - 1)
-        else:
-            x = random.randint(0, map.width - 1)
-            y = random.randint(0, map.height - 1)
+        x = random.randint(x0, x0 + width - 1)
+        y = random.randint(y0, y0 + height - 1)
+        if (x, y) in reserved:
+            continue
+        if world.is_walkable(x, y) and not world.is_blocked(x, y):
+            world.add_entity(factory(), x, y)
 
-        # Skip (no retry, as before) unless the tile is walkable and free of blocking entities.
-        # The old check `not (unwalkable and <entity here>)` let monsters/items spawn inside walls and water.
-        if map.tiles[x, y]["walkable"] and not map.is_blocked(x, y):
-            map.add_entity(factory(), x, y)
-
-
-def tunnel_between(
-    start: Tuple[int, int], end: Tuple[int, int]
-) -> Iterator[Tuple[int, int]]:
-    """Return an L-shaped tunnel between these two points."""
-    x1, y1 = start
-    x2, y2 = end
-    if random.random() < 0.5:  # 50% chance.
-        # Move horizontally, then vertically.
-        corner_x, corner_y = x2, y1
-    else:
-        # Move vertically, then horizontally.
-        corner_x, corner_y = x1, y2
-
-    # Generate the coordinates for this tunnel.
-    for x, y in tcod.los.bresenham((x1, y1), (corner_x, corner_y)).tolist():
-        yield x, y
-    for x, y in tcod.los.bresenham((corner_x, corner_y), (x2, y2)).tolist():
-        yield x, y
-
-
-def generate_map(
-    max_rooms: int,
-    room_min_size: int,
-    room_max_size: int,
-    map_width: int,
-    map_height: int,
-    engine: Engine,
-    world: GameWorld,
-) -> GameMap:
-    """Generate a new dungeon map."""
-    player = engine.player
-    landscape = np.full((map_width, map_height), fill_value=tile_types.wall, order="F")
-    dungeon = GameMap(engine, landscape, entities=[player])
-
-    rooms: List[RectangularRoom] = []
-    center_of_last_room = (0, 0)
-
-    for r in range(max_rooms):
-        room_width = random.randint(room_min_size, room_max_size)
-        room_height = random.randint(room_min_size, room_max_size)
-
-        x = random.randint(0, dungeon.width - room_width - 1)
-        y = random.randint(0, dungeon.height - room_height - 1)
-
-        # "RectangularRoom" class makes rectangles easier to work with
-        new_room = RectangularRoom(x, y, room_width, room_height)
-
-        # Run through the other rooms and see if they intersect with this one.
-        if any(new_room.intersects(other_room) for other_room in rooms):
-            continue  # This room intersects, so go to the next attempt.
-        # If there are no intersections then the room is valid.
-
-        # Dig out this rooms inner area.
-        dungeon.tiles[new_room.inner] = tile_types.floor
-
-        if len(rooms) == 0:
-            # The first room, where the player starts.
-            player.place(*new_room.center, dungeon)
-        else:  # All rooms after the first.
-            # Dig out a tunnel between this room and the previous one.
-            for x, y in tunnel_between(rooms[-1].center, new_room.center):
-                dungeon.tiles[x, y] = tile_types.floor
-
-            center_of_last_room = new_room.center
-
-        place_entities(dungeon, engine.game_world.current_floor, room = new_room)
-
-        dungeon.tiles[center_of_last_room] = tile_types.down_stairs
-        dungeon.downstairs_location = center_of_last_room
-
-        # Finally, append the new room to the list.
-        rooms.append(new_room)
-
-    return dungeon
 
 # (left, right, up, down) neighbour pattern, as a 4-bit index l*8 + r*4 + u*2 + d -> variation name.
 # Index 15 (surrounded) is special: randomly 'center' or the default sprite.
@@ -271,134 +158,3 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
     landscape["dark"]["sprite"][tile_map] = chars[tile_map]
     landscape["light"]["sprite"][tile_map] = chars[tile_map]
     return landscape
-
-def spawn_vegetation(tree: PlantSpecies, shrub: PlantSpecies, map: GameMap, tree_map: np.ndarray):
-    """Plant one Tree/Shrub per True cell of `tree_map` (80 % trees). All trees share `tree`, all shrubs `shrub`."""
-    for x, y in np.argwhere(tree_map).tolist():
-        if random.random() > 0.2:
-            plant = components.plant.Tree(tree)
-        else:
-            plant = components.plant.Shrub(shrub)
-        map.add_entity(plant, x, y)
-
-def generate_noise(
-    map_width: int,
-    map_height: int,
-    engine: Engine,
-    world: GameWorld,
-) -> GameMap:
-
-    height_noise = tcod.noise.Noise(
-        dimensions=2,
-        algorithm= tcod.noise.Algorithm.PERLIN,
-        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
-    )
-    height_samples = height_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
-    height_noise = tcod.noise.Noise(
-            dimensions=2,
-            algorithm= tcod.noise.Algorithm.PERLIN,
-        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
-    )
-    height_samples = (height_samples + height_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.25, origin=(0, 0))])/2
-
-    vegetation_noise = tcod.noise.Noise(
-        dimensions=2,
-        algorithm= tcod.noise.Algorithm.PERLIN,
-        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
-    )
-    vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.05, origin=(0, 0))]
-    vegetation_noise = tcod.noise.Noise(
-        dimensions=2,
-        algorithm= tcod.noise.Algorithm.PERLIN,
-        seed=random.getrandbits(31),  # drawn from `random`: seeding random makes the terrain reproducible
-    )
-    vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.1, origin=(0, 0))]
-
-    # Axis convention: everything downstream indexes tiles as [x, y] (width first). In tcod 21.x
-    # `grid(shape=(height, width))` yields an array shaped (width, height), which is what we need.
-    # Fail loudly if a tcod upgrade ever changes that, instead of silently transposing the world.
-    assert height_samples.shape == vegetation_samples.shape == (map_width, map_height), (
-        f"tcod.noise.grid axis order changed: got {height_samples.shape}, expected {(map_width, map_height)}"
-    )
-
-    def value_range(a, low, high):
-        return np.logical_and(a>low , a<=high)
-
-    def construct_landscape(limits, tiles, samples: np.ndarray):
-        """Function to generate height map"""
-        assert(len(limits) == len(tiles)+1)
-        out_shape = list(samples.shape)
-        landscape = np.full(out_shape, fill_value=tile_types.wall.get_array(), order="F", dtype=tile_types.tile_dt)
-        for i in range(len(limits)-1):
-            landscape[value_range(samples, limits[i], limits[i+1])] = tiles[i]
-        return landscape
-
-    def plant_trees(samples: np.ndarray, landscape: np.ndarray, adjust: float = 0.1):
-        """Function to generate map for vegetation"""
-        out_shape = list(samples.shape)
-        random_map = np.random.rand(out_shape[0], out_shape[1])
-        lake_map = landscape == tile_types.water.get_array()
-        tree_map = samples > random_map + adjust
-        tree_map = np.logical_and(tree_map, np.logical_not(lake_map))
-        landscape[tree_map] = tile_types.roots.get_array()
-        return landscape
-
-    def plant_trees_old(samples: np.ndarray, landscape: np.ndarray, adjust: float = 0.1):
-        """Function to generate map for vegetation"""
-        out_shape = list(samples.shape) + [3]
-        if not landscape:
-            landscape = np.zeros(out_shape, order="F")
-        random_map = np.random.rand(out_shape[0], out_shape[1])
-        tree_map = samples > random_map + adjust
-        landscape[tree_map] = np.array([0, 0.8, 0])
-        return landscape
-
-    def construct_old(limits, tiles, samples: np.ndarray):
-        assert(len(limits) == len(tiles)+1)
-        out_shape = list(samples.shape) + [3]
-        landscape = np.zeros(out_shape, order="F")
-        for i in range(len(limits)-1):
-            landscape[value_range(samples, limits[i], limits[i+1])] = tiles[i]
-        return landscape
-
-    # color_limits = [-1.1, 0, 1.1]
-    # colors = [np.array([0, 0, 0.5]), np.array([0, 0, 1])]
-
-    height_limits = [-1.1, -0.3, 0.3, 1.1]
-    height_tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
-    landscape = construct_landscape(height_limits, height_tiles, height_samples)
-
-    # Grow lakes by one tile in the 4 cardinal directions.
-    lake_map: np.ndarray = landscape == tile_types.water.get_array()
-    landscape[dilate(lake_map)] = tile_types.water.get_array()
-
-    # Add variations
-    landscape = replace_variations(tile_types.water, landscape, map_width, map_height)
-    landscape = replace_variations(tile_types.wall, landscape, map_width, map_height)
-
-    # Add vegetation
-    landscape = plant_trees(vegetation_samples, landscape)
-
-    player = engine.player
-    map = GameMap(engine, landscape, entities=[player])
-
-    tree_map: np.ndarray = landscape == tile_types.roots.get_array()
-    # One tree species and one shrub species per floor (as before, when every plant was a deepcopy of one prototype).
-    spawn_vegetation(
-        make_plant_species(PlantCategory.TREE), make_plant_species(PlantCategory.SHRUB), map, tree_map
-    )
-
-
-    # Get random player position
-    x = random.randint(0, map.width - 1)
-    y = random.randint(0, map.height - 1)
-    walkable = map.tiles[x, y]["walkable"]
-    while not walkable:
-        x = random.randint(0, map.width - 1)
-        y = random.randint(0, map.height - 1)
-        walkable = map.tiles[x, y]["walkable"]
-        
-    player.place(x, y, map)
-    place_entities(map, engine.game_world.current_floor)
-    
-    return map
