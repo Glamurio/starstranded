@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
-from entity import Entity
+from entity import Entity, EntityCategory
 from render_order import RenderOrder
 
 import color
@@ -14,6 +14,8 @@ from components.consumable import Meat
 from utilities import clamp, map_codepoints, generate_name, get_gaussian_shade, get_random_color
 
 class Unit(Entity):
+    category = EntityCategory.UNIT
+
     def __init__(self):
         Entity.__init__(self)
         self.max_hp = 10

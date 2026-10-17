@@ -59,7 +59,7 @@ def small_world():
             (width, height), fill_value=tile_types.floor.get_array(),
             order="F", dtype=tile_types.tile_dt,
         )
-        game_map = GameMap(engine.game_world, landscape, engine, width, height, entities=[player])
+        game_map = GameMap(engine, landscape, entities=[player])
         engine.game_map = game_map
         player.place(1, 1, game_map)
         game_map.explored[:] = explored

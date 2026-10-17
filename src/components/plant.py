@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from entity import Entity
+from entity import Entity, EntityCategory, new_uid
 from render_order import RenderOrder
 
 from typing import TypeVar, TYPE_CHECKING
@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound="Entity")
 
 class Plant(Entity):
+    category = EntityCategory.PLANT
+
     def __init__(self):
         Entity.__init__(self)
         self.max_hp = 10
@@ -99,13 +101,12 @@ class Plant(Entity):
     def spawn(self: T, game_map: GameMap, x: int, y: int) -> T:
         """Spawn a copy of this instance at the given location."""
         clone = copy.deepcopy(self)
-        clone.x = x
-        clone.y = y
-        clone.parent = game_map
+        clone.parent = None
+        clone.uid = new_uid()
         clone.shade = get_gaussian_shade(clone.color)
         mirrored = bool(random.getrandbits(1))
         clone.mirrored = mirrored
-        game_map.entities.add(clone)
+        game_map.add_entity(clone, x, y)
         char = clone.char_right if mirrored else clone.char
         tile = game_map.tiles[x, y]
         tile['transparent'] = not clone.blocks_sight

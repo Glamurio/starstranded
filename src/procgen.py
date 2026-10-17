@@ -179,7 +179,7 @@ def generate_map(
     """Generate a new dungeon map."""
     player = engine.player
     landscape = np.full((map_width, map_height), fill_value=tile_types.wall, order="F")
-    dungeon = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
+    dungeon = GameMap(engine, landscape, entities=[player])
 
     rooms: List[RectangularRoom] = []
     center_of_last_room = (0, 0)
@@ -396,7 +396,7 @@ def generate_noise(
     landscape = plant_trees(vegetation_samples, landscape)
 
     player = engine.player
-    map = GameMap(world, landscape, engine, width=map_width, height=map_height, entities=[player])
+    map = GameMap(engine, landscape, entities=[player])
 
     tree_map: np.ndarray = landscape == tile_types.roots.get_array()
     spawn_vegetation(components.plant.Tree(), components.plant.Shrub(), map, tree_map)

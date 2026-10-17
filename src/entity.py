@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import copy
+import itertools
 import math
+from enum import Enum, auto
 from typing import Optional, List, Tuple, TypeVar, TYPE_CHECKING, Union
 
 from render_order import RenderOrder
 
 if TYPE_CHECKING:
+    from components.ai import BaseAI
     from components.inventory import Inventory
     from components.unit import Unit
     from world import GameMap
@@ -14,16 +17,64 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound="Entity")
 
+_uid_counter = itertools.count(1)
+
+
+def new_uid() -> int:
+    """A process-unique, monotonically increasing entity id."""
+    return next(_uid_counter)
+
+
+def bump_uid_counter(minimum_next: int) -> None:
+    """Make sure future uids are >= `minimum_next` (called after loading a save)."""
+    global _uid_counter
+    current = next(_uid_counter)
+    _uid_counter = itertools.count(max(current, minimum_next))
+
+
+class EntityCategory(Enum):
+    """Explicit entity type tag (replaces `hasattr` duck typing for the map's per-kind collections)."""
+    OTHER = auto()
+    UNIT = auto()
+    PLANT = auto()
+    ITEM = auto()
+
+
+class SpatialContainer:
+    """A container that owns entity positions (implemented by `GameMap`).
+
+    Entities never mutate their position behind its back: `Entity.x/y`, `blocks_movement`, `render_order` and
+    `ai` are properties that call back into the container so its indexes stay consistent.
+    """
+
+    def add_entity(self, entity: Entity, x: int, y: int) -> None:
+        raise NotImplementedError
+
+    def remove_entity(self, entity: Entity) -> None:
+        raise NotImplementedError
+
+    def move_entity(self, entity: Entity, x: int, y: int) -> None:
+        raise NotImplementedError
+
+    def _entity_changed(self, entity: Entity, attribute: str, old, new) -> None:
+        raise NotImplementedError
+
+
 class Entity:
     """
     A generic object to represent players, enemies, items, etc.
+
+    Position is read/written through `x`, `y`, `place()` and `move()`; while the entity is on a map the
+    map's spatial index is updated automatically.
     """
-    parent: Union[GameMap, Inventory]
+    parent: Union[GameMap, Inventory, None]
+    category: EntityCategory = EntityCategory.OTHER
 
     def __init__(self):
+        self.uid: int = next(_uid_counter)
         self.parent: Optional[GameMap] = None
-        self.x: int = 0
-        self.y: int = 0
+        self._x: int = 0
+        self._y: int = 0
         self.sprite_pos: Tuple[int, int] = (0, 0)
         self.corpse_sprite_pos: Tuple[int, int] = (0, 0)
         self.mirrored = False
@@ -37,15 +88,71 @@ class Entity:
         self.object_type: str = "Entity"
         self.species: str = None
         self.attributes: List[str] = []
-        self.blocks_movement: bool = False
+        self._blocks_movement: bool = False
         self.blocks_sight: bool = False
-        self.render_order: RenderOrder = RenderOrder.CORPSE
-
-        if self.parent:
-            # If parent isn't provided now then it will be set later.
-            self.parent.entities.add(self)
+        self._render_order: RenderOrder = RenderOrder.CORPSE
+        self._ai: Optional[BaseAI] = None
         self.on_init()
 
+    # ── indexed properties ────────────────────────────────────────────────────────
+    @property
+    def x(self) -> int:
+        return self._x
+
+    @x.setter
+    def x(self, value: int) -> None:
+        self.set_position(value, self._y)
+
+    @property
+    def y(self) -> int:
+        return self._y
+
+    @y.setter
+    def y(self, value: int) -> None:
+        self.set_position(self._x, value)
+
+    def set_position(self, x: int, y: int) -> None:
+        if isinstance(self.parent, SpatialContainer):
+            self.parent.move_entity(self, x, y)
+        else:
+            self._x, self._y = x, y
+
+    def _set_indexed(self, attribute: str, value) -> None:
+        old = getattr(self, "_" + attribute)
+        if old == value:
+            return
+        setattr(self, "_" + attribute, value)
+        if isinstance(self.parent, SpatialContainer):
+            self.parent._entity_changed(self, attribute, old, value)
+
+    @property
+    def blocks_movement(self) -> bool:
+        return self._blocks_movement
+
+    @blocks_movement.setter
+    def blocks_movement(self, value: bool) -> None:
+        self._set_indexed("blocks_movement", value)
+
+    @property
+    def render_order(self) -> RenderOrder:
+        return self._render_order
+
+    @render_order.setter
+    def render_order(self, value: RenderOrder) -> None:
+        self._set_indexed("render_order", value)
+
+    @property
+    def ai(self) -> Optional[BaseAI]:
+        return self._ai
+
+    @ai.setter
+    def ai(self, value: Optional[BaseAI]) -> None:
+        old = self._ai
+        self._ai = value
+        if isinstance(self.parent, SpatialContainer) and bool(old) != bool(value):
+            self.parent._entity_changed(self, "ai", old, value)
+
+    # ── derived references (no stored pointers besides `parent`) ─────────────────────
     @property
     def game_map(self) -> GameMap:
         return self.parent.game_map
@@ -58,32 +165,26 @@ class Entity:
         """Gets called after initialization of the object."""
         pass
 
+    def on_added_to_map(self, game_map: GameMap) -> None:
+        """Hook: called by the map after this entity was added to it."""
+
     def spawn(self: T, game_map: GameMap, x: int, y: int, new: bool = False) -> T:
         """Spawn a copy of this instance at the given location."""
         if not new:
             entity = copy.deepcopy(self)
+            entity.parent = None
+            entity.uid = new_uid()
         else:
             entity = type(self)()
-        entity.x = x
-        entity.y = y
-        entity.parent = game_map
-        game_map.entities.add(entity)
+        game_map.add_entity(entity, x, y)
         return entity
 
     def place(self, x: int, y: int, game_map: Optional[GameMap] = None) -> None:
-        """Place this entity at a new location.  Handles moving across GameMaps."""
-        self.x = x
-        self.y = y
-
-        if not game_map:
-            return
-            
-        if hasattr(self, "parent"):  # Possibly uninitialized.
-            if self.parent and self.parent is self.game_map:
-                self.game_map.entities.remove(self)
-
-        self.parent = game_map
-        self.parent.entities.add(self)
+        """Place this entity at a new location. With `game_map`, (re)attach it to that map."""
+        if game_map is None:
+            self.set_position(x, y)
+        else:
+            game_map.add_entity(self, x, y)
 
     def distance(self, x: int, y: int) -> float:
         """
@@ -99,13 +200,12 @@ class Entity:
             self.char = self.char_left
 
     def move(self, dest_x: int, dest_y: int) -> None:
-        """Move the entity by a given amount."""
+        """Move the entity to (dest_x, dest_y), facing the direction of travel."""
         if self.x > dest_x:
             self.redirect_char()
         elif self.x < dest_x:
             self.redirect_char(True)
-        self.x = dest_x
-        self.y = dest_y
+        self.set_position(dest_x, dest_y)
 
     def set_name(self, name: str) -> str:
         """Sets the entity name."""
@@ -127,6 +227,8 @@ class Entity:
 
 
 class Item(Entity):
+    category = EntityCategory.ITEM
+
     def __init__(self):
         Entity.__init__(self)
         self.render_order = RenderOrder.ITEM

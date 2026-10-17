@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, TYPE_CHECKING
 
 from components.base_component import BaseComponent
-from world import GameMap
+from entity import SpatialContainer
 import exceptions
 
 if TYPE_CHECKING:
@@ -34,10 +34,8 @@ class Inventory(BaseComponent):
                 raise exceptions.Impossible("Your Inventory is full.")
             return
 
-        if isinstance(item.parent, GameMap):
-            self.game_map.entities.remove(item)
-        elif isinstance(item.parent, Inventory):
-            item.parent.items.remove(item)
+        if item.parent is not None:
+            item.parent.remove_entity(item)  # map or inventory (possibly this one)
 
         self.add(item)
         # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
@@ -64,6 +62,8 @@ class Inventory(BaseComponent):
                 raise exceptions.Impossible("Your Inventory is full.")
             return
         
+        if isinstance(item.parent, SpatialContainer):
+            item.parent.remove_entity(item)
         item.parent = self
         if placeholder:
             self.placeholders.append(item)
@@ -79,6 +79,13 @@ class Inventory(BaseComponent):
         else:
             self.items.remove(item)
         self.contents.remove(item)
+
+    def remove_entity(self, item: Item) -> None:
+        """Container protocol: take `item` out if present (no-op otherwise)."""
+        if item in self.items:
+            self.remove(item)
+        elif item in self.placeholders:
+            self.remove(item, placeholder=True)
 
     def instantiate_placeholders(self):
         for placeholder in self.placeholders:

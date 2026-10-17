@@ -39,8 +39,8 @@ class Engine:
 
 
     def handle_enemy_turns(self) -> None:
-        for entity in set(self.game_map.entities) - {self.player}:
-            if hasattr(entity, "ai") and entity.ai:
+        for entity in list(self.game_map.actors):  # snapshot: AIs may add/remove entities
+            if entity is not self.player and entity.ai:
                 try:
                     entity.ai.perform()
                 except exceptions.Impossible:

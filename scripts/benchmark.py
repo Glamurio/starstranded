@@ -86,7 +86,7 @@ def bench_spawn_trees(repeat: int) -> dict:
     samples = []
     for _ in range(repeat):
         landscape = np.full((w, h), tile_types.floor.get_array(), dtype=tile_types.tile_dt, order="F")
-        blank = GameMap(engine.game_world, landscape, engine, w, h)
+        blank = GameMap(engine, landscape)
         spots = [divmod(i, h) for i in random.sample(range(w * h), 500)]
         t0 = time.perf_counter()
         for x, y in spots:

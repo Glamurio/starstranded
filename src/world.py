@@ -3,12 +3,13 @@ from __future__ import annotations
 import math
 import random
 
-from typing import Iterable, Iterator, List, Optional, TYPE_CHECKING
+from typing import Dict, Iterable, Iterator, KeysView, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np  # type: ignore
 import tcod
 
-from entity import Item
+from entity import EntityCategory, Item, SpatialContainer
+from render_order import RenderOrder
 import tile_types
 
 if TYPE_CHECKING:
@@ -27,73 +28,155 @@ def distance(p1, p2, diag=True, euclidean=False):
     return abs(p1.x - p2.x) + abs(p1.y - p2.y)
 
 
-class GameMap:
-    def __init__(
-        self, world: GameWorld, landscape: np.ndarray, engine: Engine, width: int, height: int, entities: Iterable[Entity] = ()
-    ):  
-        self.world = world
+class GameMap(SpatialContainer):
+    """One map: terrain arrays plus the entities on it.
+
+    The map is the only place that adds, moves or removes entities, and it keeps these indexes in sync:
+    `_by_pos` ((x, y) -> entities, insertion ordered), per-category collections (`units`, `plants`, `items`),
+    `actors` (entities with an AI), render buckets per `RenderOrder`, and `blocked` (count of movement-blocking
+    entities per tile). Iteration order is insertion order, so it is deterministic.
+    """
+
+    def __init__(self, engine: Engine, landscape: np.ndarray, entities: Iterable[Entity] = ()):
         self.engine = engine
-        self.width, self.height = width, height
-        self.entities= set(entities)
         self.tiles = landscape
+        self.width, self.height = landscape.shape
 
         self.visible = np.full(
-            (width, height), fill_value=False, order="F"
+            (self.width, self.height), fill_value=False, order="F"
         )  # Tiles the player can currently see
         self.explored = np.full(
-            (width, height), fill_value=False, order="F"
+            (self.width, self.height), fill_value=False, order="F"
         )  # Tiles the player has seen before
 
         self.downstairs_location = (0, 0)
+
+        self._entities: Dict[Entity, None] = {}
+        self._by_pos: Dict[Tuple[int, int], List[Entity]] = {}
+        self._by_category: Dict[EntityCategory, Dict[Entity, None]] = {c: {} for c in EntityCategory}
+        self._actors: Dict[Entity, None] = {}
+        self._buckets: Dict[RenderOrder, Dict[Entity, None]] = {r: {} for r in RenderOrder}
+        self.blocked = np.zeros((self.width, self.height), dtype=np.int16, order="F")
+
+        for entity in entities:
+            self.add_entity(entity, entity.x, entity.y)
 
     @property
     def game_map(self) -> GameMap:
         return self
 
+    # ── collections (live, read-only views) ───────────────────────────────────────────
     @property
-    def units(self) -> Iterator[Unit]:
-        """Iterate over this maps living units."""
-        yield from (
-            entity
-            for entity in self.entities
-            if hasattr(entity, "is_alive")
-        )
+    def entities(self) -> KeysView[Entity]:
+        return self._entities.keys()
 
     @property
-    def plants(self) -> Iterator[Plant]:
-        """Iterate over this maps living units."""
-        yield from (
-            entity
-            for entity in self.entities
-            if hasattr(entity, "growth")
-        )
+    def units(self) -> KeysView[Unit]:
+        """All units on this map, living and dead."""
+        return self._by_category[EntityCategory.UNIT].keys()
 
     @property
-    def items(self) -> Iterator[Item]:
-        yield from (entity for entity in self.entities if isinstance(entity, Item))
+    def plants(self) -> KeysView[Plant]:
+        return self._by_category[EntityCategory.PLANT].keys()
 
+    @property
+    def items(self) -> KeysView[Item]:
+        return self._by_category[EntityCategory.ITEM].keys()
+
+    @property
+    def actors(self) -> KeysView[Entity]:
+        """Entities that currently have an AI."""
+        return self._actors.keys()
+
+    def entities_in_render_order(self) -> Iterator[Entity]:
+        for order in RenderOrder:
+            yield from self._buckets[order]
+
+    # ── mutation API ──────────────────────────────────────────────────────────────
+    def add_entity(self, entity: Entity, x: int, y: int) -> None:
+        """Put `entity` on this map at (x, y), detaching it from any previous container."""
+        if entity.parent is self:
+            self.move_entity(entity, x, y)
+            return
+        if entity.parent is not None:
+            entity.parent.remove_entity(entity)
+        entity.parent = self
+        entity._x, entity._y = x, y
+        self._entities[entity] = None
+        self._by_pos.setdefault((x, y), []).append(entity)
+        self._by_category[entity.category][entity] = None
+        self._buckets[entity.render_order][entity] = None
+        if entity.ai:
+            self._actors[entity] = None
+        if entity.blocks_movement and self.in_bounds(x, y):
+            self.blocked[x, y] += 1
+        entity.on_added_to_map(self)
+
+    def remove_entity(self, entity: Entity) -> None:
+        """Take `entity` off this map (no-op if it is not here). Its `parent` becomes None."""
+        if entity not in self._entities:
+            return
+        del self._entities[entity]
+        self._unindex_position(entity)
+        self._by_category[entity.category].pop(entity, None)
+        self._buckets[entity.render_order].pop(entity, None)
+        self._actors.pop(entity, None)
+        if entity.blocks_movement and self.in_bounds(entity.x, entity.y):
+            self.blocked[entity.x, entity.y] -= 1
+        entity.parent = None
+
+    def move_entity(self, entity: Entity, x: int, y: int) -> None:
+        old = (entity.x, entity.y)
+        if old == (x, y):
+            return
+        self._unindex_position(entity)
+        if entity.blocks_movement:
+            if self.in_bounds(*old):
+                self.blocked[old] -= 1
+            if self.in_bounds(x, y):
+                self.blocked[x, y] += 1
+        entity._x, entity._y = x, y
+        self._by_pos.setdefault((x, y), []).append(entity)
+
+    def _unindex_position(self, entity: Entity) -> None:
+        key = (entity.x, entity.y)
+        bucket = self._by_pos[key]
+        bucket.remove(entity)
+        if not bucket:
+            del self._by_pos[key]
+
+    def _entity_changed(self, entity: Entity, attribute: str, old, new) -> None:
+        if attribute == "render_order":
+            self._buckets[old].pop(entity, None)
+            self._buckets[new][entity] = None
+        elif attribute == "blocks_movement":
+            if self.in_bounds(entity.x, entity.y):
+                self.blocked[entity.x, entity.y] += 1 if new else -1
+        elif attribute == "ai":
+            if new:
+                self._actors[entity] = None
+            else:
+                self._actors.pop(entity, None)
+
+    # ── queries ──────────────────────────────────────────────────────────────────
     def get_entities_at_location(
         self, location_x: int, location_y: int, check_block: bool = False
     ) -> List[Entity]:
         """Return every entity at the location (only blocking ones if `check_block`). Never None."""
-        entities = []
-        for entity in self.entities:
-            checker = entity.blocks_movement if check_block else True
-            if (
-                checker
-                and entity.x == location_x
-                and entity.y == location_y
-            ):
-                entities.append(entity)
-
-        return entities
+        here = self._by_pos.get((location_x, location_y), ())
+        if check_block:
+            return [entity for entity in here if entity.blocks_movement]
+        return list(here)
 
     def get_unit_at_location(self, x: int, y: int) -> Optional[Unit]:
-        for unit in self.units:
-            if unit.x == x and unit.y == y:
-                return unit
-
+        for entity in self._by_pos.get((x, y), ()):
+            if entity.category is EntityCategory.UNIT:
+                return entity
         return None
+
+    def is_blocked(self, x: int, y: int) -> bool:
+        """True if a movement-blocking entity stands on (x, y)."""
+        return bool(self.blocked[x, y]) if self.in_bounds(x, y) else False
 
     def in_bounds(self, x: int, y: int) -> bool:
         """Return True if x and y are inside of the bounds of this map."""
@@ -113,13 +196,10 @@ class GameMap:
             default=tile_types.SHROUD,
         )
 
-        entities_sorted_for_rendering = sorted(
-            self.entities, key=lambda x: x.render_order.value
-        )
-
-        for entity in entities_sorted_for_rendering:
+        visible = self.visible
+        for entity in self.entities_in_render_order():
             # Only print entities that are in the FOV
-            if self.visible[entity.x, entity.y]:
+            if visible[entity.x, entity.y]:
                 char = entity.char
                 if isinstance(entity.char, int):
                     char = chr(entity.char)
