@@ -816,6 +816,16 @@ class SingleRangedAttackHandler(SelectIndexHandler):
         return self.callback((x, y))
 
 
+def area_frame_rect(x: int, y: int, radius: int) -> Tuple[int, int, int, int]:
+    """Return `(x, y, width, height)` of a frame that encloses the area affected around `(x, y)`.
+
+    The affected area spans `2 * radius + 1` tiles per axis (`x - radius` .. `x + radius`); the frame
+    is drawn on the ring of tiles just outside it, so it is `2 * radius + 3` wide/high.
+    """
+    size = 2 * radius + 3
+    return x - radius - 1, y - radius - 1, size, size
+
+
 class AreaRangedAttackHandler(SelectIndexHandler):
     """Handles targeting an area within a given radius. Any entity within the area will be affected."""
 
@@ -837,11 +847,12 @@ class AreaRangedAttackHandler(SelectIndexHandler):
         x, y = self.engine.mouse_location
 
         # Draw a rectangle around the targeted area, so the player can see the affected tiles.
+        frame_x, frame_y, width, height = area_frame_rect(x, y, self.radius)
         console.draw_frame(
-            x=x - self.radius - 1,
-            y=y - self.radius - 1,
-            width=self.radius ** 2,
-            height=self.radius ** 2,
+            x=frame_x,
+            y=frame_y,
+            width=width,
+            height=height,
             fg=color.red,
             clear=False,
         )
