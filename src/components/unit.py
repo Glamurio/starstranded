@@ -113,30 +113,38 @@ class Unit(Entity):
 
         return amount_recovered
 
-    def handle_health(self, amount: int, entity: Entity) -> None:
+    def handle_health(self, amount: int, entity: Optional[Entity]) -> None:
         self.hp = clamp((self.hp + amount), 0, self.max_hunger)
         if self.hp == 0 and self.ai:
             self.die(entity)
 
     def handle_hunger(self, amount: int) -> None:
+        """Change hunger by `amount`. At 0 hunger *any* unit loses 1 HP per call (starvation).
+
+        Only the player gets the message, once, when hunger first reaches 0.
+        """
         prev_hunger = self.hunger
         self.hunger = clamp((self.hunger + amount), 0, self.max_hunger)
-        if self.hunger == 0 and not self.engine.player:
-            if self == self.engine.player and prev_hunger > 0:
+        if self.hunger == 0:
+            if self is self.engine.player and prev_hunger > 0:
                 self.engine.message_log.add_message(
                     f"{self.get_title()} is starving!", color.enemy_atk
                 )
-            self.handle_health(-1, self)
+            self.handle_health(-1, None)
 
     def handle_thirst(self, amount: int) -> None:
+        """Change thirst by `amount`. At 0 thirst *any* unit loses 1 HP per call (dehydration).
+
+        Only the player gets the message, once, when thirst first reaches 0.
+        """
         prev_thirst = self.thirst
         self.thirst = clamp((self.thirst + amount), 0, self.max_thirst)
-        if self.thirst == 0 and not self.engine.player:
-            if self == self.engine.player and prev_thirst > 0:
+        if self.thirst == 0:
+            if self is self.engine.player and prev_thirst > 0:
                 self.engine.message_log.add_message(
                     f"{self.get_title()} is severely dehydrated!", color.enemy_atk
                 )
-            self.handle_health(-1, self)
+            self.handle_health(-1, None)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
