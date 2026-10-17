@@ -222,65 +222,55 @@ def generate_map(
 
     return dungeon
 
+# (left, right, up, down) neighbour pattern, as a 4-bit index l*8 + r*4 + u*2 + d -> variation name.
+# Index 15 (surrounded) is special: randomly 'center' or the default sprite.
+_VARIATION_NAMES = (
+    "center_solo", "north_solo", "south_solo", "east_west",
+    "west_solo", "north_west", "south_west", "west",
+    "east_solo", "north_east", "south_east", "east",
+    "north_south", "north", "south", None,
+)
+
+
+def neighbour_masks(mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """For a [x, y] bool array: is the left/right/up/down neighbour True (outside the map counts as False)."""
+    left = np.zeros_like(mask)
+    right = np.zeros_like(mask)
+    up = np.zeros_like(mask)
+    down = np.zeros_like(mask)
+    left[1:, :] = mask[:-1, :]
+    right[:-1, :] = mask[1:, :]
+    up[:, 1:] = mask[:, :-1]
+    down[:, :-1] = mask[:, 1:]
+    return left, right, up, down
+
+
+def dilate(mask: np.ndarray) -> np.ndarray:
+    """4-neighbour binary dilation (numpy only)."""
+    left, right, up, down = neighbour_masks(mask)
+    return mask | left | right | up | down
+
+
 def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int, height: int):
     """
-    Replaces all tiles of type `tile` within given `landscape` with the appropriate variations
-    
+    Replaces all tiles of type `tile` within given `landscape` with the appropriate edge variations,
+    chosen from which of the 4 neighbours are the same tile. Vectorised; same result as the old per-cell loop.
+
     Returns changed `landscape`
     """
     tile_map = landscape == tile.get_array()
     char_info: dict = g.char_dict[tile.object_type]
     default = char_info['sprite']
-    for x, row in enumerate(tile_map):
-        for y, is_tile in enumerate(row):
-            if not is_tile:
-                continue
-            coords: List[List] = [[x-1, y, "left", False], [x+1, y, "right", False], [x, y-1, "up", False], [x, y+1, "down", False]]
-            for coord in coords:
-                if 0 <= coord[0] < width and 0 <= coord[1] < height and tile_map[coord[0]][coord[1]]:
-                    coord[3] = True
-
-            cases = [case[3] for case in coords]
-            match cases:
-                case [False, False, False, False]:
-                    tile_char = char_info.get('center_solo', default) 
-                case [False, False, False, True]:
-                    tile_char = char_info.get('north_solo', default)
-                case [False, False, True, False]:
-                    tile_char = char_info.get('south_solo', default)
-                case [False, False, True, True]:
-                    tile_char = char_info.get('east_west', default)
-                case [False, True, False, False]:
-                    tile_char = char_info.get('west_solo', default)
-                case [False, True, False, True]:
-                    tile_char = char_info.get('north_west', default)
-                case [False, True, True, False]:
-                    tile_char = char_info.get('south_west', default)
-                case [False, True, True, True]:
-                    tile_char = char_info.get('west', default)
-                case [True, False, False, False]:
-                    tile_char = char_info.get('east_solo', default)
-                case [True, False, False, True]:
-                    tile_char = char_info.get('north_east', default)
-                case [True, False, True, False]:
-                    tile_char = char_info.get('south_east', default)
-                case [True, False, True, True]:
-                    tile_char = char_info.get('east', default)
-                case [True, True, False, False]:
-                    tile_char = char_info.get('north_south', default)
-                case [True, True, False, True]:
-                    tile_char = char_info.get('north', default)
-                case [True, True, True, False]:
-                    tile_char = char_info.get('south', default)
-                case [True, True, True, True]:
-                    center = char_info.get('center', None)
-                    tile_char = center if center and bool(random.getrandbits(1)) else default
-
-            tile_dark = (tile_char, tile.dark_fg, tile.dark_bg)
-            tile_light = (tile_char, tile.light_fg, tile.light_bg)
-            tile_result = (tile.walkable, tile.transparent, tile_dark, tile_light)
-            
-            landscape[x][y] = tile_result
+    left, right, up, down = neighbour_masks(tile_map)
+    case = left.astype(np.uint8) * 8 + right * 4 + up * 2 + down
+    lookup = np.array([char_info.get(name, default) if name else default for name in _VARIATION_NAMES], dtype=np.int32)
+    chars = lookup[case]
+    center = char_info.get('center', None)
+    if center:
+        surrounded = case == 15
+        chars[surrounded & (np.random.random(case.shape) < 0.5)] = center
+    landscape["dark"]["ch"][tile_map] = chars[tile_map]
+    landscape["light"]["ch"][tile_map] = chars[tile_map]
     return landscape
 
 def spawn_vegetation(tree: PlantSpecies, shrub: PlantSpecies, map: GameMap, tree_map: np.ndarray):
@@ -375,19 +365,9 @@ def generate_noise(
     height_tiles = [tile_types.water.get_array(), tile_types.floor.get_array(), tile_types.wall.get_array()]
     landscape = construct_landscape(height_limits, height_tiles, height_samples)
 
+    # Grow lakes by one tile in the 4 cardinal directions.
     lake_map: np.ndarray = landscape == tile_types.water.get_array()
-    dilated_lake_map: np.ndarray = np.zeros(shape=lake_map.shape)
-    for x in range(len(lake_map)):
-        for y in range(len(lake_map[0])):
-            if lake_map[x, y]:
-                dilated_lake_map[x, y] = 2
-                continue
-            
-            if lake_map[min(x+1, map_width-1), y] or lake_map[max(x-1, 0), y] or lake_map[x, min(y+1, map_height-1)] or lake_map[x, max(y-1, 0)]:
-                dilated_lake_map[x, y] = 2
-                continue
-    
-    landscape[dilated_lake_map.astype(bool)] = tile_types.water.get_array()
+    landscape[dilate(lake_map)] = tile_types.water.get_array()
 
     # Add variations
     landscape = replace_variations(tile_types.water, landscape, map_width, map_height)
