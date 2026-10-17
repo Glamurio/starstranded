@@ -7,7 +7,7 @@
   `modernize`. Behavior from here on includes it.
 - **Line endings:** the repo stores LF; the owner's Windows checkout is CRLF. Commits from the dev VM use
   `git -c core.autocrlf=input` so blobs stay LF and diffs stay minimal. Edits to existing files preserve CRLF.
-- **Commit identity:** `Pascal <p.kammer@satzweiss.com>` via `GIT_AUTHOR_*`/`GIT_COMMITTER_*` env vars (no git config changed).
+- **Commit identity:** Phases 0–1 committed as `Pascal <p.kammer@satzweiss.com>`; from Phase 2 on, per owner instruction, `Ryou Takeshi <ryou.takeshi@gmail.com>` (author and committer) via env vars. No git config changed, history not rewritten.
 - **Python/tcod:** developing and testing on Python 3.13 + tcod 21.2.1 (matches `pyproject.toml`; `requirements.txt` still says
   `tcod==20.1.0` — see Needs owner decision).
 - **Tests run from `src/`** (flat imports, cwd-relative assets); `tests/conftest.py` handles path/cwd/SDL dummy driver.
@@ -42,18 +42,105 @@
 | PassiveAI flees from *corpses* of other species (`units` includes dead) | read | **Needs owner decision** (same root cause as above) |
 | UI rows off-screen: message log (row 49) and "Dungeon level" (row 47) on a 45-row console; names row collides with the Hunger bar | `docs/baseline/in_game.png` | Phase 3 UI work (will place them sensibly) |
 
-## Needs owner decision
-1. **Hunger/thirst semantics (Phase 1).** Proposed: starvation/dehydration costs **1 HP per tick for any unit**; the
-   "is starving"/"severely dehydrated" messages only for the player (message fires on the tick it first reaches 0).
-2. **Corpse vs living unit on one tile.** Proposed: lookups for "the unit at x,y" for combat/bump prefer a *living* unit; corpses
-   remain visible/lootable; PassiveAI ignores corpses when choosing something to flee from. Changes behavior ⇒ your call.
-3. **`Plant.die` / tile swap:** keep (dead plant → opaque, unwalkable roots) or let the tile become walkable/transparent again?
-   Currently unreachable, so no gameplay impact until plants can be attacked.
-4. **Stairs / floors:** `generate_noise` never creates stairs, so `L` only works standing on (0,0). Phase 5 default (each floor is its own
-   World) stands unless you say otherwise; do you want stairs placed in the noise terrain at all?
-5. **`requirements.txt` pins `tcod==20.1.0`** while `pyproject.toml` needs `>=21.0.0`. Proposed: update `requirements.txt` to match pyproject.
-6. **Free actions:** pickup, mass pickup and equip/unequip take no game time. Intentional?
-7. **`Selenite`, `Sword`, `ChainMail`, fireball/lightning/confusion consumables** are defined but never spawned. Keep as future content
-   (default: keep, port them) or delete?
-8. **`CharacterCreation.PLAYER`** is one player shared across menu round-trips (state leaks if you go New Game → Esc → New Game).
-   Proposed: create a fresh player per New Game.
+## Owner decisions (delegated to Claude on 2026-10-17: "I'll leave the decisions to you … we can revisit them later")
+Each item below is **decided by Claude, revisit later**. Gameplay-tuning questions that a refactor phase should not silently
+change stay listed under "Open gameplay questions".
+1. **Hunger/thirst semantics:** as implemented in Phase 1 (1 HP per tick at 0 for any unit; one message for the player).
+2. **Corpse vs living unit on one tile:** *fixed in Phase 2.* "The unit at x,y" prefers a living unit (corpse as fallback); PassiveAI
+   no longer flees from corpses. Corpses stay visible and lootable.
+3. **`Plant.die` tile swap:** keep as is (opaque, unwalkable roots). Unreachable until plants can be attacked; revisit then.
+4. **Stairs:** no stairs in noise terrain for now; Phase 5 uses its default (each floor its own World).
+5. **`requirements.txt`:** aligned with `pyproject.toml` in Phase 2.
+6. **Free actions** (pickup, mass pickup, equip): kept free.
+7. **Unspawned content** (`Selenite`, `Sword`, `ChainMail`, confusion/fireball/lightning): kept and ported to the new data model,
+   not spawned. The three scroll-like consumables call a non-existent `take_damage`; left broken-but-unreachable and noted.
+8. **`CharacterCreation.PLAYER`:** a fresh Player per New Game (Phase 2).
+
+## Open gameplay questions (flagged, deliberately not changed)
+- `PassiveAI.seek_food` never walks toward food that is not adjacent: `if not closest_plant or not closest_food: wander()` is true
+  whenever only one of the two was found (always, since the search stops at the first hit). Rabbits only eat by chance.
+- Hungry rabbits pick a brand-new random wander target every turn (jittery movement, one pathfind per turn each).
+- A unit whose `ai` is falsy cannot die (`handle_health` requires `self.ai`); the player keeps a dummy `HostileAI` for that reason.
+- The Player's `HostileAI` exists only so it "can die" and for legacy pathfinding calls.
+
+
+# Phase 2 design plan (written before implementation)
+
+## Goals recap
+(a) immutable shared definitions instead of `deepcopy` spawning; (b) O(1) position lookups owned by `GameMap`;
+(c) remove avoidable per-call/per-frame work; keep tcod rendering working; tests stay green.
+
+## New modules
+- `config.py`: `GameConfig` (frozen dataclass) with tunables: `fov_radius`, `ai_path_margin`, etc. One instance lives on
+  `Engine.config`. Not a global-module pattern: it is passed/owned explicitly.
+- `species.py`: frozen, hashable dataclasses + registries:
+  - `UnitSpecies(key, name, sprite, corpse_sprite, mirror, color | None (=random per instance), shade_sigma | None,
+    max_hp, power, defense, radius, max_hunger, max_thirst, inventory_capacity, level_up_base, xp_given, ai: AIKind,
+    name_origin | None)` — registry `UNIT_SPECIES` (`human`, `selenite`, `rabbit`).
+  - `PlantSpecies(key, name, category TREE|SHRUB, sprite, corpse_sprite, color, max_hp, growth_cycle, blocks_movement,
+    blocks_sight, render_order, fruit: ItemKind | None)` — **procedural**: `make_tree_species(rng)` / `make_shrub_species(rng)`
+    reproduce today's constructor randomness exactly (sprite/shape names, colour group naming, 80 % fruit chance, fruit name).
+  - `ItemKind(key, object_type, species, sprite | glyph, color, shade_sigma, material, render_order, food/heal amounts,
+    equipment_type/bonuses, light_radius, …)` — registry `ITEM_KINDS` (`health_potion`, `meat`, `branch`, `dagger`,
+    `leather_armor`, `sword`, `chain_mail`, `wooden_spear`, `campfire`, and the dead scroll consumables). Fruit kinds are procedural
+    and owned by their `PlantSpecies`.
+- Glyph lookup (`glyphs(kind)`) is a cached function mapping a definition to its PUA codepoints via the existing
+  `map_codepoints`; that whole layer disappears in Phase 3, so nothing else depends on codepoints.
+
+## Instances (what an entity stores)
+`Entity`: `kind` (the definition object), `_x`, `_y`, `parent` (container: `GameMap` or `Inventory`), `name`, `attributes`,
+`color` (per-instance tint where the kind says "random"/derived), `shade`, `mirrored`, plus subtype state:
+- `Unit`: hp/max_hp (max can grow on level-up), base_power/defense, hunger/thirst, `inventory`, `equipment`, `level`, `ai`, `is_alive`.
+- `Plant`: hp, growth, `avg_cycle` (gaussian per instance), `inventory`, `ai`, `dead`.
+- `Item` subclasses: `equipped`, `is_placed`/`is_lit`, `material` override (Meat/Branch record their source).
+Static data is read through properties (`species`, `object_type`, `power_bonus`, …) so call sites keep working.
+Subclasses stay where they carry **behaviour** (`Meat`, `Fruit`, `HealthPotion`, `Dagger`, `Campfire`, `Tree`, `Animal`…);
+they are thin constructors that pick a definition. No `deepcopy` anywhere: spawning = construct + `GameMap.add_entity`.
+Per-instance randomness (tint, mirroring, plant `avg_cycle`) is rolled in `__init__`.
+
+Behaviour note: today all trees/shrubs on a floor are deepcopies of *one* `Tree()`/`Shrub()` prototype, so they already share
+species, sprite, fruit and **also `avg_cycle`**. New code: one tree species and one shrub species per floor (same as today),
+but `avg_cycle` is rolled per plant as the constructor clearly intended. Logged in CHANGELOG.
+
+## Type checks
+`hasattr` duck typing is replaced by `isinstance` (`Unit`, `Plant`, `Item`, `FoodConsumable`, `Equippable`) and a small
+`Entity.has_inventory` property. `GameMap.units/plants/items/actors` are maintained collections, not scans.
+
+## Spatial index & ownership (`GameMap` is the only mutator)
+- `GameMap._entities: dict[Entity, None]` (insertion-ordered ⇒ deterministic iteration, unlike the old `set` hashed by `id`),
+  `_by_pos: dict[(x, y), list[Entity]]`, per-kind dicts (`units`, `plants`, `items`), `actors` (entities with an AI),
+  render buckets per `RenderOrder`, and `_blocked: np.int16[w, h]` counting movement-blocking entities per tile.
+- API: `add_entity(e, x, y)` (detaches from any previous container), `remove_entity(e)`, `move_entity(e, x, y)`.
+  `Entity.x/y` are properties; assigning them while on a map routes through `move_entity`, so the index cannot go stale.
+  `blocks_movement`, `render_order` and `ai` are properties that notify the map so buckets/blocked counts/actor set stay right.
+- `entities` becomes a read-only live view (`dict.keys()`); code that mutates while iterating must copy (handled at call sites).
+- Lookups: `get_entities_at_location`, `get_unit_at_location` (living first), `can_move`, names-at-mouse, pickup/drop, plant
+  dropping, food search (ring scan over `_by_pos`) all use the index.
+
+## Back-references: what is removed, what remains (documented)
+Removed/reduced: `GameMap.world` (unused), `Entity.spawn`, per-entity codepoint fields, class-level shared state, AI-specific
+`ai` argument to pathfinding (`get_path_to(origin_entity, …)`). Remaining, by design for this phase:
+`Entity.parent` (the container that owns it), `Component.parent` (owning entity), `AI.entity`, `GameMap.engine`,
+`GameWorld.engine`. `entity.game_map`/`entity.engine` stay *derived* properties (no stored pointer). Removing `GameMap.engine`
+would mean threading the engine through every action/component call; Phase 5 replaces `GameMap` with a World/view anyway, so
+doing it twice is wasteful. Pickles stay circular but compact (pickle memoizes shared objects).
+
+## Pickling, identity, save format
+- Static definitions pickle **by registry key** (`__reduce__` → registry lookup), so a loaded game's Rabbits share the
+  process-wide `UnitSpecies("rabbit")` object. Procedural definitions (plant species, fruit kinds) pickle by value; pickle's memo
+  keeps one shared object per save.
+- Save payload: `{"version": SAVE_VERSION (=2), "engine": engine}`; `load_game` rejects anything else with a clear message.
+  Old saves do not load (CHANGELOG says so).
+- Entity identity: unchanged — the same Python object is moved, never copied. Each entity also gets a process-unique `uid`
+  (monotonic counter, persisted) for Phase 5 chunk transfers/deltas.
+
+## Performance work
+- Pathfinding: per-map cached base cost (`walkable | ~explored`), invalidated only when tiles change or exploration grows;
+  per call `cost = base + 10 * blocked` masked to passable tiles (vectorised, no entity loop). Search is cropped to a window
+  around origin/destination with a configurable margin (identical results unless the only route leaves the window).
+- FOV: `config.fov_radius`, default **80** = ceil(sqrt(69² + 39²)), i.e. the whole 70x40 map remains visible from anywhere
+  (unchanged behaviour while the camera is fixed). Phase 5 (camera centred on the player) should lower it to ~41 (half-diagonal of the view).
+- Render: iterate render buckets in order (no per-frame sort).
+- Procgen: lake dilation via array shifts; `replace_variations` vectorised (neighbour masks → 16-case lookup); vegetation via
+  `np.argwhere`. Old implementations kept in tests as reference to prove identical output.
+- AI: only `actors` are iterated per turn; food search is a ring scan over the index; `flee` gets a bounded number of tries.

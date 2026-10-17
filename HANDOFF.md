@@ -32,7 +32,7 @@ uv pip install "tcod>=21" numpy pytest pygame-ce   # (+ matplotlib only for scri
 ## Gotchas
 - **Line endings:** working tree is CRLF, repo blobs are LF. Commit with `git -c core.autocrlf=input add/commit`. Edit existing files
   preserving CRLF (python `open(p,'rb')` read-modify-write, or `tr -d '\r'` only for *reading*). New files: LF is fine.
-- **Git identity:** none configured. Use `GIT_AUTHOR_NAME=Pascal GIT_AUTHOR_EMAIL=p.kammer@satzweiss.com` (+ `GIT_COMMITTER_*`).
+- **Git identity:** none configured. Use `GIT_AUTHOR_NAME="Ryou Takeshi" GIT_AUTHOR_EMAIL=ryou.takeshi@gmail.com` (+ same for `GIT_COMMITTER_*`). Owner's instruction from Phase 2 on; earlier commits are authored as Pascal and were not rewritten.
   End commit messages with the attribution lines from the session reminder (Co-Authored-By + Claude-Session).
 - Deletion in the connected folder was approved for this session (needed by git for temp/lock files). If a stale `.git/*.lock`
   appears, `mv` it aside; don't delete anything else.
