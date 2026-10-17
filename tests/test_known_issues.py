@@ -18,11 +18,15 @@ def test_setup_game_uses_the_game_exceptions_module():
     assert issubclass(setup_game.exceptions.Impossible, Exception)
 
 
-def test_current_character_creation_player_is_created_at_import_and_shared():
-    assert setup_game.CharacterCreation.PLAYER is setup_game.CharacterCreation().PLAYER
+def test_character_creation_builds_a_fresh_player_each_time():
+    a, b = setup_game.CharacterCreation(), setup_game.CharacterCreation()
+    assert a.player is not b.player
+    a.player.set_name("Changed")
+    assert b.player.name == "Ardan"
+    assert not hasattr(setup_game.CharacterCreation, "PLAYER")
 
 
-def test_current_get_names_at_location_scans_all_entities(small_world):
+def test_get_names_at_location_lists_entities_on_the_tile(small_world):
     import render_functions
     e = small_world()
     e.game_map.visible[3, 3] = True

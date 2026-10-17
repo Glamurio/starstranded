@@ -237,10 +237,10 @@ class MainMenu(input_handlers.BaseEventHandler):
 
 class CharacterCreation(input_handlers.BaseEventHandler):
     TITLE = "What is your name?"
-    PLAYER = create_player()
     MAX_CHARS = 16
 
     def on_init(self):
+        self.player = create_player()  # a fresh player per visit (was one Player built at import and reused)
         g.sdl_window.start_text_input()
 
     def on_render(self, console: tcod.console.Console) -> None:
@@ -262,28 +262,28 @@ class CharacterCreation(input_handlers.BaseEventHandler):
         )
 
         console.print(
-            x=x  + 2, y=y + 2, text=f"{self.PLAYER.name}"
+            x=x  + 2, y=y + 2, text=f"{self.player.name}"
         )
-        if len(self.PLAYER.name) < self.MAX_CHARS - 1:
+        if len(self.player.name) < self.MAX_CHARS - 1:
             console.print(
-                x=x + len(self.PLAYER.name) + 2, y=y + 2, text=f"_"
+                x=x + len(self.player.name) + 2, y=y + 2, text=f"_"
             )
 
     def ev_textinput(self, event: tcod.event.TextInput) -> Optional[input_handlers.BaseEventHandler]:
-        name = self.PLAYER.name
+        name = self.player.name
         name += event.text
         if len(name) < self.MAX_CHARS:
-            self.PLAYER.set_name(name)
+            self.player.set_name(name)
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
         if event.sym == tcod.event.KeySym.RETURN:
             g.sdl_window.stop_text_input()
-            game_handler = input_handlers.MainGameEventHandler(new_game(self.PLAYER))
+            game_handler = input_handlers.MainGameEventHandler(new_game(self.player))
             g.handlers = [game_handler]
             return game_handler
         elif event.sym == tcod.event.KeySym.BACKSPACE:
-            name = self.PLAYER.name[:-1]
-            self.PLAYER.set_name(name)
+            name = self.player.name[:-1]
+            self.player.set_name(name)
         elif event.sym in (tcod.event.KeySym.Q, tcod.event.KeySym.ESCAPE):
             g.sdl_window.stop_text_input()
             return MainMenu()
