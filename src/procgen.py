@@ -320,6 +320,13 @@ def generate_noise(
     )
     vegetation_samples = vegetation_noise[ tcod.noise.grid(shape=(map_height, map_width), scale=0.1, origin=(0, 0))]
 
+    # Axis convention: everything downstream indexes tiles as [x, y] (width first). In tcod 21.x
+    # `grid(shape=(height, width))` yields an array shaped (width, height), which is what we need.
+    # Fail loudly if a tcod upgrade ever changes that, instead of silently transposing the world.
+    assert height_samples.shape == vegetation_samples.shape == (map_width, map_height), (
+        f"tcod.noise.grid axis order changed: got {height_samples.shape}, expected {(map_width, map_height)}"
+    )
+
     def value_range(a, low, high):
         return np.logical_and(a>low , a<=high)
 
