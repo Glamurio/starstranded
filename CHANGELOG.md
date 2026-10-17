@@ -2,6 +2,19 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Phase 3 — pygame-ce rendering and input
+- **The game window is now drawn with pygame-ce** (tcod is only used for FOV, pathfinding, noise and line drawing). Install
+  `pygame-ce` (`pip install -r requirements.txt`). The sprite sheet and font are unchanged.
+- **Resizable window with a fixed 1920x1080 logical screen:** scaled by whole-number factors when it fits, smoothly when the window
+  is smaller, with black bars; mouse clicks line up with tiles at any size.
+- **The status bars, names under the cursor and the message log are now visible** (the log and dungeon level used to sit off
+  screen). The level is shown as "Floor: N" in the side panel.
+- Potion, sword, chain mail and scroll items now use sprites instead of text characters.
+- Hover/target highlights are a translucent wash instead of inverted colours; popups dim the screen behind them.
+- **Typing `q` while entering a name no longer returns to the main menu.**
+- The game redraws only when something happens and idles at 60 FPS.
+- **Saves from earlier versions no longer load** (save format version 3).
+
 ## Phase 2 — data/instance split, spatial index, performance
 - **Saves from earlier versions no longer load** (save format version 2). The main menu reports "Failed to load save".
 - **Monsters and items no longer spawn inside walls or water** (placement now requires a walkable, unoccupied tile).

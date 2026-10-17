@@ -4,12 +4,13 @@ Status: **baseline of the untouched code** (branch `modernize`, forked from `cra
 commit). Phase 5 rewrites this file to describe the final architecture.
 Where this differs from the original task description, the code wins (see "Differences from the brief").
 
-## Current architecture (after Phase 2) — read this first
-The sections further down describe the **Phase 0 baseline**; where they disagree with this section, this section wins.
+## Current architecture (after Phase 3) — read this first
+The sections further down describe the **Phase 0 baseline** (tcod console rendering, `map_codepoints`, `g.root_console`, …);
+where they disagree with this section, this section wins.
 
 - **Definitions vs instances.** `species.py`: frozen `UnitSpecies`, `PlantSpecies`, `ItemKind` (+ `AIKind`, `PlantCategory`),
   registries `UNIT_SPECIES`/`ITEM_KINDS` for static content, `make_plant_species()`/`make_fruit_kind()` for procedural content,
-  `glyphs(kind)` (identity-cached PUA codepoints; tcod era only). Every entity has `kind`; it stores only per-instance state.
+  `kind.sprite_id` / `kind.corpse_sprite_id` (atlas ids). Every entity has `kind`; it stores only per-instance state.
   Subclasses carry behaviour only (`Player/Selenite/Animal(Unit)`, `Tree/Shrub(Plant)`, `HealthPotion/Meat/Fruit/Branch/Dagger/
   …/Campfire(Item)`).
 - **Ownership.** `GameMap(engine, landscape, entities=())` is the only mutator of positions: `add_entity`, `remove_entity`,
@@ -23,11 +24,19 @@ The sections further down describe the **Phase 0 baseline**; where they disagree
 - **Config.** `config.GameConfig` (frozen) on `Engine.config`: `fov_radius` (80), `flee_attempts` (50).
 - **Pathfinding.** `Engine.get_path_to(origin_entity, x, y, ignore_obstacles=False)`: cached base cost + `10 * blocked` overlay,
   exact tcod `Pathfinder` (same paths as before).
-- **Saves.** `{"version": SAVE_VERSION (2), "engine": Engine}` lzma-pickled, written atomically; `load_game` raises
+- **Saves.** `{"version": SAVE_VERSION (3), "engine": Engine}` lzma-pickled, written atomically; `load_game` raises
   `exceptions.IncompatibleSave` otherwise.
 - **Generation** is reproducible from `random`/`numpy` seeds; vectorised dilation/variations (`procgen.dilate`,
   `procgen.neighbour_masks`); one tree species + one shrub species per floor.
-- **Still tcod-rendered** (`g.py`, console). Phase 3 replaces rendering/input; the `char`/`glyph`/`map_codepoints` layer goes then.
+- **Rendering & input (Phase 3, pygame-ce).** `atlas.py` `SpriteAtlas` (Urizen sheet as white alpha mask; cached tinted/flipped
+  variants; sprite id = row*50+col), `ui.py` `Font` (CP437 sheet) + `Canvas` (24 px cell grid: print/frame/bar/sprite/highlight/dim),
+  `display.py` `Display` (1920x1080 logical surface, integer/fractional scale + letterbox, pixel->cell mapping, event polling),
+  `events.py` (internal events, `Key/Mod/MouseButton`, `EventDispatch`, `translate`), `g.py` (`g.init()`, `g.draw(handler)`,
+  `g.render(handler)`, handler stack `g.handlers`, `g.canvas`, `g.display`), `main.py` (`run()` loop: redraw on events, 60 FPS).
+  Entities expose `sprite_id` and `flipped`; tiles carry `(sprite, flip, fg, bg)` for `light`/`dark`. `GameMap.render(canvas, origin)`
+  batches terrain; `Engine.render(canvas)` adds panels. Handlers get cell-based events and draw on a `Canvas` (`on_render(canvas)`).
+  Tests init the window headlessly in `conftest` (`g.init(headless=True)`); `tests/render_helpers.py` inspects drawn pixels.
+  tcod remains only for FOV, `tcod.path`, noise and `bresenham` (`test_no_tcod_rendering` enforces it).
 
 ## Differences from the brief (verified)
 | Brief said | Code says |
