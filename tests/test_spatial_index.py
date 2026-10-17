@@ -31,11 +31,12 @@ def test_flag_changes_update_blocked_buckets_and_actors(small_world):
     e = small_world()
     m = e.game_map
     a = Animal(); a.place(2, 2, m)
-    assert a in m.actors and a in m._buckets[RenderOrder.UNIT]
+    chunk = m.chunk_of(a)
+    assert a in m.actors and a in chunk.buckets[RenderOrder.UNIT]
     a.hp = 0
     a.die(e.player)
     assert a not in m.actors
-    assert a in m._buckets[RenderOrder.CORPSE] and not m.is_blocked(2, 2)
+    assert a in chunk.buckets[RenderOrder.CORPSE] and not m.is_blocked(2, 2)
     assert_index_consistent(m)
 
 

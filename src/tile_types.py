@@ -82,6 +82,9 @@ class Tile(object):
 # SHROUD represents unexplored, unseen tiles
 SHROUD = np.array((NO_SPRITE, False, (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
+# VOID is what lies outside a bounded map (and fills the unused part of its chunk): nothing to walk on or see through.
+VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist()), dtype=tile_dt)
+
 floor = Tile(
     object_type="Floor",
     walkable=True,

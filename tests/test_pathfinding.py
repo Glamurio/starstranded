@@ -112,16 +112,21 @@ def _old_get_path_to(engine, origin, dest_x, dest_y, ignore_obstacles=False):
     return [tuple(p) for p in pf.path_to((dest_x, dest_y))[1:].tolist()]
 
 
-def test_new_pathfinding_returns_exactly_the_old_paths():
+def test_new_pathfinding_returns_exactly_the_old_paths(small_world):
+    """On a bounded 70x40 map with an unlimited search radius the window-based search equals the old whole-map one."""
+    import dataclasses
     import random
     import numpy as np
-    import setup_game
     from components.unit import Animal
     for seed in range(3):
         random.seed(seed)
         np.random.seed(seed)
-        e = setup_game.new_game(setup_game.create_player())
+        e = small_world(70, 40)
+        e.config = dataclasses.replace(e.config, path_radius=100)
         m = e.game_map
+        walls = np.random.rand(70, 40) < 0.3
+        walls[1, 1] = False
+        m.tiles[walls] = tile_types.wall.get_array()
         m.explored[:] = np.random.rand(*m.explored.shape) < 0.8
         for _ in range(40):
             x, y = random.randrange(m.width), random.randrange(m.height)
@@ -136,12 +141,24 @@ def test_new_pathfinding_returns_exactly_the_old_paths():
                     e, origin, *dest, ignore_obstacles=ignore)
 
 
-def test_base_cost_cache_follows_terrain_and_exploration_changes(small_world):
+def test_paths_follow_terrain_and_exploration_changes(small_world):
     e = small_world()
     m = e.game_map
-    first = m.path_base_cost()
-    assert m.path_base_cost() is first  # cached
-    m.tiles[3, 3] = tile_types.wall.get_array()
-    assert m.path_base_cost()[3, 3] == 0
-    m.explored[3, 3] = False
-    assert m.path_base_cost()[3, 3] == 1  # unexplored counts as walkable
+    wall_line(e, 4, 0, 9)
+    assert e.get_path_to(e.player, 8, 1) == []  # a known wall blocks
+    m.explored[4, 5] = False
+    path = e.get_path_to(e.player, 8, 1)
+    assert (4, 5) in path  # an unexplored gap counts as walkable
+    window_before = m.window.rebuilds
+    m.modify_tile(4, 5, walkable=True)
+    m.explored[4, 5] = True
+    assert (4, 5) in e.get_path_to(e.player, 8, 1)
+    assert m.window.rebuilds == window_before + 1  # the terrain change invalidated the stitched window
+
+
+def test_destinations_beyond_the_search_radius_get_no_path(small_world):
+    import dataclasses
+    e = small_world(70, 40)
+    e.config = dataclasses.replace(e.config, path_radius=10)
+    assert e.get_path_to(e.player, 11, 1) != []
+    assert e.get_path_to(e.player, 12, 1) == []

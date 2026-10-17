@@ -64,6 +64,23 @@ WAIT_KEYS = {
     Key.CLEAR,
 }
 
+def screen_to_world(engine: Engine, position) -> Optional[Tuple[int, int]]:
+    """World tile under screen cell `position`, or None outside the map viewport."""
+    camera = engine.camera
+    sx, sy = int(position[0]), int(position[1])
+    if not camera.on_screen(sx, sy):
+        return None
+    return camera.to_world(sx, sy)
+
+
+def highlight_world(engine: Engine, canvas: Canvas, x: int, y: int, wash=color.white) -> None:
+    """Highlight world tile (x, y) if it is in the map viewport."""
+    camera = engine.camera
+    sx, sy = camera.to_screen(x, y)
+    if camera.on_screen(sx, sy):
+        canvas.highlight(sx, sy, wash)
+
+
 def draw_entity_icon(canvas: Canvas, x: int, y: int, entity: Entity) -> None:
     """Draw the entity's sprite, tinted with its own colour, into cell (x, y) (menus use this as a list icon)."""
     canvas.sprite(x, y, entity.sprite_id, entity.color, entity.flipped)
@@ -191,9 +208,9 @@ class EventHandler(BaseEventHandler):
         return True
 
     def ev_mousemotion(self, event: events.MouseMotion) -> None:
-        tx, ty = int(event.position.x), int(event.position.y)
-        if self.engine.game_map.in_bounds(tx, ty):
-            self.engine.mouse_location = Point(tx, ty)
+        world_xy = screen_to_world(self.engine, event.position)
+        if world_xy is not None and self.engine.game_map.in_bounds(*world_xy):
+            self.engine.mouse_location = Point(*world_xy)
 
     def on_render(self, canvas: Canvas) -> None:
         self.engine.render(canvas)
@@ -249,10 +266,10 @@ class PickupHandler(AskUserEventHandler):
         tile = path.pop(0) if path else (player.x, player.y)
         if distance <= 1:
             self.target_location = Point(mouse_x, mouse_y)
-            canvas.highlight(mouse_x, mouse_y, color.white)
+            highlight_world(self.engine, canvas, mouse_x, mouse_y, color.white)
         else:
             self.target_location = Point(tile[0], tile[1])
-            canvas.highlight(tile[0], tile[1], color.white)
+            highlight_world(self.engine, canvas, tile[0], tile[1], color.white)
 
     def ev_mousebuttondown(
         self, event: events.MouseButtonDown
@@ -290,7 +307,7 @@ class CharacterScreenEventHandler(AskUserEventHandler):
     def on_render(self, canvas: Canvas) -> None:
         super().on_render(canvas)
 
-        if self.engine.player.x <= 30:
+        if self.engine.camera.to_screen(self.engine.player.x, self.engine.player.y)[0] <= 30:
             x = 40
         else:
             x = 0
@@ -768,8 +785,9 @@ class SelectIndexHandler(AskUserEventHandler):
             x += dest_x * modifier
             y += dest_y * modifier
             # Clamp the cursor index to the map size.
-            x = max(0, min(x, self.engine.game_map.width - 1))
-            y = max(0, min(y, self.engine.game_map.height - 1))
+            camera = self.engine.camera  # the cursor stays on screen
+            x = max(camera.x0, min(x, camera.x0 + camera.width - 1))
+            y = max(camera.y0, min(y, camera.y0 + camera.height - 1))
             self.engine.mouse_location = x, y
             return None
         elif key in CONFIRM_KEYS:
@@ -780,9 +798,10 @@ class SelectIndexHandler(AskUserEventHandler):
         self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
         """Left click confirms a selection."""
-        if self.engine.game_map.in_bounds(int(event.position.x), int(event.position.y)):
+        world_xy = screen_to_world(self.engine, event.position)
+        if world_xy is not None and self.engine.game_map.in_bounds(*world_xy):
             if event.button == 1:
-                return self.on_index_selected(int(event.position.x), int(event.position.y))
+                return self.on_index_selected(*world_xy)
         return super().ev_mousebuttondown(event)
 
     def on_index_selected(self, x: int, y: int) -> Optional[ActionOrHandler]:
@@ -842,7 +861,7 @@ class AreaRangedAttackHandler(SelectIndexHandler):
         """Highlight the tile under the cursor."""
         super().on_render(canvas)
 
-        x, y = self.engine.mouse_location
+        x, y = self.engine.camera.to_screen(*self.engine.mouse_location)
 
         # Draw a rectangle around the targeted area, so the player can see the affected tiles.
         frame_x, frame_y, width, height = area_frame_rect(x, y, self.radius)
@@ -873,7 +892,7 @@ class MainGameEventHandler(EventHandler):
             mouse_x, mouse_y = self.engine.mouse_location
             path: List[Tuple] = self.engine.get_path_to(player, mouse_x, mouse_y)
             for x, y in path:
-                canvas.highlight(x, y, color.white)
+                highlight_world(self.engine, canvas, x, y, color.white)
 
     def ev_mousemotion(self, event: events.MouseMotion) -> None:
         super().ev_mousemotion(event)
@@ -1036,7 +1055,7 @@ class PlaceConstructableHandler(SelectIndexHandler):
             for dy in range(-1, 2):
                 tx, ty = px + dx, py + dy
                 if self.engine.game_map.in_bounds(tx, ty):
-                    canvas.highlight(tx, ty, color.menu_text)
+                    highlight_world(self.engine, canvas, tx, ty, color.menu_text)
 
     def on_index_selected(self, x: int, y: int) -> Optional[ActionOrHandler]:
         return actions.PlaceConstructableAction(self.engine.player, self.item, x, y)

@@ -58,11 +58,13 @@ class Plant(Entity):
 
     def on_added_to_map(self, game_map: GameMap) -> None:
         """Plants shape their tile: blocking/opaque flags, and the plant sprite in the remembered (dark) view."""
-        tile = game_map.tiles[self.x, self.y]
-        tile['transparent'] = not self.blocks_sight
-        tile['walkable'] = not self.blocks_movement
-        tile['dark'] = (self.sprite_id, self.flipped, tile['dark'][2], tile['dark'][3])
-        game_map.terrain_changed()
+        dark = game_map.tile_at(self.x, self.y)['dark']
+        game_map.modify_tile(
+            self.x, self.y,
+            transparent=not self.blocks_sight,
+            walkable=not self.blocks_movement,
+            dark=(self.sprite_id, self.flipped, dark['fg'], dark['bg']),
+        )
 
     def handle_growth(self):
         """
@@ -108,11 +110,7 @@ class Plant(Entity):
         self.blocks_sight = False
         self.ai = None
         self.render_order = RenderOrder.CORPSE
-        tile = self.parent.tiles[self.x, self.y]
-        tile['transparent'] = False
-        tile['walkable'] = False
-        tile['dark'] = roots.dark
-        self.parent.terrain_changed()
+        self.parent.modify_tile(self.x, self.y, transparent=False, walkable=False, dark=roots.dark)
 
 
 class Tree(Plant):

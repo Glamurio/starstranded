@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
-    if not game_map.in_bounds(x, y) or not game_map.visible[x, y]:
+    if not game_map.is_visible(x, y):
         return ""
     # Topmost first: the order the stack is seen in (hidden clutter is listed too).
     names = ", ".join(entity.get_title() for entity in game_map.stack_at(x, y))

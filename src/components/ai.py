@@ -45,10 +45,12 @@ class BaseAI(Action):
 
         Tries `config.flee_attempts` random tiles (the old loop could spin forever); if none qualifies, wanders.
         """
+        world = self.engine.game_map
+        reach = 2 * distance
         for _ in range(self.engine.config.flee_attempts):
-            dx = random.randint(0, self.engine.game_map.width - 1)
-            dy = random.randint(0, self.engine.game_map.height - 1)
-            if self.engine.game_map.tiles["walkable"][dx, dy] and self.engine.distance((dx, dy), (entity.x, entity.y)) >= distance:
+            dx = self.entity.x + random.randint(-reach, reach)
+            dy = self.entity.y + random.randint(-reach, reach)
+            if world.is_walkable(dx, dy) and self.engine.distance((dx, dy), (entity.x, entity.y)) >= distance:
                 self.path = self.get_path(dx, dy)
 
                 player = self.engine.player
@@ -129,18 +131,23 @@ class BaseAI(Action):
             )
         return WaitAction(self.entity).perform()
 
+    WANDER_RADIUS = 12
+
     def get_random_tile(self, walkable: bool = False) -> Tuple[int, int]:
         """
-        Choose a random tile within the map coordinates.
-        
-        Supply `walkable` to check if tile should be walkable.
+        Choose a random loaded tile within `WANDER_RADIUS` of the entity (the world has no edges to pick between).
+
+        Supply `walkable` to check if tile should be walkable. Gives up after `config.flee_attempts` tries and
+        returns the entity's own position (the old loop over the whole map could spin forever).
         """
-        tiles = self.engine.game_map.tiles["walkable"] if walkable else self.engine.game_map.tiles
-        while True:
-            x = random.randint(0, self.engine.game_map.width - 1)
-            y = random.randint(0, self.engine.game_map.height - 1)
-            if tiles[x, y]:
+        world = self.engine.game_map
+        r = self.WANDER_RADIUS
+        for _ in range(self.engine.config.flee_attempts):
+            x = self.entity.x + random.randint(-r, r)
+            y = self.entity.y + random.randint(-r, r)
+            if world.is_walkable(x, y) if walkable else world.in_bounds(x, y):
                 return x, y
+        return self.entity.x, self.entity.y
 
 class ConfusedEnemy(BaseAI):
     """
@@ -194,12 +201,14 @@ class PassiveAI(BaseAI):
             dest_x, dest_y = self.path[-1]
             return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
 
-        # Run away from the closest unit that's not own species
-        for unit in self.engine.game_map.units:
-            if unit.species == self.entity.species or not unit.is_alive:  # corpses are not a threat
-                continue
-            
-            if self.engine.distance((self.entity.x, self.entity.y), (unit.x, unit.y)) <= 3:
+        # Run away from the closest unit (within 3 tiles) that's not own species
+        world = self.engine.game_map
+        for radius in range(1, 4):
+            for unit in world.entities_on_ring(self.entity.x, self.entity.y, radius):
+                if unit.category is not EntityCategory.UNIT:
+                    continue
+                if unit.species == self.entity.species or not unit.is_alive:  # corpses are not a threat
+                    continue
                 return self.flee(unit, self.entity.radius)
 
         action = WaitAction(self.entity).perform() if bool(random.getrandbits(1)) else self.wander()
@@ -221,7 +230,7 @@ class HostileAI(BaseAI):
         dy = target.y - self.entity.y
         distance = max(abs(dx), abs(dy))  # Chebyshev distance
 
-        if self.engine.game_map.visible[self.entity.x, self.entity.y]:
+        if self.engine.game_map.is_visible(self.entity.x, self.entity.y):
             if distance <= 1:
                 # Attack at the player's ABSOLUTE position
                 return MeleeAction(self.entity, target.x, target.y).perform()

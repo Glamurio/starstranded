@@ -1,4 +1,4 @@
-"""FOV radius is configurable; the default keeps the whole 70x40 map visible in open terrain."""
+"""FOV radius is configurable; the default covers the whole 70x40 viewport around the (centred) player."""
 import dataclasses
 
 import numpy as np
@@ -6,15 +6,16 @@ import numpy as np
 from config import DEFAULT_CONFIG, GameConfig
 
 
-def test_default_radius_covers_the_whole_map_diagonal():
-    assert DEFAULT_CONFIG.fov_radius >= int(np.ceil(np.hypot(69, 39)))
+def test_default_radius_covers_the_viewport_half_diagonal():
+    assert int(np.ceil(np.hypot(35, 20))) <= DEFAULT_CONFIG.fov_radius <= 45
 
 
-def test_default_fov_sees_the_far_corner_of_an_open_70x40_map(small_world):
+def test_default_fov_from_the_centre_sees_every_corner_of_an_open_70x40_map(small_world):
     e = small_world(width=70, height=40)
-    e.player.place(0, 0)
+    e.player.place(35, 20)
     e.update_fov()
-    assert e.game_map.visible[69, 39] and e.game_map.visible.all()
+    v = e.game_map.visible
+    assert v[0, 0] and v[69, 0] and v[0, 39] and v[69, 39] and v.all()
 
 
 def test_smaller_radius_limits_vision(small_world):

@@ -8,10 +8,12 @@ from typing import Dict, Iterable, Iterator, KeysView, List, Optional, Tuple, TY
 import numpy as np  # type: ignore
 
 from atlas import TILE
+from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chebyshev, chunk_key, keys_around
+from config import DEFAULT_CONFIG, GameConfig
 from entity import EntityCategory, Item, SpatialContainer
-from config import DEFAULT_CONFIG
 from render_order import GROUND_LAYERS, LAYERS, MAX_GROUND_OBJECTS_PER_TILE, RenderOrder
 import tile_types
+from view import Camera, Rect, ViewWindow
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -30,174 +32,381 @@ def distance(p1, p2, diag=True, euclidean=False):
     return abs(p1.x - p2.x) + abs(p1.y - p2.y)
 
 
-class GameMap(SpatialContainer):
-    """One map: terrain arrays plus the entities on it.
+class ChunkSource:
+    """Where a World's chunks come from. `generate` makes the terrain; `populate` adds the generated entities."""
 
-    The map is the only place that adds, moves or removes entities, and it keeps these indexes in sync:
-    `_by_pos` ((x, y) -> entities, insertion ordered), per-category collections (`units`, `plants`, `items`),
-    `actors` (entities with an AI), render buckets per `RenderOrder`, and `blocked` (count of movement-blocking
-    entities per tile). Iteration order is insertion order, so it is deterministic.
+    bounds: Optional[Rect] = None
+    """For bounded maps: the (x0, y0, width, height) of the map; None for an unbounded world."""
+
+    def can_load(self, key: ChunkKey) -> bool:
+        return True
+
+    def mask(self, key: ChunkKey):
+        """Which tiles of the chunk belong to the map (True, or a bool array for partial chunks)."""
+        return True
+
+    def generate(self, world: World, key: ChunkKey) -> Chunk:
+        raise NotImplementedError
+
+    def populate(self, world: World, chunk: Chunk) -> None:
+        """Add the chunk's generated entities (called once, right after `generate`, with the chunk registered)."""
+
+
+class FixedLandscape(ChunkSource):
+    """A bounded map: one landscape array placed at world (0, 0); it must fit chunk (0, 0). Tests and the benchmark
+    scenario use it; the rest of chunk (0, 0) is void (unwalkable, opaque, outside the map)."""
+
+    def __init__(self, landscape: np.ndarray):
+        width, height = landscape.shape
+        assert width <= CHUNK_W and height <= CHUNK_H, f"a fixed landscape must fit one chunk, got {landscape.shape}"
+        self.landscape = landscape
+        self.bounds = (0, 0, width, height)
+        self._mask = np.zeros((CHUNK_W, CHUNK_H), dtype=bool, order="F")
+        self._mask[:width, :height] = True
+
+    def can_load(self, key: ChunkKey) -> bool:
+        return key == (0, 0)
+
+    def mask(self, key: ChunkKey):
+        return self._mask
+
+    def generate(self, world: World, key: ChunkKey) -> Chunk:
+        tiles = np.full((CHUNK_W, CHUNK_H), fill_value=tile_types.VOID, dtype=tile_types.tile_dt, order="F")
+        width, height = self.landscape.shape
+        tiles[:width, :height] = self.landscape
+        return Chunk(key, tiles)
+
+
+class _LoadedView:
+    """Live, read-only collection over one per-chunk index of every loaded chunk (iteration snapshots each chunk)."""
+
+    def __init__(self, world: World, getter):
+        self._world = world
+        self._getter = getter
+
+    def __iter__(self) -> Iterator[Entity]:
+        for chunk in list(self._world.chunks.values()):
+            yield from list(self._getter(chunk))
+
+    def __len__(self) -> int:
+        return sum(len(self._getter(chunk)) for chunk in self._world.chunks.values())
+
+    def __contains__(self, entity) -> bool:
+        chunk = self._world.chunk_of(entity)
+        return chunk is not None and entity in self._getter(chunk)
+
+    def __bool__(self) -> bool:
+        return any(self._getter(chunk) for chunk in self._world.chunks.values())
+
+
+class World(SpatialContainer):
+    """One floor: the loaded chunks, the entities on them (world coordinates) and the view window.
+
+    The World is the only place that adds, moves or removes map entities (`Entity.parent` is the World). It keeps
+    `_by_pos` ((x, y) -> entities, insertion ordered) for every loaded entity and routes the per-chunk index
+    (categories, actors, render layers, `blocked`) to the chunk under the entity. An entity that walks over a
+    chunk border is re-indexed in the other chunk: the same object, nothing is copied.
+
+    Chunks are loaded around the player (`update_tiers`); a chunk that is not loaded does not exist for queries
+    (`in_bounds` is False there), so nothing can step into it. Unloaded chunks that were generated are kept as
+    serialised bytes in `stored` (and written to disk by the save code).
     """
 
-    def __init__(self, engine: Engine, landscape: np.ndarray, entities: Iterable[Entity] = ()):
+    def __init__(self, engine: Engine, source: ChunkSource, *, floor: int = 1, seed: int = 0):
         self.engine = engine
-        self.tiles = landscape
-        self.width, self.height = landscape.shape
-
-        self.visible = np.full(
-            (self.width, self.height), fill_value=False, order="F"
-        )  # Tiles the player can currently see
-        self.explored = np.full(
-            (self.width, self.height), fill_value=False, order="F"
-        )  # Tiles the player has seen before
-
-        self.downstairs_location = (0, 0)
-
-        self._entities: Dict[Entity, None] = {}
+        self.source = source
+        self.floor = floor
+        self.seed = seed
+        self.bounds: Optional[Rect] = source.bounds
+        self.chunks: Dict[ChunkKey, Chunk] = {}
+        self.stored: Dict[ChunkKey, bytes] = {}
         self._by_pos: Dict[Tuple[int, int], List[Entity]] = {}
-        self._by_category: Dict[EntityCategory, Dict[Entity, None]] = {c: {} for c in EntityCategory}
-        self._actors: Dict[Entity, None] = {}
-        self._buckets: Dict[RenderOrder, Dict[Entity, None]] = {r: {} for r in RenderOrder}
-        self.blocked = np.zeros((self.width, self.height), dtype=np.int16, order="F")
-        self.terrain_version = 0  # bumped whenever tile walkability/transparency changes (pathfinding cache)
-
-        for entity in entities:
-            self.add_entity(entity, entity.x, entity.y)
+        self.window = ViewWindow(self)
+        self.downstairs_location: Optional[Tuple[int, int]] = None
+        self.loads = 0
+        self.unloads = 0
 
     @property
-    def game_map(self) -> GameMap:
+    def game_map(self) -> World:
         return self
 
-    # ── collections (live, read-only views) ───────────────────────────────────────────
     @property
-    def entities(self) -> KeysView[Entity]:
-        return self._entities.keys()
+    def config(self) -> GameConfig:
+        return getattr(self.engine, "config", DEFAULT_CONFIG)
+
+    # ── chunks ─────────────────────────────────────────────────────────────────────
+    def chunk_of(self, entity: Entity) -> Optional[Chunk]:
+        if entity.parent is not self:
+            return None
+        return self.chunks.get(chunk_key(entity.x, entity.y))
+
+    def chunk_mask(self, key: ChunkKey):
+        return self.source.mask(key)
+
+    def center_key(self) -> ChunkKey:
+        """The chunk the view window and the tiers are centred on: the player's, if the player is on this world."""
+        player = getattr(self.engine, "player", None)
+        if player is not None and player.parent is self:
+            return chunk_key(player.x, player.y)
+        return getattr(self, "_center", (0, 0))
+
+    def load_chunk(self, key: ChunkKey) -> Optional[Chunk]:
+        """Make chunk `key` resident: from the store if it was generated before, otherwise generate it."""
+        chunk = self.chunks.get(key)
+        if chunk is not None or not self.source.can_load(key):
+            return chunk
+        blob = self.stored.pop(key, None)
+        if blob is not None:
+            import savegame
+            savegame.restore_chunk(self, blob)
+            chunk = self.chunks[key]
+        else:
+            chunk = self.source.generate(self, key)
+            self.chunks[key] = chunk
+            self.source.populate(self, chunk)
+        self.loads += 1
+        return chunk
+
+    def unload_chunk(self, key: ChunkKey) -> None:
+        """Serialise chunk `key` into `stored` and drop it with all its entities (the player never is)."""
+        chunk = self.chunks.get(key)
+        if chunk is None:
+            return
+        player = getattr(self.engine, "player", None)
+        assert player is None or player not in chunk.entities, "the player's chunk cannot be unloaded"
+        import savegame
+        self.stored[key] = savegame.serialize_chunk(self, chunk)
+        for entity in list(chunk.entities):
+            self._drop_position(entity)
+            entity.parent = None
+        del self.chunks[key]
+        self.unloads += 1
+
+    def update_tiers(self) -> None:
+        """Load every chunk within `near_radius` of the centre; unload those beyond `unload_radius`."""
+        config = self.config
+        center = self.center_key()
+        self._center = center
+        for key in keys_around(center, config.near_radius):
+            self.load_chunk(key)
+        unload_radius = max(config.unload_radius, config.near_radius)
+        for key in [k for k in self.chunks if chebyshev(k, center) > unload_radius]:
+            self.unload_chunk(key)
+
+    def chunks_in_rect(self, rect: Rect) -> List[Chunk]:
+        x0, y0, width, height = rect
+        found = []
+        for ky in range(y0 // CHUNK_H, (y0 + height - 1) // CHUNK_H + 1):
+            for kx in range(x0 // CHUNK_W, (x0 + width - 1) // CHUNK_W + 1):
+                chunk = self.chunks.get((kx, ky))
+                if chunk is not None:
+                    found.append(chunk)
+        return found
+
+    # ── terrain ────────────────────────────────────────────────────────────────────
+    def in_bounds(self, x: int, y: int) -> bool:
+        """True if (x, y) is a tile of a loaded chunk (and inside the map, for bounded maps)."""
+        if self.bounds is not None:
+            bx, by, bw, bh = self.bounds
+            if not (bx <= x < bx + bw and by <= y < by + bh):
+                return False
+        return chunk_key(x, y) in self.chunks
+
+    def tile_at(self, x: int, y: int):
+        """The tile record at (x, y) (a copy); None if the tile is not loaded."""
+        if not self.in_bounds(x, y):
+            return None
+        chunk = self.chunks[chunk_key(x, y)]
+        return chunk.tiles[x - chunk.x0, y - chunk.y0].copy()
+
+    def is_walkable(self, x: int, y: int) -> bool:
+        if not self.in_bounds(x, y):
+            return False
+        chunk = self.chunks[chunk_key(x, y)]
+        return bool(chunk.tiles["walkable"][x - chunk.x0, y - chunk.y0])
+
+    def is_transparent(self, x: int, y: int) -> bool:
+        if not self.in_bounds(x, y):
+            return False
+        chunk = self.chunks[chunk_key(x, y)]
+        return bool(chunk.tiles["transparent"][x - chunk.x0, y - chunk.y0])
+
+    def is_explored(self, x: int, y: int) -> bool:
+        if not self.in_bounds(x, y):
+            return False
+        chunk = self.chunks[chunk_key(x, y)]
+        return bool(chunk.explored[x - chunk.x0, y - chunk.y0])
+
+    def is_visible(self, x: int, y: int) -> bool:
+        return self.in_bounds(x, y) and self.window.ensure().is_visible(x, y)
+
+    def is_blocked(self, x: int, y: int) -> bool:
+        """True if a movement-blocking entity stands on (x, y)."""
+        chunk = self.chunks.get(chunk_key(x, y))
+        return bool(chunk.blocked[x - chunk.x0, y - chunk.y0]) if chunk is not None else False
+
+    def modify_tile(self, x: int, y: int, **fields) -> None:
+        """Change fields of the tile at (x, y) (e.g. `walkable=False`, `dark=...`); invalidates the view window."""
+        chunk = self.chunks[chunk_key(x, y)]
+        record = chunk.tiles[x - chunk.x0, y - chunk.y0]
+        for name, value in fields.items():
+            record[name] = value
+        chunk.tiles[x - chunk.x0, y - chunk.y0] = record
+        chunk.terrain_version += 1
+
+    def set_tile(self, x: int, y: int, tile: np.ndarray) -> None:
+        chunk = self.chunks[chunk_key(x, y)]
+        chunk.tiles[x - chunk.x0, y - chunk.y0] = tile
+        chunk.terrain_version += 1
+
+    def terrain_changed(self) -> None:
+        """Call after mutating chunk terrain arrays directly (marks every loaded chunk changed)."""
+        for chunk in self.chunks.values():
+            chunk.terrain_version += 1
+
+    def region(self, field: str, rect: Rect, fill=None) -> np.ndarray:
+        """A world rectangle of one per-tile field, assembled from the loaded chunks.
+
+        `field` is a tile field ("walkable", "transparent", "light", "dark") or "explored" / "blocked";
+        tiles of chunks that are not loaded get `fill` (default: False / 0 / SHROUD).
+        """
+        x0, y0, width, height = rect
+        if field in ("explored", "blocked"):
+            dtype = bool if field == "explored" else np.int16
+        else:
+            dtype = tile_types.tile_dt[field]
+        if fill is None:
+            fill = tile_types.SHROUD if field in ("light", "dark") else 0
+        out = np.full((width, height), fill_value=fill, dtype=dtype, order="F")
+        for chunk in self.chunks_in_rect(rect):
+            ix0, iy0 = max(x0, chunk.x0), max(y0, chunk.y0)
+            ix1, iy1 = min(x0 + width, chunk.x0 + CHUNK_W), min(y0 + height, chunk.y0 + CHUNK_H)
+            source = getattr(chunk, field) if field in ("explored", "blocked") else chunk.tiles[field]
+            out[ix0 - x0:ix1 - x0, iy0 - y0:iy1 - y0] = source[ix0 - chunk.x0:ix1 - chunk.x0, iy0 - chunk.y0:iy1 - chunk.y0]
+        return out
+
+    def mark_explored(self) -> None:
+        """`explored |= visible` for every loaded chunk in the view window."""
+        window = self.window
+        ox, oy = window.origin
+        for chunk in self.chunks_in_rect(window.rect):
+            sx = slice(chunk.x0 - ox, chunk.x0 - ox + CHUNK_W)
+            sy = slice(chunk.y0 - oy, chunk.y0 - oy + CHUNK_H)
+            chunk.explored |= window.visible[sx, sy]
+
+    # ── collections (live, read-only views over the loaded chunks) ───────────────────
+    @property
+    def entities(self) -> _LoadedView:
+        return _LoadedView(self, lambda chunk: chunk.entities)
 
     @property
-    def units(self) -> KeysView[Unit]:
-        """All units on this map, living and dead."""
-        return self._by_category[EntityCategory.UNIT].keys()
+    def units(self) -> _LoadedView:
+        """All units on loaded chunks, living and dead."""
+        return _LoadedView(self, lambda chunk: chunk.by_category[EntityCategory.UNIT])
 
     @property
-    def plants(self) -> KeysView[Plant]:
-        return self._by_category[EntityCategory.PLANT].keys()
+    def plants(self) -> _LoadedView:
+        return _LoadedView(self, lambda chunk: chunk.by_category[EntityCategory.PLANT])
 
     @property
-    def items(self) -> KeysView[Item]:
-        return self._by_category[EntityCategory.ITEM].keys()
+    def items(self) -> _LoadedView:
+        return _LoadedView(self, lambda chunk: chunk.by_category[EntityCategory.ITEM])
 
     @property
-    def actors(self) -> KeysView[Entity]:
+    def actors(self) -> _LoadedView:
         """Entities that currently have an AI."""
-        return self._actors.keys()
+        return _LoadedView(self, lambda chunk: chunk.actors)
 
     def entities_in_render_order(self) -> Iterator[Entity]:
+        chunks = list(self.chunks.values())
         for order in LAYERS:
-            yield from self._buckets[order]
+            for chunk in chunks:
+                yield from chunk.buckets[order]
 
     def stack_at(self, x: int, y: int) -> List[Entity]:
         """Entities on a tile, topmost layer first (the order you would see them in); newer arrivals first within a layer."""
         here = self._by_pos.get((x, y), ())
         return sorted(reversed(here), key=lambda entity: -entity.render_order.value)
 
-    def hidden_ground_counts(self) -> Dict[Tuple[int, int], int]:
-        """With the clutter safeguard on: `{(x, y): number of hidden ground objects}` for visible tiles piled too high."""
-        config = getattr(self.engine, "config", DEFAULT_CONFIG)
-        if not config.clutter_safeguard:
+    def hidden_ground_counts(self, rect: Optional[Rect] = None) -> Dict[Tuple[int, int], int]:
+        """With the clutter safeguard on: `{(x, y): number of hidden ground objects}` for visible tiles piled too high
+        (within `rect`, if given)."""
+        if not self.config.clutter_safeguard:
             return {}
-        visible = self.visible
+        chunks = self.chunks_in_rect(rect) if rect is not None else list(self.chunks.values())
+        window = self.window.ensure()
         counts: Dict[Tuple[int, int], int] = {}
-        for order in GROUND_LAYERS:
-            for entity in self._buckets[order]:
-                if visible[entity.x, entity.y]:
+        for chunk in chunks:
+            for order in GROUND_LAYERS:
+                for entity in chunk.buckets[order]:
                     position = (entity.x, entity.y)
-                    counts[position] = counts.get(position, 0) + 1
+                    if rect is not None and not (rect[0] <= position[0] < rect[0] + rect[2] and rect[1] <= position[1] < rect[1] + rect[3]):
+                        continue
+                    if window.is_visible(*position):
+                        counts[position] = counts.get(position, 0) + 1
         return {position: n - MAX_GROUND_OBJECTS_PER_TILE for position, n in counts.items() if n > MAX_GROUND_OBJECTS_PER_TILE}
 
     # ── mutation API ──────────────────────────────────────────────────────────────
     def add_entity(self, entity: Entity, x: int, y: int) -> None:
-        """Put `entity` on this map at (x, y), detaching it from any previous container."""
+        """Put `entity` on this world at (x, y), detaching it from any previous container. The chunk must be loaded."""
         if entity.parent is self:
             self.move_entity(entity, x, y)
             return
+        chunk = self.chunks.get(chunk_key(x, y))
+        if chunk is None:
+            raise ValueError(f"cannot place {entity!r} at {(x, y)}: chunk {chunk_key(x, y)} is not loaded")
         if entity.parent is not None:
             entity.parent.remove_entity(entity)
         entity.parent = self
         entity._x, entity._y = x, y
-        self._entities[entity] = None
         self._by_pos.setdefault((x, y), []).append(entity)
-        self._by_category[entity.category][entity] = None
-        self._buckets[entity.render_order][entity] = None
-        if entity.ai:
-            self._actors[entity] = None
-        if entity.blocks_movement and self.in_bounds(x, y):
-            self.blocked[x, y] += 1
+        chunk.index(entity)
         entity.on_added_to_map(self)
 
     def remove_entity(self, entity: Entity) -> None:
-        """Take `entity` off this map (no-op if it is not here). Its `parent` becomes None."""
-        if entity not in self._entities:
+        """Take `entity` off this world (no-op if it is not here). Its `parent` becomes None."""
+        chunk = self.chunk_of(entity)
+        if chunk is None or entity not in chunk.entities:
             return
-        del self._entities[entity]
-        self._unindex_position(entity)
-        self._by_category[entity.category].pop(entity, None)
-        self._buckets[entity.render_order].pop(entity, None)
-        self._actors.pop(entity, None)
-        if entity.blocks_movement and self.in_bounds(entity.x, entity.y):
-            self.blocked[entity.x, entity.y] -= 1
+        chunk.unindex(entity)
+        self._drop_position(entity)
         entity.parent = None
 
-    def move_entity(self, entity: Entity, x: int, y: int) -> None:
-        old = (entity.x, entity.y)
-        if old == (x, y):
-            return
-        self._unindex_position(entity)
-        if entity.blocks_movement:
-            if self.in_bounds(*old):
-                self.blocked[old] -= 1
-            if self.in_bounds(x, y):
-                self.blocked[x, y] += 1
-        entity._x, entity._y = x, y
-        self._by_pos.setdefault((x, y), []).append(entity)
-
-    def _unindex_position(self, entity: Entity) -> None:
+    def _drop_position(self, entity: Entity) -> None:
         key = (entity.x, entity.y)
         bucket = self._by_pos[key]
         bucket.remove(entity)
         if not bucket:
             del self._by_pos[key]
 
+    def move_entity(self, entity: Entity, x: int, y: int) -> None:
+        old = (entity.x, entity.y)
+        if old == (x, y):
+            return
+        old_chunk = self.chunks[chunk_key(*old)]
+        new_key = chunk_key(x, y)
+        if new_key == old_chunk.key:
+            self._drop_position(entity)
+            old_chunk.moved_within(entity, old, (x, y))
+            entity._x, entity._y = x, y
+            self._by_pos.setdefault((x, y), []).append(entity)
+            return
+        new_chunk = self.chunks.get(new_key)
+        if new_chunk is None:
+            raise ValueError(f"cannot move {entity!r} to {(x, y)}: chunk {new_key} is not loaded")
+        # crossing a border: the same object moves from one chunk's index to the other's
+        old_chunk.unindex(entity)
+        self._drop_position(entity)
+        entity._x, entity._y = x, y
+        self._by_pos.setdefault((x, y), []).append(entity)
+        new_chunk.index(entity)
+        if entity is getattr(self.engine, "player", None):
+            self.update_tiers()
+
     def _entity_changed(self, entity: Entity, attribute: str, old, new) -> None:
-        if attribute == "render_order":
-            self._buckets[old].pop(entity, None)
-            self._buckets[new][entity] = None
-        elif attribute == "blocks_movement":
-            if self.in_bounds(entity.x, entity.y):
-                self.blocked[entity.x, entity.y] += 1 if new else -1
-        elif attribute == "ai":
-            if new:
-                self._actors[entity] = None
-            else:
-                self._actors.pop(entity, None)
-
-    def path_base_cost(self) -> np.ndarray:
-        """Static terrain cost for pathfinding: 1 where walkable *or unexplored*, 0 where known to be blocked.
-
-        Cached; recomputed only when the walkable or explored arrays changed since the last call (two cheap
-        array comparisons instead of trusting every caller to report tile edits).
-        """
-        walkable, explored = self.tiles["walkable"], self.explored
-        cache = getattr(self, "_path_cache", None)
-        if cache is None or not (np.array_equal(cache[0], walkable) and np.array_equal(cache[1], explored)):
-            base = np.logical_or(walkable, np.logical_not(explored)).astype(np.int32)
-            base.flags.writeable = False
-            cache = (walkable.copy(), explored.copy(), base)
-            self._path_cache = cache
-        return cache[2]
-
-    def terrain_changed(self) -> None:
-        """Call after mutating `tiles` walkable/transparent flags outside of map generation."""
-        self.terrain_version += 1
+        chunk = self.chunk_of(entity)
+        if chunk is not None:
+            chunk.entity_changed(entity, attribute, old, new)
 
     # ── queries ──────────────────────────────────────────────────────────────────
     def get_entities_at_location(
@@ -233,17 +442,10 @@ class GameMap(SpatialContainer):
             found.extend(by_pos.get((x + radius, y + dy), ()))
         return found
 
-    def is_blocked(self, x: int, y: int) -> bool:
-        """True if a movement-blocking entity stands on (x, y)."""
-        return bool(self.blocked[x, y]) if self.in_bounds(x, y) else False
-
-    def in_bounds(self, x: int, y: int) -> bool:
-        """Return True if x and y are inside of the bounds of this map."""
-        return 0 <= x < self.width and 0 <= y < self.height
-
-    def render(self, canvas: Canvas, origin: Tuple[int, int] = (0, 0)) -> None:
+    # ── drawing ──────────────────────────────────────────────────────────────────
+    def render(self, canvas: Canvas, camera: Optional[Camera] = None) -> None:
         """
-        Draws the map onto `canvas` with its top-left tile at cell `origin`.
+        Draws the part of the world under `camera` (default: the engine's, following the player) into the viewport.
 
         If a tile is in the "visible" array, then draw it with the "light" graphics.
         If it isn't, but it's in the "explored" array, then draw it with the "dark" graphics.
@@ -251,18 +453,24 @@ class GameMap(SpatialContainer):
 
         Terrain is drawn in one batched blit: tiles are grouped by their distinct graphic (sprite, flip, tint,
         background), each group is a cached surface from the sprite atlas, and `Surface.blits` draws them all.
-        Entities then follow layer by layer (see `RenderOrder`), each tinted with its own shade and mirrored by its own
-        flag. Piles of ground objects are capped by the clutter safeguard (`GameConfig.clutter_safeguard`): the bottom
-        ones of an over-full tile are skipped and a stack marker is drawn on it instead.
+        Entities then follow layer by layer (see `RenderOrder`) from the chunks under the camera, each tinted with its
+        own shade and mirrored by its own flag. Piles of ground objects are capped by the clutter safeguard
+        (`GameConfig.clutter_safeguard`): the bottom ones of an over-full tile are skipped and a stack marker is drawn.
         """
+        if camera is None:
+            camera = self.engine.camera
         atlas = canvas.sprites
         surface = canvas.surface
-        shown = self.visible | self.explored
+        rect = camera.rect
+        window = self.window.ensure()
+        visible = window.visible_region(rect)
+        explored = self.region("explored", rect)
+        shown = visible | explored
         xs, ys = np.nonzero(shown)
         if xs.size:
             gfx = np.select(
-                condlist=[self.visible, self.explored],
-                choicelist=[self.tiles["light"], self.tiles["dark"]],
+                condlist=[visible, explored],
+                choicelist=[self.region("light", rect), self.region("dark", rect)],
                 default=tile_types.SHROUD,
             )
             fg = gfx["fg"].astype(np.int64)
@@ -284,32 +492,77 @@ class GameMap(SpatialContainer):
                     (fg_packed >> 16, (fg_packed >> 8) & 255, fg_packed & 255),
                     (bg_packed >> 16, (bg_packed >> 8) & 255, bg_packed & 255),
                 ))
-            ox, oy = origin[0] * TILE, origin[1] * TILE
             surface.blits(
-                [(tiles[i], (ox + x * TILE, oy + y * TILE)) for i, x, y in zip(inverse.tolist(), xs.tolist(), ys.tolist())],
+                [(tiles[i], (x * TILE, y * TILE)) for i, x, y in zip(inverse.reshape(-1).tolist(), xs.tolist(), ys.tolist())],
                 doreturn=False,
             )
 
-        visible = self.visible
         get = atlas.get
-        hidden = self.hidden_ground_counts()
+        hidden = self.hidden_ground_counts(rect)
         skip = dict(hidden)  # how many of the lowest ground objects of a tile are still to be skipped
+        x0, y0, width, height = rect
+        chunks = self.chunks_in_rect(rect)
         entity_blits = []
         for order in LAYERS:
             ground = order in GROUND_LAYERS and bool(skip)
-            for entity in self._buckets[order]:
-                # Only draw entities that are in the FOV
-                x, y = entity.x, entity.y
-                if not visible[x, y]:
-                    continue
-                if ground and skip.get((x, y)):
-                    skip[(x, y)] -= 1
-                    continue
-                entity_blits.append((get(entity.sprite_id, entity.flipped, entity.shade),
-                                     ((origin[0] + x) * TILE, (origin[1] + y) * TILE)))
+            for chunk in chunks:
+                for entity in chunk.buckets[order]:
+                    sx, sy = entity.x - x0, entity.y - y0
+                    # Only draw entities in the viewport that are in the FOV
+                    if not (0 <= sx < width and 0 <= sy < height) or not visible[sx, sy]:
+                        continue
+                    if ground and skip.get((entity.x, entity.y)):
+                        skip[(entity.x, entity.y)] -= 1
+                        continue
+                    entity_blits.append((get(entity.sprite_id, entity.flipped, entity.shade), (sx * TILE, sy * TILE)))
         surface.blits(entity_blits, doreturn=False)
         for x, y in hidden:
-            canvas.badge(origin[0] + x, origin[1] + y)
+            canvas.badge(x - x0, y - y0)
+
+
+class GameMap(World):
+    """A bounded world made from one fixed landscape at world (0, 0) (tests, the benchmark scenario).
+
+    Besides the World API it exposes the old whole-map arrays as live views: `tiles`, `explored` (into chunk
+    (0, 0)), `visible` (into the view window), `blocked`, and `width`/`height`. Accessing `tiles` marks the terrain
+    changed, since callers use it to edit tiles.
+    """
+
+    def __init__(self, engine: Engine, landscape: np.ndarray, entities: Iterable[Entity] = ()):
+        World.__init__(self, engine, FixedLandscape(landscape))
+        self.width, self.height = landscape.shape
+        self.downstairs_location = (0, 0)
+        self._center = (0, 0)
+        self.load_chunk((0, 0))
+        for entity in entities:
+            self.add_entity(entity, entity.x, entity.y)
+
+    @property
+    def _chunk(self) -> Chunk:
+        return self.chunks[(0, 0)]
+
+    @property
+    def tiles(self) -> np.ndarray:
+        self._chunk.terrain_version += 1  # callers may write through this view
+        return self._chunk.tiles[: self.width, : self.height]
+
+    @property
+    def explored(self) -> np.ndarray:
+        return self._chunk.explored[: self.width, : self.height]
+
+    @property
+    def visible(self) -> np.ndarray:
+        window = self.window.ensure()
+        wx, wy = window.to_window(0, 0)
+        return window.visible[wx: wx + self.width, wy: wy + self.height]
+
+    @property
+    def blocked(self) -> np.ndarray:
+        return self._chunk.blocked[: self.width, : self.height]
+
+    def update_tiers(self) -> None:
+        """A bounded map has a single chunk: always loaded, always active."""
+
 
 class GameWorld:
     """

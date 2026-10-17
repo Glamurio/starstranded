@@ -10,6 +10,7 @@ import tcod
 import numpy as np # type: ignore
 
 import exceptions
+from entity import EntityCategory
 from events import Point
 from config import DEFAULT_CONFIG, GameConfig
 from message_log import MessageLog
@@ -63,23 +64,36 @@ class Engine:
 
         If there is no valid path then returns an empty list.
 
-        Unexplored tiles count as walkable, so the path does not reveal hidden terrain. Tiles occupied by
-        movement-blocking entities cost +10 per blocker (a lower number means more enemies will crowd behind
-        each other in hallways, a higher number means they take longer paths to surround the player).
+        The search runs on the stitched view window, cropped to `config.path_radius` tiles around the origin;
+        destinations outside that square (or outside the loaded world) get no path. Unexplored tiles count as
+        walkable, so the path does not reveal hidden terrain. Tiles occupied by movement-blocking entities cost +10
+        per blocker (a lower number means more enemies will crowd behind each other in hallways, a higher number
+        means they take longer paths to surround the player).
         """
-        game_map = origin.game_map
-        if not game_map.in_bounds(dest_x, dest_y):
+        world = origin.game_map
+        if not world.in_bounds(dest_x, dest_y):
             return []
-
-        cost = game_map.path_base_cost()
+        window = world.window.ensure()
+        if not window.contains(origin.x, origin.y):
+            return []
+        radius = self.config.path_radius
+        wx0, wy0, ww, wh = window.rect
+        x0, y0 = max(wx0, origin.x - radius), max(wy0, origin.y - radius)
+        x1, y1 = min(wx0 + ww, origin.x + radius + 1), min(wy0 + wh, origin.y + radius + 1)
+        if not (x0 <= dest_x < x1 and y0 <= dest_y < y1):
+            return []
+        rect = (x0, y0, x1 - x0, y1 - y0)
+        crop = (slice(x0 - wx0, x1 - wx0), slice(y0 - wy0, y1 - wy0))
+        explored = world.region("explored", rect)
+        cost = (window.in_bounds[crop] & (window.walkable[crop] | ~explored)).astype(np.int32)
         if not ignore_obstacles:
-            cost = np.where(cost > 0, cost + 10 * game_map.blocked, 0).astype(np.int32)
+            cost = np.where(cost > 0, cost + 10 * world.region("blocked", rect), 0).astype(np.int32)
 
         graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
         pathfinder = tcod.path.Pathfinder(graph)
-        pathfinder.add_root((origin.x, origin.y))
-        path: List[List[int]] = pathfinder.path_to((dest_x, dest_y))[1:].tolist()
-        return [(index[0], index[1]) for index in path]
+        pathfinder.add_root((origin.x - x0, origin.y - y0))
+        path: List[List[int]] = pathfinder.path_to((dest_x - x0, dest_y - y0))[1:].tolist()
+        return [(index[0] + x0, index[1] + y0) for index in path]
 
     def distance(self, p1: tuple[int, int], p2: tuple[int, int], diag=True, euclidean=False):
         if diag:
@@ -111,7 +125,7 @@ class Engine:
             return False
 
         for x, y in tcod.los.bresenham((x1, y1), (x2, y2)).tolist():
-            if not self.game_map.tiles["transparent"][x][y]:
+            if not self.game_map.is_transparent(x, y):
                 return False
 
         return True
@@ -122,7 +136,7 @@ class Engine:
         if not self.game_map.in_bounds(dest_x, dest_y):
             # Destination is out of bounds.
             return False
-        if not self.game_map.tiles["walkable"][dest_x, dest_y]:
+        if not self.game_map.is_walkable(dest_x, dest_y):
             # Destination is blocked by a tile.
             return False
         if self.game_map.get_entities_at_location(dest_x, dest_y, True):
@@ -132,53 +146,49 @@ class Engine:
         return True
 
     def update_fov(self) -> None:
-        """Recompute the visible area based on the player's point of view,
-        extended by any lit campfires whose light reaches into the player's vision."""
+        """Recompute the visible area from the player's point of view on the stitched view window,
+        extended by any lit campfires whose light reaches into the player's vision; then mark it explored."""
         from crafting import Campfire
-        import numpy as np
+
+        world = self.game_map
+        window = world.window.ensure()
+        ox, oy = window.origin
+        transparent = window.transparent & window.in_bounds
 
         # Step 1: Compute base player FOV
-        player_fov = tcod.map.compute_fov(
-            self.game_map.tiles["transparent"],
-            (self.player.x, self.player.y),
+        visible = tcod.map.compute_fov(
+            transparent,
+            (self.player.x - ox, self.player.y - oy),
             radius=self.config.fov_radius,
-            algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
+            algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST,
         )
+        visible &= window.in_bounds
 
-        self.game_map.visible[:] = player_fov
+        # Step 2: campfires inside the window whose light overlaps what the player sees
+        for chunk in world.chunks_in_rect(window.rect):
+            for entity in chunk.by_category[EntityCategory.ITEM]:
+                if not isinstance(entity, Campfire) or not entity.is_lit or not entity.is_placed:
+                    continue
+                campfire_fov = tcod.map.compute_fov(
+                    transparent,
+                    (entity.x - ox, entity.y - oy),
+                    radius=entity.light_radius,
+                    algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST,
+                )
+                # The campfire's own FOV already respects walls; merge it when the player sees any part of it.
+                if np.logical_and(visible, campfire_fov).any():
+                    visible |= campfire_fov & window.in_bounds
 
-        # Step 2: For each lit campfire, check if its light connects to player vision
-        for entity in self.game_map.items:
-            if not isinstance(entity, Campfire) or not entity.is_lit or not entity.is_placed:
-                continue
-
-            # Compute what the campfire illuminates
-            campfire_fov = tcod.map.compute_fov(
-                self.game_map.tiles["transparent"],
-                (entity.x, entity.y),
-                radius=entity.light_radius,
-                algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
-            )
-
-            # Check overlap: does ANY tile lit by the campfire fall within 
-            # the player's current vision?
-            overlap = np.logical_and(self.game_map.visible, campfire_fov)
-
-            if overlap.any():
-                # The campfire light connects to what the player sees.
-                # Extend vision with campfire-lit tiles, but only those
-                # that are reachable from the overlap zone.
-                # 
-                # Simple approach: merge the entire campfire FOV.
-                # This works because compute_fov already limits the campfire
-                # to tiles it can actually illuminate (respects walls).
-                # The overlap check ensures we only do this when the player
-                # can see at least part of the campfire's light.
-                self.game_map.visible |= campfire_fov
+        window.visible[:] = visible
 
         # Step 3: Explored tracking
-        self.game_map.explored |= self.game_map.visible
+        world.mark_explored()
 
+    @property
+    def camera(self):
+        """The map viewport's camera: centred on the player (clamped for bounded maps)."""
+        from view import Camera
+        return Camera.follow(self.game_map, self.player.x, self.player.y)
 
     def render(self, canvas: Canvas) -> None:
         """Draw the map, the bottom panel (status bars, names under the cursor, message log) and the side panel."""
@@ -198,4 +208,6 @@ class Engine:
         render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self, width=canvas.width - 21)
         self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
 
-        render_functions.render_dungeon_level(canvas, self.game_world.current_floor, (self.game_map.width + 1, 1))
+        render_functions.render_dungeon_level(canvas, self.game_world.current_floor, (71, 1))
+        canvas.print(71, 3, f"X {player.x}")
+        canvas.print(71, 4, f"Y {player.y}")
