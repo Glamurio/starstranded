@@ -6,8 +6,9 @@ Starstranded is a roguelike survival game set on an alien planet.
 
 Requires Python 3.13+.
 
-- **Install:** `pip install -r requirements.txt` (`tcod`, `pygame-ce`, `numpy`; add `pytest` for development).
-- **Run:** `cd src && python main.py` (the window is resizable; it is drawn at 1920x1080 and scaled).
+- **Install:** `pip install -r requirements.txt` (`tcod`, `pygame-ce`, `numpy`; add `pytest` for development). Use **pygame-ce**,
+  not plain `pygame` (no wheels for current Pythons; the two must not be installed together).
+- **Run:** `python src/main.py` (or `cd src && python main.py`; `main.py` switches to its own folder) (the window is resizable; it is drawn at 1920x1080 and scaled).
 - **Run headless** (no display, e.g. CI): set `SDL_VIDEODRIVER=dummy` (and `SDL_AUDIODRIVER=dummy`). The tests, the benchmark and
   the screenshot script do this themselves.
 - **Tests:** `python -m pytest -q` from the repository root.

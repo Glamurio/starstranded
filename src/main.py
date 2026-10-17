@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import os
+import sys
 import traceback
+
+# Assets, data/namegen and the savegame folder are resolved relative to src/, so work from there
+# no matter where the game was started from.
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    import pygame  # noqa: F401  (pygame-ce provides the `pygame` module)
+except ModuleNotFoundError:
+    sys.exit(
+        "StarStranded needs pygame-ce (not the plain 'pygame' package).\n"
+        "Install the dependencies with:  py -m pip install -r requirements.txt\n"
+        "If plain pygame is installed, remove it first:  py -m pip uninstall pygame"
+    )
 
 import g
 import color
