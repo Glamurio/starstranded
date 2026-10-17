@@ -10,7 +10,6 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import lru_cache
 from typing import Dict, NamedTuple, Optional, Tuple, Union
 
 import color
@@ -216,9 +215,24 @@ class Glyphs(NamedTuple):
     corpse: Union[int, str]
 
 
-@lru_cache(maxsize=None)
+_GLYPH_CACHE: Dict[int, Tuple[Definition, Glyphs]] = {}
+
+
 def glyphs(definition: Definition) -> Glyphs:
-    """Codepoints for a definition in the PUA-remapped tileset (or its text glyph)."""
+    """Codepoints for a definition in the PUA-remapped tileset (or its text glyph).
+
+    Cached by object identity: hashing a frozen dataclass hashes every field, which is too slow per entity per frame.
+    The cache holds a reference to the definition, so an id is never reused while its entry exists.
+    """
+    hit = _GLYPH_CACHE.get(id(definition))
+    if hit is not None and hit[0] is definition:
+        return hit[1]
+    result = _compute_glyphs(definition)
+    _GLYPH_CACHE[id(definition)] = (definition, result)
+    return result
+
+
+def _compute_glyphs(definition: Definition) -> Glyphs:
     glyph = getattr(definition, "glyph", None)
     if glyph:
         return Glyphs(glyph, glyph, glyph)
