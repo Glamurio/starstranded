@@ -113,5 +113,5 @@ def test_generated_floor_index_is_consistent(new_engine):
 
 def test_trees_registered_as_plants_and_block(small_world):
     e = small_world()
-    t = Tree().spawn(e.game_map, 4, 4)
+    t = Tree(); e.game_map.add_entity(t, 4, 4)
     assert t in e.game_map.plants and e.game_map.is_blocked(4, 4)

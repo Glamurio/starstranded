@@ -57,6 +57,7 @@ class GameMap(SpatialContainer):
         self._actors: Dict[Entity, None] = {}
         self._buckets: Dict[RenderOrder, Dict[Entity, None]] = {r: {} for r in RenderOrder}
         self.blocked = np.zeros((self.width, self.height), dtype=np.int16, order="F")
+        self.terrain_version = 0  # bumped whenever tile walkability/transparency changes (pathfinding cache)
 
         for entity in entities:
             self.add_entity(entity, entity.x, entity.y)
@@ -158,6 +159,10 @@ class GameMap(SpatialContainer):
             else:
                 self._actors.pop(entity, None)
 
+    def terrain_changed(self) -> None:
+        """Call after mutating `tiles` walkable/transparent flags outside of map generation."""
+        self.terrain_version += 1
+
     # ── queries ──────────────────────────────────────────────────────────────────
     def get_entities_at_location(
         self, location_x: int, location_y: int, check_block: bool = False
@@ -200,13 +205,9 @@ class GameMap(SpatialContainer):
         for entity in self.entities_in_render_order():
             # Only print entities that are in the FOV
             if visible[entity.x, entity.y]:
-                char = entity.char
-                if isinstance(entity.char, int):
-                    char = chr(entity.char)
-                    if entity.mirrored:
-                        char = chr(entity.char_right)
+                glyph = entity.glyph
                 console.print(
-                    x=entity.x, y=entity.y, text=char, fg=entity.shade
+                    x=entity.x, y=entity.y, text=chr(glyph) if isinstance(glyph, int) else glyph, fg=entity.shade
                 )
 
 class GameWorld:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
+from entity import EntityCategory
 
 if TYPE_CHECKING:
     from components.unit import Unit
@@ -66,16 +67,8 @@ class MassPickupAction(Action):
 
     # TODO: Rework so that it takes more time per item, also fix multi-pickup
     def perform(self) -> None:
-        # item = self.items.pop()
-        # if not item:
-        #     return False
-        # if not hasattr(item, 'inventory'):
-        #     return False
-        # self.entity.inventory.loot(item)
-        # self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
-        # return True
         for item in reversed(self.items):
-            if hasattr(item, 'inventory'):
+            if item.has_inventory:  # units/plants are containers, not loot
                 continue
             self.entity.inventory.loot(item)
             self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
@@ -108,7 +101,8 @@ class DropItem(ItemAction):
     def perform(self) -> None:
         super().perform()
 
-        if hasattr(self.item, 'equipped') and self.item.equipped:
+        from components.equippable import Equippable
+        if isinstance(self.item, Equippable) and self.item.equipped:
             self.entity.equipment.toggle_equip(self.item)
 
         self.entity.inventory.drop(self.item, self.target_xy)
@@ -225,18 +219,13 @@ class MovementAction(ActionWithDirection):
         if not self.entity == self.engine.player:
             return
 
-        # Move player until an enemy is visible
-        for enemy in self.engine.game_map.entities:
-            if self.entity == enemy:
+        # Move player until an enemy is visible (an enemy = a unit with a hostile AI)
+        for enemy in self.engine.game_map.actors:
+            if enemy is self.entity or enemy.category is not EntityCategory.UNIT:
                 continue
-            if hasattr(enemy, "material"):
+            if not enemy.ai.is_hostile:
                 continue
-            if hasattr(enemy, "growth_cycle"):
-                continue
-            if hasattr(enemy, "ai"):
-                if not enemy.ai or not enemy.ai.is_hostile:
-                    continue
-            
+
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
                 return False
 

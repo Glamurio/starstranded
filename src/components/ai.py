@@ -56,9 +56,10 @@ class BaseAI(Action):
 
     def seek_food(self) -> None:
         """Attempt to find food, either in inventory or nearby."""
+        from components.consumable import FoodConsumable
         if not self.entity.inventory.is_empty():
             for item in self.entity.inventory.items:
-                if hasattr(item, "hunger_amount") or hasattr(item, "thirst_amount"):
+                if isinstance(item, FoodConsumable):
                     self.entity.inventory.loot(item)
                     return self.eat_food(item)
 
@@ -73,7 +74,7 @@ class BaseAI(Action):
                 distance = self.engine.distance((self.entity.x, self.entity.y), (item.x, item.y))
                 if not distance == radius:
                     continue
-                if not hasattr(item, 'hunger_amount'):
+                if not isinstance(item, FoodConsumable):
                     continue
 
                 closest_food = item
@@ -112,9 +113,10 @@ class BaseAI(Action):
         return MovementAction(self.entity, tile[0], tile[1], self.path).perform()
 
     def forage_food(self, food: FoodConsumable = None, container: Inventory = None):
+        from components.consumable import FoodConsumable
         if not food and container:
             for item in container.items:
-                if hasattr(item, "hunger_amount") or hasattr(item, "thirst_amount"):
+                if isinstance(item, FoodConsumable):
                     food = item
                     break
 

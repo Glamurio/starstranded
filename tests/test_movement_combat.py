@@ -95,7 +95,7 @@ def test_blocking_entity_prevents_movement(small_world):
     e = small_world()
     from components.plant import Tree
     tree = Tree()
-    tree.spawn(e.game_map, 2, 1)
+    e.game_map.add_entity(tree, 2, 1)
     e.game_map.tiles[2, 1]["walkable"] = True  # isolate: only the entity should block
     assert not e.can_move(2, 1)
     assert e.can_move(1, 2)

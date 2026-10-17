@@ -10,43 +10,58 @@ from components.inventory import Inventory
 from components.equipment import Equipment
 from components.level import Level
 from components.consumable import Meat
+from species import AIKind, HUMAN, RABBIT, SELENITE, UnitSpecies
 
-from utilities import clamp, map_codepoints, generate_name, get_gaussian_shade, get_random_color
+from utilities import clamp, generate_name, get_gaussian_shade, get_random_color
+
+_AI_FOR_KIND = {AIKind.PASSIVE: PassiveAI, AIKind.HOSTILE: HostileAI}
+
 
 class Unit(Entity):
+    """A living (or dead) creature. Static stats come from `kind: UnitSpecies`; this holds the live state."""
+
     category = EntityCategory.UNIT
+    object_type = "Unit"
+    has_inventory = True
+    kind: UnitSpecies
 
-    def __init__(self):
-        Entity.__init__(self)
-        self.max_hp = 10
+    def __init__(self, species: UnitSpecies, name: Optional[str] = None):
+        Entity.__init__(self, species)
+        self.max_hp = species.max_hp  # can grow on level-up, so it is per instance
         self.hp = self.max_hp
-        self.base_defense = 1
-        self.base_power = 1
-        self.radius = 8
-        self.race: str = None
+        self.base_defense = species.defense
+        self.base_power = species.power
 
-        self.inventory: Inventory = Inventory(self, capacity=10)
-        self.equipment = Equipment(self)
-        self.level = Level(self)
-        self.object_type="Unit"
-
-        self.max_hunger = 100
+        self.max_hunger = species.max_hunger
         self.hunger = self.max_hunger
-        self.max_thirst = 100
+        self.max_thirst = species.max_thirst
         self.thirst = self.max_thirst
 
-        self.ai = None
+        self.color = species.color if species.color is not None else get_random_color()
+        self.shade = self.color if species.shade_sigma is None else get_gaussian_shade(self.color, species.shade_sigma)
+        if name:
+            self.name = name
+        elif species.name_origin:
+            self.name = generate_name(species.name_origin)
+        else:
+            self.name = species.default_name
+
+        self.inventory: Inventory = Inventory(self, capacity=species.inventory_capacity)
+        self.equipment = Equipment(self)
+        self.level = Level(self, level_up_base=species.level_up_base, xp_given=species.xp_given)
 
         self.is_alive: bool = True
-        self.blocks_movement: bool = True
-        self.render_order = RenderOrder.UNIT
+        self.blocks_movement = True
+        ai_class = _AI_FOR_KIND.get(species.ai)
+        self.ai = ai_class(self) if ai_class else None
 
-        if self.equipment:
-            self.equipment.parent = self
-        if self.inventory:
-            self.inventory.parent = self
-        if self.level:
-            self.level.parent = self       
+    @property
+    def radius(self) -> int:
+        return self.kind.radius
+
+    @property
+    def is_corpse(self) -> bool:
+        return not self.is_alive
 
     @property
     def has_ai(self) -> bool:
@@ -83,8 +98,6 @@ class Unit(Entity):
             death_message = f"{self.get_title()} is dead!"
             death_message_color = color.enemy_die
 
-        self.char = self.char_corpse
-        # self.color = color.red
         self.blocks_movement = False
         self.blocks_sight = False
         self.ai = None
@@ -156,76 +169,19 @@ class Unit(Entity):
             return f'remains of {self.name}' if self.name else f'{self.species} remains'
         return f'{self.name}, the {description}' if self.name else description
 
+
 class Player(Unit):
-    def __init__(self):
-        Unit.__init__(self)
-        self.max_hp = 30
-        self.hp = self.max_hp
-        self.base_defense = 1
-        self.base_power = 2
-        self.color = (255, 255, 255)
-        self.shade = (255, 255, 255)
-        self.name="Ardan"
-        self.object_type="Player"
-        self.species="Human"
-        self.ai=HostileAI(self)
-        self.inventory=Inventory(self, capacity=10)
-        self.level=Level(self, level_up_base=100, xp_given=50)
-        self.equipment=Equipment(self)
-        self.sprite_pos=(0, 9)
-        self.corpse_sprite_pos=(24, 11)
-        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
-        self.char = char_info["sprite"]
-        self.char_left = self.char
-        self.char_right = char_info["mirror"]
-        self.char_corpse = char_info["corpse"]
+    object_type = "Player"
+
+    def __init__(self, name: Optional[str] = None):
+        Unit.__init__(self, HUMAN, name)
+
 
 class Selenite(Unit):
     def __init__(self, name: Optional[str] = None):
-        Unit.__init__(self)
-        self.max_hp = 10
-        self.hp = self.max_hp
-        self.base_defense = 0
-        self.base_power = 3
-        self.color = color.light_blue
-        self.shade = get_gaussian_shade(self.color)
-        self.name = name if name else generate_name("selenite")
-        self.species="Selenite"
-        self.ai=HostileAI(self)
-        self.inventory=Inventory(self, capacity=10)
-        self.level=Level(self, level_up_base=100, xp_given=35)
-        self.equipment=Equipment(self)
-        self.sprite_pos=(2, 37)
-        self.corpse_sprite_pos=(44, 11)
-        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
-        self.char = char_info["sprite"]
-        self.char_left = char_info["sprite"]
-        self.char_right = char_info["mirror"]
-        self.char_corpse = char_info["corpse"]
+        Unit.__init__(self, SELENITE, name)
+
 
 class Animal(Unit):
     def __init__(self, name: Optional[str] = None):
-        Unit.__init__(self)
-        self.max_hp = 1
-        self.hp = self.max_hp
-        self.base_defense = 0
-        self.base_power = 3
-
-        self.color = get_random_color()
-        # shrub_pos, shape_names = random.choice(list(shrub_pos_names.items()))
-        # group = color_names[get_color_group(self.color)]
-        self.shade = get_gaussian_shade(self.color)
-
-        self.species="Rabbit"
-
-        self.ai=PassiveAI(self)
-        self.inventory=Inventory(self, capacity=10)
-        self.level=Level(self, level_up_base=100, xp_given=35)
-        self.equipment=Equipment(self)
-        self.sprite_pos=(3, 15)
-        self.corpse_sprite_pos=(44, 11)
-        char_info = map_codepoints(self.species, self.sprite_pos, True, self.corpse_sprite_pos)
-        self.char = char_info["sprite"]
-        self.char_left = char_info["sprite"]
-        self.char_right = char_info["mirror"]
-        self.char_corpse = char_info["corpse"]
+        Unit.__init__(self, RABBIT, name)

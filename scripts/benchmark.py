@@ -6,7 +6,7 @@ Uses SDL's dummy video driver, so no window or display is needed.
 
 Sections (all numbers are milliseconds unless noted):
   floor_generation   one full GameWorld.generate_floor() (terrain + vegetation + monsters/items)
-  spawn_trees_x500   spawning 500 Trees onto an empty map (the old deepcopy path)
+  spawn_trees_x500   spawning 500 Trees of one species onto an empty map (was: deepcopy of a prototype)
   turn_*             one full turn = player WaitAction + every AI, with N extra units
                      (passive = idle rabbits, hungry = rabbits seeking food, hostile = Selenites chasing)
   pathfinding        Engine.get_path_to corner to corner
@@ -75,14 +75,15 @@ def bench_floor_generation(repeat: int) -> dict:
 
 
 def bench_spawn_trees(repeat: int) -> dict:
-    """Time spawning 500 Trees from one prototype onto a fresh all-floor map (setup is untimed)."""
+    """Time spawning 500 Trees of one species onto a fresh all-floor map (setup is untimed)."""
     import tile_types
     from components.plant import Tree
+    from species import PlantCategory, make_plant_species
     from world import GameMap
 
     engine = fresh_engine()
     w, h = engine.game_map.width, engine.game_map.height
-    proto = Tree()
+    species = make_plant_species(PlantCategory.TREE)
     samples = []
     for _ in range(repeat):
         landscape = np.full((w, h), tile_types.floor.get_array(), dtype=tile_types.tile_dt, order="F")
@@ -90,7 +91,7 @@ def bench_spawn_trees(repeat: int) -> dict:
         spots = [divmod(i, h) for i in random.sample(range(w * h), 500)]
         t0 = time.perf_counter()
         for x, y in spots:
-            proto.spawn(blank, x, y)
+            blank.add_entity(Tree(species), x, y)
         samples.append((time.perf_counter() - t0) * 1000)
     return {
         "median": round(statistics.median(samples), 3), "mean": round(statistics.fmean(samples), 3),

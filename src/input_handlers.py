@@ -13,11 +13,11 @@ import color
 import exceptions
 from utilities import is_mouse_in_rectangle
 from entity import Item, Entity
+from components.equippable import Equippable
 
 if TYPE_CHECKING:
     from engine import Engine
     from components.unit import Unit
-    from components.equippable import Equippable
     from components.inventory import Inventory
     from crafting import Recipe
 
@@ -278,7 +278,7 @@ class PickupHandler(AskUserEventHandler):
             return self.on_exit()
         if len(targets) == 1:
             target = targets[0]
-            if hasattr(target, "material"):
+            if isinstance(target, Item):
                 return actions.PickupAction(self.engine.player, target)
 
         self.resolve_handler()
@@ -502,9 +502,9 @@ class InventoryEventHandler(AskUserEventHandler):
                 entity_title = f"{entity.get_title()}"
                 button_string = entity_title
 
-                if hasattr(entity, 'inventory'):
+                if entity.has_inventory:
                     button_string = f"{entity_title} >"
-                if hasattr(entity, "equipped"):
+                if isinstance(entity, Equippable):
                     item: Equippable = entity
                     is_equipped = item.equipped
                     button_string = f"{entity_title} (E)" if is_equipped else button_string
@@ -548,7 +548,7 @@ class InventoryEventHandler(AskUserEventHandler):
                 )
 
     def on_entity_selected(self, entity: Entity) -> Optional[ActionOrHandler]:
-        if hasattr(entity, "inventory"):
+        if entity.has_inventory:
             return InventoryLootHandler(self.engine, self.engine.player, entity.inventory, console=self.console, offset=1)
 
     def ev_keydown(
@@ -569,7 +569,7 @@ class InventoryEventHandler(AskUserEventHandler):
         
         if event.sym in CONFIRM_KEYS:
             item: Item = self.inventory_entries[self.menu_i]
-            if hasattr(item, "material"):
+            if isinstance(item, Item):
                 return self.on_item_selected(item)
 
             entity: Entity = self.inventory_entries[self.menu_i]
@@ -593,8 +593,7 @@ class InventoryEventHandler(AskUserEventHandler):
             if not self.button_highlight == i:
                 continue
 
-            if hasattr(item, "material"):
-                item: Item = item
+            if isinstance(item, Item):
                 return self.on_item_selected(item)
 
             entity: Entity = item
@@ -704,7 +703,7 @@ class InventoryActivateHandler(InventoryEventHandler):
     TITLE = "Inventory"
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
-        if hasattr(item, 'equipped'):
+        if isinstance(item, Equippable):
             return actions.EquipAction(self.inventory.parent, item)
         else:
             return item.activate(self.inventory.parent)

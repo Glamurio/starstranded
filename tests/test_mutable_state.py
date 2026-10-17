@@ -95,4 +95,4 @@ def test_fruit_default_factory_is_not_shared(small_world):
     from components.consumable import Fruit
     e = small_world()
     f = Fruit(e.player.inventory)
-    assert f.species and f.sprite_pos
+    assert f.species and f.kind.sprite

@@ -7,21 +7,17 @@ from components.consumable import Consumable
 from components.equippable import Equippable
 from equipment_types import EquipmentType
 from entity import Constructable
-from render_order import RenderOrder
+import species as defs
 
-from utilities import map_codepoints, get_shade, get_gaussian_shade
+from utilities import get_shade, get_gaussian_shade
 
 if TYPE_CHECKING:
-    from components.plant import Tree
+    from components.plant import Plant
 
 
 # ─── Base crafting material ──────────────────────────────────────────
 
 class CraftingConsumable(Consumable):
-    def __init__(self):
-        Consumable.__init__(self)
-        self.object_type = "Craftable"
-
     def activate(self) -> None:
         """Invoke this items ability.
 
@@ -37,31 +33,19 @@ class CraftingConsumable(Consumable):
 
 
 class Branch(CraftingConsumable):
-    def __init__(self, parent: Tree):
-        CraftingConsumable.__init__(self)
-        self.sprite_pos = (15, 5)
-        self.object_type = "Branch"
-        self.material = parent.species.split()[0]
-        char_info = map_codepoints(self.object_type, self.sprite_pos)
-        self.char = char_info["sprite"]
-        self.color = get_shade(parent.color)
-        self.shade = get_gaussian_shade(self.color, 10)
+    def __init__(self, source: Plant):
+        """A branch dropped by `source`; it takes its material name and a darker tint from the plant."""
+        CraftingConsumable.__init__(self, defs.BRANCH)
+        self.material = source.species.split()[0]
+        self.color = get_shade(source.color)
+        self.shade = get_gaussian_shade(self.color, self.kind.shade_sigma)
 
 
 # ─── Crafted: Wooden Spear (Equippable weapon) ──────────────────────
 
 class WoodenSpear(Equippable):
     def __init__(self, parent=None):
-        Equippable.__init__(self)
-        self.parent = parent
-        self.equipment_type = EquipmentType.WEAPON
-        self.power_bonus = 3
-        self.material = "Wooden"
-        self.object_type = "Spear"
-        self.sprite_pos = (45, 21)  # Adjust to your Urizen tileset
-        char_info = map_codepoints(self.object_type, self.sprite_pos)
-        self.char = char_info["sprite"]
-        self.color = (0x8B, 0x6B, 0x3D)
+        Equippable.__init__(self, defs.WOODEN_SPEAR, parent)
 
 
 # ─── Crafted: Campfire (Constructable, placeable light source) ──────
@@ -72,36 +56,23 @@ class Campfire(Constructable):
     When lit, it extends the player's line of sight around it.
     """
     def __init__(self, parent=None):
-        Constructable.__init__(self)
+        Constructable.__init__(self, defs.CAMPFIRE)
         self.parent = parent
-        self.object_type = "Campfire"
-        self.species = "Campfire"
         self.is_lit: bool = False
-        self.light_radius: int = 8
-        self.blocks_movement: bool = False
-        self.blocks_sight: bool = False
-        self.render_order = RenderOrder.ITEM
+        self.shade = self.kind.color
 
-        import color as c
-        self.color_lit = c.orange
-        self.color_unlit = c.white
-        self.color = self.color_unlit
-        self.shade = self.color_unlit
-
-        self.sprite_pos = (7, 29)  # Adjust to your Urizen tileset
-        char_info = map_codepoints("Campfire", self.sprite_pos)
-        self.char = char_info["sprite"]
+    @property
+    def light_radius(self) -> int:
+        return self.kind.light_radius
 
     def toggle(self) -> str:
         """Toggle the campfire on/off. Returns a message string."""
         self.is_lit = not self.is_lit
         if self.is_lit:
-            self.color = self.color_lit
-            self.shade = self.color_lit
+            self.color = self.shade = self.kind.lit_color
             return "You light the campfire. Warm light fills the area."
         else:
-            self.color = self.color_unlit
-            self.shade = self.color_unlit
+            self.color = self.shade = self.kind.color
             return "You extinguish the campfire."
 
     def get_title(self, exclude_attributes: bool = False) -> str:

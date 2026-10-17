@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import copy
 import itertools
 import math
 from enum import Enum, auto
 from typing import Optional, List, Tuple, TypeVar, TYPE_CHECKING, Union
 
+import color
 from render_order import RenderOrder
+from species import Definition, ItemKind, glyphs
 
 if TYPE_CHECKING:
     from components.ai import BaseAI
@@ -64,35 +65,53 @@ class Entity:
     """
     A generic object to represent players, enemies, items, etc.
 
-    Position is read/written through `x`, `y`, `place()` and `move()`; while the entity is on a map the
-    map's spatial index is updated automatically.
+    Static data lives in `kind` (an immutable, shared definition from `species.py`); the instance stores only
+    per-instance state. Position is read/written through `x`, `y`, `place()` and `move()`; while the entity is on
+    a map the map's spatial index is updated automatically.
     """
     parent: Union[GameMap, Inventory, None]
     category: EntityCategory = EntityCategory.OTHER
+    object_type: str = "Entity"
+    has_inventory: bool = False
 
-    def __init__(self):
-        self.uid: int = next(_uid_counter)
+    def __init__(self, kind: Definition):
+        self.kind = kind
+        self.uid: int = new_uid()
         self.parent: Optional[GameMap] = None
         self._x: int = 0
         self._y: int = 0
-        self.sprite_pos: Tuple[int, int] = (0, 0)
-        self.corpse_sprite_pos: Tuple[int, int] = (0, 0)
         self.mirrored = False
-        self.char: int = 0xE000
-        self.char_left: int = 0xE000
-        self.char_right: int = 0xE000
-        self.char_corpse: int  = 0xE000
-        self.color: Tuple[int, int, int] = (255, 255, 255)
-        self.shade: Tuple[int, int, int] = (255, 255, 255)
+        self.color: Tuple[int, int, int] = color.white
+        self.shade: Tuple[int, int, int] = color.white
         self.name: Optional[str] = None
-        self.object_type: str = "Entity"
-        self.species: str = None
         self.attributes: List[str] = []
-        self._blocks_movement: bool = False
-        self.blocks_sight: bool = False
-        self._render_order: RenderOrder = RenderOrder.CORPSE
+        self._blocks_movement: bool = getattr(kind, "blocks_movement", False)
+        self.blocks_sight: bool = getattr(kind, "blocks_sight", False)
+        self._render_order: RenderOrder = kind.render_order
         self._ai: Optional[BaseAI] = None
         self.on_init()
+
+    # ── static data, read from the definition ─────────────────────────────────────────
+    @property
+    def species(self) -> Optional[str]:
+        return getattr(self.kind, "name", None)
+
+    @property
+    def is_corpse(self) -> bool:
+        return False
+
+    @property
+    def glyph(self) -> Union[int, str]:
+        """Codepoint (or text glyph) to draw: corpse, mirrored or normal sprite."""
+        g = glyphs(self.kind)
+        if self.is_corpse:
+            return g.corpse
+        return g.mirror if self.mirrored else g.sprite
+
+    @property
+    def char(self) -> Union[int, str]:
+        """Legacy name for `glyph` (tcod console rendering)."""
+        return self.glyph
 
     # ── indexed properties ────────────────────────────────────────────────────────
     @property
@@ -168,17 +187,6 @@ class Entity:
     def on_added_to_map(self, game_map: GameMap) -> None:
         """Hook: called by the map after this entity was added to it."""
 
-    def spawn(self: T, game_map: GameMap, x: int, y: int, new: bool = False) -> T:
-        """Spawn a copy of this instance at the given location."""
-        if not new:
-            entity = copy.deepcopy(self)
-            entity.parent = None
-            entity.uid = new_uid()
-        else:
-            entity = type(self)()
-        game_map.add_entity(entity, x, y)
-        return entity
-
     def place(self, x: int, y: int, game_map: Optional[GameMap] = None) -> None:
         """Place this entity at a new location. With `game_map`, (re)attach it to that map."""
         if game_map is None:
@@ -192,19 +200,12 @@ class Entity:
         """
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
-    def redirect_char(self, face_right: bool = False):
-        """Redirects unit sprite"""
-        if face_right:
-            self.char = self.char_right
-        else:
-            self.char = self.char_left
-
     def move(self, dest_x: int, dest_y: int) -> None:
         """Move the entity to (dest_x, dest_y), facing the direction of travel."""
         if self.x > dest_x:
-            self.redirect_char()
+            self.mirrored = False
         elif self.x < dest_x:
-            self.redirect_char(True)
+            self.mirrored = True
         self.set_position(dest_x, dest_y)
 
     def set_name(self, name: str) -> str:
@@ -228,12 +229,23 @@ class Entity:
 
 class Item(Entity):
     category = EntityCategory.ITEM
+    kind: ItemKind
 
-    def __init__(self):
-        Entity.__init__(self)
-        self.render_order = RenderOrder.ITEM
-        self.object_type: str = "Item"
-        self.material = None
+    def __init__(self, kind: ItemKind):
+        Entity.__init__(self, kind)
+        self.material: Optional[str] = kind.material
+        self.color = kind.color
+        if kind.shade_sigma is not None:
+            from utilities import get_gaussian_shade
+            self.shade = get_gaussian_shade(self.color, kind.shade_sigma)
+
+    @property
+    def object_type(self) -> str:
+        return self.kind.object_type
+
+    @property
+    def species(self) -> Optional[str]:
+        return self.kind.species
 
     def activate(self, user: Unit) -> None:
         """Invoke this items ability.
@@ -256,9 +268,8 @@ class Constructable(Item):
     While in inventory, it behaves like any other Item.
     When activated, the player places it on the current or an adjacent tile.
     """
-    def __init__(self):
-        Item.__init__(self)
-        self.object_type = "Constructable"
+    def __init__(self, kind: ItemKind):
+        Item.__init__(self, kind)
         self.is_placed: bool = False
 
     def activate(self, user: Unit) -> None:

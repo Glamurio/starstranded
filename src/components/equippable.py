@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import color
 from entity import Item
 from equipment_types import EquipmentType
-from typing import TYPE_CHECKING, Union
-from utilities import map_codepoints
+from typing import TYPE_CHECKING, Optional, Union
+import species as defs
+from species import ItemKind
 
 if TYPE_CHECKING:
     from components.unit import Unit
@@ -13,12 +13,24 @@ if TYPE_CHECKING:
 
 # TODO: Rename Equippable to "Equipment" once I refactored that
 class Equippable(Item):
-    def __init__(self):
-        Item.__init__(self)
-        self.equipment_type: EquipmentType = None
-        self.power_bonus: int = 0
-        self.defense_bonus: int = 0
+    """An item that can be worn or wielded. Bonuses come from the kind; `equipped` is per instance."""
+
+    def __init__(self, kind: ItemKind, parent: Union[GameMap, Inventory, None] = None):
+        Item.__init__(self, kind)
+        self.parent = parent
         self.equipped: bool = False
+
+    @property
+    def equipment_type(self) -> Optional[EquipmentType]:
+        return self.kind.equipment_type
+
+    @property
+    def power_bonus(self) -> int:
+        return self.kind.power_bonus
+
+    @property
+    def defense_bonus(self) -> int:
+        return self.kind.defense_bonus
 
     def activate(self, user: Unit) -> None:
         """Invoke this items ability.
@@ -32,50 +44,18 @@ class Equippable(Item):
         self.equipped = not self.equipped
 
 class Dagger(Equippable):
-    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
-        Equippable.__init__(self)
-        self.parent = parent
-        self.equipment_type = EquipmentType.WEAPON
-        self.power_bonus = 2
-        self.material="Bronze"
-        self.object_type="Dagger"
-        self.sprite_pos = (44, 21)
-        char_info = map_codepoints(self.object_type, self.sprite_pos)
-        self.char = char_info["sprite"]
-        self.color=(0, 191, 255)
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
+        Equippable.__init__(self, defs.DAGGER, parent)
 
 
 class Sword(Equippable):
-    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
-        Equippable.__init__(self)
-        self.parent = parent
-        self.equipment_type = EquipmentType.WEAPON
-        self.power_bonus = 4
-        self.material="Iron"
-        self.object_type="Sword"
-        self.char="\\"
-        self.color=(0, 191, 255)
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
+        Equippable.__init__(self, defs.SWORD, parent)
 
 class LeatherArmor(Equippable):
-    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
-        Equippable.__init__(self)
-        self.parent = parent
-        self.equipment_type = EquipmentType.ARMOR
-        self.defense_bonus = 1
-        self.material="Leather"
-        self.object_type="Armor"
-        self.sprite_pos = (31, 23)
-        char_info = map_codepoints(self.object_type, self.sprite_pos)
-        self.char = char_info["sprite"]
-        self.color=color.brown
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
+        Equippable.__init__(self, defs.LEATHER_ARMOR, parent)
 
 class ChainMail(Equippable):
-    def __init__(self, parent: Union[GameMap, Inventory]) -> None:
-        Equippable.__init__(self)
-        self.parent = parent
-        self.equipment_type = EquipmentType.ARMOR
-        self.defense_bonus = 3
-        self.material="Iron"
-        self.object_type="Chain Mail"
-        self.char="]"
-        self.color=(139, 69, 19)
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
+        Equippable.__init__(self, defs.CHAIN_MAIL, parent)

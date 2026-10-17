@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING, Union, Dict
+from typing import Optional, TYPE_CHECKING, Union
 
 import actions
 import color
-import random
 import components.ai
-from components.names import fruit_pos_names, color_names
 from components.inventory import Inventory
 from entity import Item
+import species as defs
+from species import ItemKind
 
 from exceptions import Impossible
 from input_handlers import (
@@ -16,7 +16,6 @@ from input_handlers import (
     AreaRangedAttackHandler,
     SingleRangedAttackHandler,
 )
-from utilities import map_codepoints, get_random_color, get_gaussian_shade, generate_name, get_color_group
 
 if TYPE_CHECKING:
     from entity import Unit
@@ -24,10 +23,6 @@ if TYPE_CHECKING:
 
 
 class Consumable(Item):
-    def __init__(self):
-        Item.__init__(self)
-        self.object_type = "Consumable"
-
     def activate(self) -> None:
         """Invoke this items ability.
 
@@ -43,9 +38,14 @@ class Consumable(Item):
 
 
 class ConfusionConsumable(Consumable):
-    def __init__(self):
-        Consumable.__init__(self)
-        self.number_of_turns: int = 0
+    """Unspawned content (kept from the tutorial)."""
+
+    def __init__(self, kind: ItemKind = defs.CONFUSION_SCROLL):
+        Consumable.__init__(self, kind)
+
+    @property
+    def number_of_turns(self) -> int:
+        return self.kind.turns
 
     def get_action(self, consumer: Unit) -> Optional[ActionOrHandler]:
         self.engine.message_log.add_message(
@@ -78,9 +78,9 @@ class ConfusionConsumable(Consumable):
 
 
 class HealingConsumable(Consumable):
-    def __init__(self):
-        Consumable.__init__(self)
-        self.amount: int = 0
+    @property
+    def amount(self) -> int:
+        return self.kind.heal_amount
 
     def activate(self, user: Unit) -> None:
         amount_recovered = user.heal(self.amount)
@@ -97,18 +97,17 @@ class HealingConsumable(Consumable):
 
 class HealthPotion(HealingConsumable):
     def __init__(self):
-        HealingConsumable.__init__(self)
-        self.amount = 4
-        self.color = (127, 0, 255)
-        self.object_type = "Health Potion"
-        self.char = "!"
+        HealingConsumable.__init__(self, defs.HEALTH_POTION)
 
 
 class FoodConsumable(Consumable):
-    def __init__(self):
-        Consumable.__init__(self)
-        self.hunger_amount: int = 0
-        self.thirst_amount: int = 0
+    @property
+    def hunger_amount(self) -> int:
+        return self.kind.hunger_amount
+
+    @property
+    def thirst_amount(self) -> int:
+        return self.kind.thirst_amount
 
     def activate(self, user: Unit) -> None:
         message = self.consume(user)
@@ -129,38 +128,16 @@ class FoodConsumable(Consumable):
 
 
 class Meat(FoodConsumable):
-    def __init__(self, material: str, parent: Union[GameMap, Inventory]):
-        FoodConsumable.__init__(self)
-        self.object_type = "Meat"
-        self.sprite_pos = (1, 16)
-        char_info = map_codepoints(self.object_type, self.sprite_pos)
-        self.char = char_info["sprite"]
-        self.hunger_amount = 10
-        self.color = color.red
-        self.material = material
+    def __init__(self, material: str, parent: Union[GameMap, Inventory, None] = None):
+        FoodConsumable.__init__(self, defs.MEAT)
+        self.material = material  # which creature it came from
         self.parent = parent
 
 
 class Fruit(FoodConsumable):
-    def __init__(self, parent: Union[GameMap, Inventory], factory: Optional[Dict[tuple[int, int, int], str]] = None):
-        FoodConsumable.__init__(self)
-
-        if not factory:
-            position, shape_names = random.choice(list(fruit_pos_names.items()))
-            self.sprite_pos = position
-            self.color = get_random_color()
-            self.species = random.choice(color_names[get_color_group(self.color)]) + random.choice(shape_names)
-        else:
-            self.sprite_pos = factory['position']
-            self.color = factory['color']
-            self.species = factory['species']
-
-        self.shade = get_gaussian_shade(self.color, 10)
-
-        char_info = map_codepoints(self.species, self.sprite_pos)
-        self.char = char_info["sprite"]
-        self.hunger_amount = 10
-        self.thirst_amount = 10
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None, kind: Optional[ItemKind] = None):
+        """`kind` is the fruit kind of the plant that grew it; without one a random fruit is rolled."""
+        FoodConsumable.__init__(self, kind or defs.make_fruit_kind())
         self.parent = parent
 
     def get_title(self, exclude_attributes: bool = False) -> str:
@@ -172,10 +149,18 @@ class Fruit(FoodConsumable):
 
 
 class FireballDamageConsumable(Consumable):
-    def __init__(self):
-        Consumable.__init__(self)
-        self.damage: int = 0
-        self.radius: int = 0
+    """Unspawned content (kept from the tutorial; `take_damage` does not exist on Unit)."""
+
+    def __init__(self, kind: ItemKind = defs.FIREBALL_SCROLL):
+        Consumable.__init__(self, kind)
+
+    @property
+    def damage(self) -> int:
+        return self.kind.damage
+
+    @property
+    def radius(self) -> int:
+        return self.kind.radius
 
     def get_action(self, consumer: Unit) -> AreaRangedAttackHandler:
         self.engine.message_log.add_message(
@@ -194,7 +179,7 @@ class FireballDamageConsumable(Consumable):
             raise Impossible("You cannot target an area that you cannot see.")
 
         targets_hit = False
-        for unit in self.engine.game_map.entities:
+        for unit in list(self.engine.game_map.units):
             if unit.distance(*target_xy) <= self.radius:
                 self.engine.message_log.add_message(
                     f"{unit.get_title()} is engulfed in a fiery explosion, taking {self.damage} damage!"
@@ -208,17 +193,25 @@ class FireballDamageConsumable(Consumable):
 
 
 class LightningDamageConsumable(Consumable):
-    def __init__(self):
-        Consumable.__init__(self)
-        self.damage: int = 0
-        self.maximum_range: int = 0
+    """Unspawned content (kept from the tutorial; `take_damage` does not exist on Unit)."""
+
+    def __init__(self, kind: ItemKind = defs.LIGHTNING_SCROLL):
+        Consumable.__init__(self, kind)
+
+    @property
+    def damage(self) -> int:
+        return self.kind.damage
+
+    @property
+    def maximum_range(self) -> int:
+        return self.kind.max_range
 
     def activate(self, action: actions.ItemAction) -> None:
         consumer = action.entity
         target = None
         closest_distance = self.maximum_range + 1.0
 
-        for unit in self.engine.game_map.entities:
+        for unit in self.engine.game_map.units:
             if unit is not consumer and self.game_map.visible[unit.x, unit.y]:
                 distance = consumer.distance(unit.x, unit.y)
 

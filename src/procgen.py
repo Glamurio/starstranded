@@ -13,6 +13,7 @@ import numpy as np  # type: ignore
 import components.unit as units
 import components.consumable as consumables
 import components.plant
+from species import PlantCategory, PlantSpecies, make_plant_species
 
 if TYPE_CHECKING:
     from engine import Engine
@@ -83,12 +84,10 @@ def get_entities_at_random(
     entities = list(entity_weighted_chances.keys())
     entity_weighted_chance_values = list(entity_weighted_chances.values())
 
-    chosen_entities = random.choices(
+    # Returns the factories (classes); callers construct one fresh instance per placement.
+    return random.choices(
         entities, weights=entity_weighted_chance_values, k=number_of_entities
     )
-    # TODO: Change spawning of enemies to not be clones and remove this
-    chosen_entities = [e() for e in chosen_entities]
-    return chosen_entities
 
 
 class RectangularRoom:
@@ -128,13 +127,13 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
         0, get_max_value_for_floor(max_items_by_floor, floor_number)
     )
 
-    monsters: List[Entity] = get_entities_at_random(
+    monsters: List[Callable[[], Entity]] = get_entities_at_random(
         enemy_chances, number_of_monsters, floor_number
     )
-    items: List[Entity] = get_entities_at_random(
+    items: List[Callable[[], Entity]] = get_entities_at_random(
         item_chances, number_of_items, floor_number
     )
-    for entity in monsters + items:
+    for factory in monsters + items:
         if room:
             x = random.randint(room.x1 + 1, room.x2 - 1)
             y = random.randint(room.y1 + 1, room.y2 - 1)
@@ -142,9 +141,9 @@ def place_entities(map: GameMap, floor_number: int, room: RectangularRoom = None
             x = random.randint(0, map.width - 1)
             y = random.randint(0, map.height - 1)
 
-        unwalkable = np.logical_not(map.tiles[x, y]["walkable"])
-        if not any(unwalkable and entity.x == x and entity.y == y for entity in map.entities):
-            entity.spawn(map, x, y)
+        unwalkable = not map.tiles[x, y]["walkable"]
+        if not (unwalkable and map.get_entities_at_location(x, y)):
+            map.add_entity(factory(), x, y)
 
 
 def tunnel_between(
@@ -283,13 +282,14 @@ def replace_variations(tile: tile_types.Tile, landscape: np.ndarray, width: int,
             landscape[x][y] = tile_result
     return landscape
 
-def spawn_vegetation(tree: components.plant.Tree, shrub: components.plant.Shrub, map: GameMap, tree_map: np.ndarray):
-    """Spawns trees and shrubs `map` via `tree_map`"""
-    for x, row in enumerate(tree_map):
-        for y, tile in enumerate(row):
-            if tile:
-                plant = tree if random.random() > 0.2 else shrub
-                plant.spawn(map, x, y)
+def spawn_vegetation(tree: PlantSpecies, shrub: PlantSpecies, map: GameMap, tree_map: np.ndarray):
+    """Plant one Tree/Shrub per True cell of `tree_map` (80 % trees). All trees share `tree`, all shrubs `shrub`."""
+    for x, y in np.argwhere(tree_map).tolist():
+        if random.random() > 0.2:
+            plant = components.plant.Tree(tree)
+        else:
+            plant = components.plant.Shrub(shrub)
+        map.add_entity(plant, x, y)
 
 def generate_noise(
     map_width: int,
@@ -399,7 +399,10 @@ def generate_noise(
     map = GameMap(engine, landscape, entities=[player])
 
     tree_map: np.ndarray = landscape == tile_types.roots.get_array()
-    spawn_vegetation(components.plant.Tree(), components.plant.Shrub(), map, tree_map)
+    # One tree species and one shrub species per floor (as before, when every plant was a deepcopy of one prototype).
+    spawn_vegetation(
+        make_plant_species(PlantCategory.TREE), make_plant_species(PlantCategory.SHRUB), map, tree_map
+    )
 
 
     # Get random player position
