@@ -1,8 +1,8 @@
 """Handle the loading and initialization of game sessions."""
 from __future__ import annotations
-from asyncio import exceptions
 
 import g
+import exceptions
 import lzma
 import pickle
 import traceback

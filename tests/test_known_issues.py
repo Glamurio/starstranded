@@ -46,10 +46,10 @@ def test_current_get_unit_at_location_may_return_a_corpse(small_world):
     assert e.game_map.get_unit_at_location(5, 5) in {corpse, alive}  # which one is set-order luck
 
 
-def test_current_setup_game_uses_asyncio_exceptions_module():
-    """`from asyncio import exceptions` shadows the game's own `exceptions` module."""
-    assert setup_game.exceptions.__name__ == "asyncio.exceptions"
-    assert not hasattr(setup_game.exceptions, "Impossible")
+def test_setup_game_uses_the_game_exceptions_module():
+    """`from asyncio import exceptions` used to shadow the game's own `exceptions` module."""
+    assert setup_game.exceptions.__name__ == "exceptions"
+    assert issubclass(setup_game.exceptions.Impossible, Exception)
 
 
 def test_current_character_creation_player_is_created_at_import_and_shared():
