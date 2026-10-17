@@ -5,12 +5,13 @@ import os
 import pickle
 import g
 
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 from tcod import libtcodpy
 import tcod
 import numpy as np # type: ignore
 
 import exceptions
+from config import DEFAULT_CONFIG, GameConfig
 from message_log import MessageLog
 import render_functions
 import color
@@ -31,7 +32,8 @@ class Engine:
     game_map: GameMap
     game_world: GameWorld
 
-    def __init__(self, player: Unit):
+    def __init__(self, player: Unit, config: Optional[GameConfig] = None):
+        self.config = config or DEFAULT_CONFIG
         self.message_log = MessageLog()
         self.mouse_location = tcod.event.Point(0, 0)
         self.player = player
@@ -138,14 +140,14 @@ class Engine:
         player_fov = tcod.map.compute_fov(
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
-            radius=100,
+            radius=self.config.fov_radius,
             algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST
         )
 
         self.game_map.visible[:] = player_fov
 
         # Step 2: For each lit campfire, check if its light connects to player vision
-        for entity in self.game_map.entities:
+        for entity in self.game_map.items:
             if not isinstance(entity, Campfire) or not entity.is_lit or not entity.is_placed:
                 continue
 
