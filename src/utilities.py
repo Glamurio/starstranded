@@ -7,7 +7,6 @@ import g
 import random
 
 import numpy as np # type: ignore
-from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Tuple, List
 
 if TYPE_CHECKING:
@@ -177,22 +176,8 @@ def is_mouse_in_rectangle(mouse: tcod.event.MouseState, point: tcod.event.Point,
         and (point.y - height // 2) < (mouse_pt.y) and (point.y + height // 2) > (mouse_pt.y)
 
 
-def generate_name(origin: str):
-    path = Path("./data/namegen").resolve()
-    file_names = []
-    for file in os.listdir(path):
-        file_names.append(file)
-        if file.find(".cfg") > 0:
-            tcod.namegen_parse(os.path.join(path, file))
-
-    # get the sets list
-    name_sets = tcod.namegen_get_sets()
-    for name_set in name_sets:
-        if not origin.casefold() in name_set.casefold():
-            continue
-
-        return tcod.namegen_generate(name_set)
-    return tcod.namegen_generate(name_sets[0])
+# generate_name now lives in namegen.py (pure Python, cached); re-exported for existing callers.
+from namegen import generate_name  # noqa: E402,F401
 
 
 def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: Optional[List[tuple]] = None) -> Dict: # type: ignore
