@@ -83,5 +83,43 @@ What moved and why:
 Reproduce: `git archive 8c03308 src | tar -x -C /tmp/p1 && python scripts/benchmark.py --src /tmp/p1/src --json old.json`
 and `python scripts/benchmark.py --json new.json`.
 
-## Phase 3 / 5 results
-_Filled in as phases complete._
+## Phase 3: pygame-ce rendering (same machine, same fixed scenario)
+
+The scenario terrain is stored in both tile layouts (`scenario_landscape_tcod.npy` for tcod-era checkouts, `scenario_landscape.npy`
+with sprite ids for Phase 3+); `scripts/benchmark.py` picks the right one. Simulation sections are unaffected by the port and
+stay within noise of Phase 2 (median ms, 20/5/15/100/10 repetitions):
+
+| benchmark | Phase 2 ms | Phase 3 ms |
+|---|---:|---:|
+| `floor_generation` | 3.156 | 3.170 |
+| `spawn_trees_x500` | 3.128 | 2.985 |
+| `turn_passive_200` | 1.977 | 1.951 |
+| `turn_hungry_200` | 43.878 | 44.636 |
+| `turn_hostile_200` | 46.238 | 47.617 |
+| `pathfinding` (per query) | 0.243 | 0.240 |
+| `fov` | 0.017 | 0.017 |
+| `save_load.save` / `.load` | 9.521 / 0.785 | 10.143 / 0.988 |
+| `save_load.size_kib` | 6.3 | 6.2 |
+
+Rendering is a different pipeline, so the numbers are not directly comparable. tcod filled a console array (0.23 ms) and
+the GPU drew it (1.1 ms per frame, vsync-capped when presented). pygame blits on the CPU:
+
+| benchmark (50 extra units, in-game view) | median ms | range |
+|---|---:|---|
+| `render.map_render` (terrain batch + entities) | 3.449 | 3.147–4.122 |
+| `render.engine_render` (map + status bars, names, log, side panel) | 3.699 | 3.297–5.028 |
+| `render.frame_no_present` (full screen draw) | 3.755 | 3.342–5.553 |
+| `render.frame_with_present` (draw + scale to window + flip, dummy driver) | 5.505 | 4.956–6.653 |
+
+A frame costs ~3.8 ms to draw and ~5.5 ms with presenting, i.e. a third of the 16.7 ms budget. Frames are only drawn after an
+input event or window change (the old loop redrew every iteration), and the loop is capped at 60 FPS, so an idle game costs
+no CPU. The terrain batch dominates: tiles are grouped by distinct graphic with `np.unique`, so the Python-level work is one
+list comprehension over visible tiles plus one `Surface.blits` call. The sprite cache stays small (a few hundred variants).
+Ideas for the later performance pass: cache the terrain layer as one surface and repaint only when `visible`/`explored`
+or terrain changes (moving the player changes FOV nearly every turn, so this needs dirty-rects to pay off), and avoid the
+Python list building by drawing tiles through a pre-baked per-chunk surface (fits Phase 5).
+
+Reproduce: `python scripts/benchmark.py --json new.json` (older checkouts via `--src`).
+
+## Phase 5 results
+_Filled in when the phase completes._

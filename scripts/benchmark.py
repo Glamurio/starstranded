@@ -15,7 +15,8 @@ Sections (milliseconds unless noted):
                      (passive = idle rabbits, hungry = rabbits seeking food, hostile = Selenites chasing)
   pathfinding        mean of 300 fixed queries (random unit -> random tile) on the scenario with 100 rabbits
   fov                Engine.update_fov
-  render_*           one frame of the in-game view (with_present includes the vsync wait, ~16.7 ms)
+  render_*           one frame of the in-game view: tcod era = console / texture / present (vsync-capped);
+                     Phase 3+ = map only / map + UI / full draw / draw + scale + present
   save_load          Engine.save_as + load_game, plus file size in KiB
 """
 from __future__ import annotations
@@ -48,10 +49,13 @@ import numpy as np  # noqa: E402
 import setup_game  # noqa: E402  (import first: resolves circular import order)
 import actions  # noqa: E402
 import input_handlers  # noqa: E402
+import tile_types  # noqa: E402
 from world import GameMap  # noqa: E402
 
 NEW_API = hasattr(GameMap, "add_entity")  # Phase 2+: spatial index, species definitions
-LANDSCAPE = np.load(HERE / "bench_data" / "scenario_landscape.npy")
+PYGAME_API = "sprite" in (tile_types.graphic_dt.names or ())  # Phase 3+: pygame-ce rendering, sprite-id tiles
+# The scenario terrain exists in both tile layouts (codepoints for the tcod-era code, sprite ids for Phase 3+).
+LANDSCAPE = np.load(HERE / "bench_data" / ("scenario_landscape.npy" if PYGAME_API else "scenario_landscape_tcod.npy"))
 
 
 # ── adapter over the pre-/post-Phase-2 APIs ─────────────────────────────────────────────
@@ -200,6 +204,8 @@ def bench_fov(repeat: int) -> dict:
 
 def bench_render(repeat: int) -> dict:
     import g
+    if PYGAME_API:
+        return bench_render_pygame(repeat)
     engine = scenario(units=50)
     handler = input_handlers.MainGameEventHandler(engine)
     g.handlers = [handler]
@@ -216,6 +222,29 @@ def bench_render(repeat: int) -> dict:
         "engine_render": timed(console_only, repeat),
         "frame_no_present": timed(to_texture, repeat),
         "frame_with_present": timed(lambda: g.render(handler), max(3, repeat // 5)),
+    }
+
+
+def bench_render_pygame(repeat: int) -> dict:
+    """Phase 3+ rendering. `map_render` is the terrain + entity blits alone, `engine_render` adds the UI panels,
+    `frame_no_present` is a full draw of the screen into the logical surface, `frame_with_present` also scales
+    it to the (dummy-driver) window and flips."""
+    import g
+    g.init(headless=True)
+    engine = scenario(units=50)
+    handler = input_handlers.MainGameEventHandler(engine)
+    g.handlers = [handler]
+    g.draw(handler)  # warm the sprite caches: steady-state frames are what matters
+
+    def map_only():
+        g.canvas.clear()
+        engine.game_map.render(g.canvas)
+
+    return {
+        "map_render": timed(map_only, repeat),
+        "engine_render": timed(lambda: (g.canvas.clear(), engine.render(g.canvas)), repeat),
+        "frame_no_present": timed(lambda: g.draw(handler), repeat),
+        "frame_with_present": timed(lambda: g.render(handler), repeat),
     }
 
 
@@ -237,7 +266,7 @@ def main() -> None:
     def r(n: int) -> int:
         return max(3, int(n * q))
 
-    results: dict = {"api": "phase2+" if NEW_API else "pre-phase2"}
+    results: dict = {"api": "phase3+" if PYGAME_API else ("phase2" if NEW_API else "pre-phase2")}
     results["floor_generation"] = bench_floor_generation(r(20))
     results["spawn_trees_x500"] = bench_spawn_trees(r(5))
     for kind in ("passive", "hungry", "hostile"):
