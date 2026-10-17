@@ -114,7 +114,7 @@ class Unit(Entity):
         return amount_recovered
 
     def handle_health(self, amount: int, entity: Optional[Entity]) -> None:
-        self.hp = clamp((self.hp + amount), 0, self.max_hunger)
+        self.hp = clamp((self.hp + amount), 0, self.max_hp)
         if self.hp == 0 and self.ai:
             self.die(entity)
 

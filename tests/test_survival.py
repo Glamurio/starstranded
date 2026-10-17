@@ -88,12 +88,18 @@ def test_handle_health_damage_and_death_of_ai_unit(small_world):
     assert a.hp == 0 and not a.is_alive
 
 
-def test_current_handle_health_clamps_to_max_hunger_not_max_hp(small_world):
-    """BUG (Phase 1): upper clamp is max_hunger (100), so HP can exceed max_hp (30)."""
+def test_handle_health_clamps_to_max_hp(small_world):
     p = small_world().player
     p.handle_health(+500, p)
-    assert p.hp == p.max_hunger == 100
-    assert p.hp > p.max_hp
+    assert p.hp == p.max_hp == 30
+
+
+def test_handle_health_clamp_uses_max_hp_even_when_hunger_cap_differs(small_world):
+    p = small_world().player
+    p.max_hunger = 1000
+    p.hp = 5
+    p.handle_health(+500, p)
+    assert p.hp == p.max_hp
 
 
 def test_heal_clamps_to_max_hp_and_reports_amount(small_world):
