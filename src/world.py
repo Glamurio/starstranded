@@ -9,7 +9,8 @@ import numpy as np  # type: ignore
 
 from atlas import TILE
 from entity import EntityCategory, Item, SpatialContainer
-from render_order import RenderOrder
+from config import DEFAULT_CONFIG
+from render_order import GROUND_LAYERS, LAYERS, MAX_GROUND_OBJECTS_PER_TILE, RenderOrder
 import tile_types
 
 if TYPE_CHECKING:
@@ -91,8 +92,27 @@ class GameMap(SpatialContainer):
         return self._actors.keys()
 
     def entities_in_render_order(self) -> Iterator[Entity]:
-        for order in RenderOrder:
+        for order in LAYERS:
             yield from self._buckets[order]
+
+    def stack_at(self, x: int, y: int) -> List[Entity]:
+        """Entities on a tile, topmost layer first (the order you would see them in); newer arrivals first within a layer."""
+        here = self._by_pos.get((x, y), ())
+        return sorted(reversed(here), key=lambda entity: -entity.render_order.value)
+
+    def hidden_ground_counts(self) -> Dict[Tuple[int, int], int]:
+        """With the clutter safeguard on: `{(x, y): number of hidden ground objects}` for visible tiles piled too high."""
+        config = getattr(self.engine, "config", DEFAULT_CONFIG)
+        if not config.clutter_safeguard:
+            return {}
+        visible = self.visible
+        counts: Dict[Tuple[int, int], int] = {}
+        for order in GROUND_LAYERS:
+            for entity in self._buckets[order]:
+                if visible[entity.x, entity.y]:
+                    position = (entity.x, entity.y)
+                    counts[position] = counts.get(position, 0) + 1
+        return {position: n - MAX_GROUND_OBJECTS_PER_TILE for position, n in counts.items() if n > MAX_GROUND_OBJECTS_PER_TILE}
 
     # ── mutation API ──────────────────────────────────────────────────────────────
     def add_entity(self, entity: Entity, x: int, y: int) -> None:
@@ -231,7 +251,9 @@ class GameMap(SpatialContainer):
 
         Terrain is drawn in one batched blit: tiles are grouped by their distinct graphic (sprite, flip, tint,
         background), each group is a cached surface from the sprite atlas, and `Surface.blits` draws them all.
-        Entities then follow in render order, each tinted with its own shade.
+        Entities then follow layer by layer (see `RenderOrder`), each tinted with its own shade and mirrored by its own
+        flag. Piles of ground objects are capped by the clutter safeguard (`GameConfig.clutter_safeguard`): the bottom
+        ones of an over-full tile are skipped and a stack marker is drawn on it instead.
         """
         atlas = canvas.sprites
         surface = canvas.surface
@@ -270,14 +292,24 @@ class GameMap(SpatialContainer):
 
         visible = self.visible
         get = atlas.get
+        hidden = self.hidden_ground_counts()
+        skip = dict(hidden)  # how many of the lowest ground objects of a tile are still to be skipped
         entity_blits = []
-        for entity in self.entities_in_render_order():
-            # Only draw entities that are in the FOV
-            x, y = entity.x, entity.y
-            if visible[x, y]:
+        for order in LAYERS:
+            ground = order in GROUND_LAYERS and bool(skip)
+            for entity in self._buckets[order]:
+                # Only draw entities that are in the FOV
+                x, y = entity.x, entity.y
+                if not visible[x, y]:
+                    continue
+                if ground and skip.get((x, y)):
+                    skip[(x, y)] -= 1
+                    continue
                 entity_blits.append((get(entity.sprite_id, entity.flipped, entity.shade),
                                      ((origin[0] + x) * TILE, (origin[1] + y) * TILE)))
         surface.blits(entity_blits, doreturn=False)
+        for x, y in hidden:
+            canvas.badge(origin[0] + x, origin[1] + y)
 
 class GameWorld:
     """

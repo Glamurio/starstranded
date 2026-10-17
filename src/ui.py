@@ -78,6 +78,7 @@ class Canvas:
         self.width = surface.get_width() // CELL
         self.height = surface.get_height() // CELL
         self._overlays: Dict[tuple, pygame.Surface] = {}
+        self._badges: Dict[tuple, pygame.Surface] = {}
 
     # ── geometry ───────────────────────────────────────────────────────────────────
     @staticmethod
@@ -106,6 +107,19 @@ class Canvas:
             overlay.fill((*color, alpha))
             self._overlays[key] = overlay
         self.surface.blit(overlay, (x * CELL, y * CELL))
+
+    def badge(self, x: int, y: int, text: str = "+") -> None:
+        """A small marker in the top-right corner of cell (x, y) (used for "more objects lie here")."""
+        size = CELL // 2
+        key = (text, size)
+        marker = self._badges.get(key)
+        if marker is None:
+            marker = pygame.Surface((size, size), pygame.SRCALPHA)
+            marker.fill((0, 0, 0, 230))
+            glyph = pygame.transform.scale(self.font.glyph(cp437_index(text[0]), WHITE), (size, size))
+            marker.blit(glyph, (0, 0))
+            self._badges[key] = marker
+        self.surface.blit(marker, (x * CELL + CELL - size, y * CELL))
 
     def dim(self, divisor: int = 8) -> None:
         """Darken everything drawn so far (popups use this to push the screen behind them back)."""
