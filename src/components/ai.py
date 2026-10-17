@@ -5,6 +5,7 @@ import color
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from actions import Action, BumpAction, MeleeAction, MovementAction, WaitAction
+from entity import EntityCategory
 
 if TYPE_CHECKING:
     from entity import Unit, Entity, Item
@@ -40,8 +41,11 @@ class BaseAI(Action):
         return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
 
     def flee(self, entity: Entity, distance: int = 10) -> None:
-        """Choose a random tile that's at least `distance` tiles away from `entity` and return its coordinates."""
-        while True:
+        """Move towards a random walkable tile at least `distance` tiles away from `entity`.
+
+        Tries `config.flee_attempts` random tiles (the old loop could spin forever); if none qualifies, wanders.
+        """
+        for _ in range(self.engine.config.flee_attempts):
             dx = random.randint(0, self.engine.game_map.width - 1)
             dy = random.randint(0, self.engine.game_map.height - 1)
             if self.engine.game_map.tiles["walkable"][dx, dy] and self.engine.distance((dx, dy), (entity.x, entity.y)) >= distance:
@@ -53,6 +57,7 @@ class BaseAI(Action):
                         f"{self.entity.get_title()} is fleeing from {entity.get_title()}!"
                     )
                 return MovementAction(self.entity, dx, dy, self.path).perform()
+        return self.wander()
 
     def seek_food(self) -> None:
         """Attempt to find food, either in inventory or nearby."""
@@ -65,36 +70,19 @@ class BaseAI(Action):
 
         closest_plant: Plant = None
         closest_food: Item = None
-        plants = list(self.engine.game_map.plants)
-        items = list(self.engine.game_map.items)
+        game_map = self.engine.game_map
         max_radius = self.entity.radius  # Maximum radius to search for plants within
+        # Scan Chebyshev rings outwards through the spatial index. At each radius food items on the ground win
+        # over fruiting plants, as before; ties within a ring are resolved in ring order.
         for radius in range(0, max_radius + 1):
-            # Find the closest plant within the current radius
-            for item in items:
-                distance = self.engine.distance((self.entity.x, self.entity.y), (item.x, item.y))
-                if not distance == radius:
-                    continue
-                if not isinstance(item, FoodConsumable):
-                    continue
-
-                closest_food = item
-                break
-
+            ring = game_map.entities_on_ring(self.entity.x, self.entity.y, radius)
+            closest_food = next((e for e in ring if isinstance(e, FoodConsumable)), None)
             if closest_food:
                 break
-
-            for plant in plants:
-                distance = self.engine.distance((self.entity.x, self.entity.y), (plant.x, plant.y))
-                if not distance == radius:
-                    continue
-                if not plant.fruit:
-                    continue
-                if plant.inventory.is_empty():
-                    continue
-
-                closest_plant = plant
-                break
-
+            closest_plant = next(
+                (e for e in ring if e.category is EntityCategory.PLANT and e.fruit and not e.inventory.is_empty()),
+                None,
+            )
             if closest_plant:
                 break
         

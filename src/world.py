@@ -198,6 +198,20 @@ class GameMap(SpatialContainer):
                 corpse = corpse or entity
         return corpse
 
+    def entities_on_ring(self, x: int, y: int, radius: int) -> List[Entity]:
+        """Entities at Chebyshev distance exactly `radius` from (x, y) (radius 0 = the tile itself)."""
+        by_pos = self._by_pos
+        if radius == 0:
+            return list(by_pos.get((x, y), ()))
+        found: List[Entity] = []
+        for dx in range(-radius, radius + 1):
+            found.extend(by_pos.get((x + dx, y - radius), ()))
+            found.extend(by_pos.get((x + dx, y + radius), ()))
+        for dy in range(-radius + 1, radius):
+            found.extend(by_pos.get((x - radius, y + dy), ()))
+            found.extend(by_pos.get((x + radius, y + dy), ()))
+        return found
+
     def is_blocked(self, x: int, y: int) -> bool:
         """True if a movement-blocking entity stands on (x, y)."""
         return bool(self.blocked[x, y]) if self.in_bounds(x, y) else False
