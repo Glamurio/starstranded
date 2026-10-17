@@ -197,3 +197,16 @@ doing it twice is wasteful. Pickles stay circular but compact (pickle memoizes s
 
 Not done on purpose: dirty-rect/terrain-layer caching and any other render optimisation (frame ≈ 3.8 ms; owner postponed the
 performance overhaul), fullscreen toggle, key rebinding, sound. `utilities.get_data` (dead, pointed at a libtcod folder) was deleted.
+
+# Phase 4 outcome (sprite layering)
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| **Layer stack = `RenderOrder`**: terrain < CORPSE < ITEM < SHRUB < UNIT < TREE (`render_order.LAYERS`; the enum value is the position). Every entity on a visible tile is drawn as its own sprite with its own `shade` tint and `flipped` flag; sprites are transparent between strokes, so lower layers show through. Corpses switch layer when a unit or plant dies (as before). | The buckets introduced in Phase 2 already iterate in this order; making it explicit and tested was all that was needed. | A per-tile "top entity only" renderer (loses the corpse/item under a unit, which the brief wants visible). |
+| **Clutter safeguard** is one flag, `GameConfig.clutter_safeguard` (default **on**), with the cap in `render_order.MAX_GROUND_OBJECTS_PER_TILE = 2`. Per visible tile only the top two *ground* objects (corpses, items; items sit above corpses, newer above older) are drawn and a small "+" marker (`Canvas.badge`, top-right quarter of the cell) shows that more are hidden. Units, shrubs and trees are never hidden, so a unit standing on a big pile is drawn normally on top of the two visible objects. Off: draw everything. | A pile of five transparent sprites is an unreadable blob; the cap keeps the top of the pile readable without hiding creatures. | Hiding the pile whenever a unit stands on it (the unit's own tile is exactly where you want to see what you are standing on); shrinking sprites; a count badge (one more thing to read). |
+| **Hidden objects stay discoverable:** `GameMap.stack_at(x, y)` returns the whole tile top-first (layer descending, newest first within a layer). The names under the cursor / look use it (cut with "..." if wider than the panel) and so does the pickup window (`PickupHandler` → loot list), which now lists the topmost object first. | What you see first is what you read first; nothing hidden is lost. | Keeping insertion order (bottom first: the corpse before the item on top). |
+| **Per-layer mirror/tint:** unchanged semantic, now covered by tests: units mirror with their facing, corpses and items are never mirrored, each entity keeps its own shade. | – | – |
+| **Verification:** `tests/test_layering.py` composites the expected tile by hand (floor tile + each sprite in order) and compares pixels exactly, for a corpse+item under the player, under an animal, a full 5-layer stack, the capped pile (left half exact, marker present), the uncapped pile, and units on piles. `scripts/screenshots.py` writes zoomed crops to `docs/phase4/`. | Pixel equality is stricter than "something is drawn". | Eyeballing screenshots. |
+
+Not done on purpose: dimming/greying corpses (they keep their entity's tint), a scrollable "what is here" window beyond the names line and the
+pickup list, per-pile marker counts.

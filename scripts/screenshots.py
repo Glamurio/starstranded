@@ -4,7 +4,7 @@
 Usage: python scripts/screenshots.py [outdir]        (default: docs/phase3)
 
 The screens are reached the way a player reaches them: through the handlers, fed with synthetic key and
-mouse events. The Phase 0 tcod screenshots are kept in docs/baseline for comparison.
+mouse events. The last part renders the Phase 4 sprite stacks as zoomed crops (`layering_*.png`). The Phase 0 tcod screenshots are kept in docs/baseline for comparison.
 """
 from __future__ import annotations
 
@@ -38,6 +38,85 @@ def shot(handler, name: str) -> None:
 
 def press(handler, key, mod=0):
     return handler.handle_events(KeyDown(key, mod))
+
+
+def shot_zoom(handler, name: str, center, radius: int = 5, scale: int = 5) -> None:
+    """Draw the whole screen, then save a `scale`x enlarged crop of the cells around `center` (the stack tests)."""
+    import pygame
+    from atlas import TILE
+
+    g.draw(handler)
+    cx, cy = center
+    area = pygame.Rect((cx - radius) * TILE, (cy - radius) * TILE, (2 * radius + 1) * TILE, (2 * radius + 1) * TILE)
+    crop = g.display.surface.subsurface(area.clip(g.display.surface.get_rect())).copy()
+    big = pygame.transform.scale(crop, (crop.get_width() * scale, crop.get_height() * scale))
+    path = OUT / f"{name}.png"
+    pygame.image.save(big, str(path))
+    print("saved", path)
+
+
+def flat_world(width: int = 24, height: int = 14):
+    """An all-floor map with the player at (3, 3): a clean stage for the layering shots."""
+    import tile_types
+    from engine import Engine
+    from world import GameMap, GameWorld
+
+    player = setup_game.create_player()
+    engine = Engine(player=player)
+    engine.game_world = GameWorld(engine=engine, map_width=width, map_height=height, max_rooms=1, room_min_size=1, room_max_size=2)
+    landscape = np.full((width, height), fill_value=tile_types.floor.get_array(), order="F", dtype=tile_types.tile_dt)
+    engine.game_map = GameMap(engine, landscape, entities=[player])
+    player.place(3, 3, engine.game_map)
+    engine.update_fov()
+    return engine
+
+
+def layering_shots() -> None:
+    """Phase 4: sprite stacks. A corpse and an item under the player and under an animal; a pile with the clutter
+    safeguard on and off."""
+    from components.consumable import Meat
+    from components.plant import Shrub, Tree
+    from components.unit import Animal
+    from config import GameConfig
+
+    def corpse(engine, x, y):
+        animal = Animal()
+        animal.place(x, y, engine.game_map)
+        animal.hp = 0
+        animal.die(None)
+        return animal
+
+    engine = flat_world()
+    game = ih.MainGameEventHandler(engine)
+    g.handlers = [game]
+    gm = engine.game_map
+    player = engine.player
+    corpse(engine, player.x, player.y)
+    Meat("rabbit").place(player.x, player.y, gm)
+    # an animal on its own corpse + item
+    corpse(engine, 8, 3)
+    Meat("rabbit").place(8, 3, gm)
+    Animal().place(8, 3, gm)
+    # shrub + animal, and a tree for reference
+    Shrub().place(12, 3, gm)
+    Animal().place(12, 3, gm)
+    Tree().place(15, 3, gm)
+    # a pile: 2 corpses, 5 items (+ a unit on top in the second one)
+    for x in (4, 10):
+        for _ in range(2):
+            corpse(engine, x, 8)
+        for _ in range(5):
+            Meat("rabbit").place(x, 8, gm)
+    Animal().place(10, 8, gm)
+    engine.update_fov()
+    engine.mouse_location = Point(player.x, player.y)
+    shot_zoom(game, "layering_player_on_corpse_and_item", (player.x + 3, 3), radius=6)
+    engine.mouse_location = Point(8, 3)
+    shot(game, "layering_names_top_first")
+    engine.mouse_location = Point(4, 8)
+    shot_zoom(game, "layering_pile_safeguard_on", (7, 8), radius=5)
+    engine.config = GameConfig(clutter_safeguard=False)
+    shot_zoom(game, "layering_pile_safeguard_off", (7, 8), radius=5)
 
 
 def main() -> None:
@@ -113,6 +192,8 @@ def main() -> None:
     shot(ih.PopupMessage(game, "Failed to load save:\nVersion mismatch"), "popup")
     player.hp = 0
     shot(ih.GameOverEventHandler(engine), "game_over")
+
+    layering_shots()
 
 
 if __name__ == "__main__":

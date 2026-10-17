@@ -4,7 +4,7 @@ Status: **baseline of the untouched code** (branch `modernize`, forked from `cra
 commit). Phase 5 rewrites this file to describe the final architecture.
 Where this differs from the original task description, the code wins (see "Differences from the brief").
 
-## Current architecture (after Phase 3) — read this first
+## Current architecture (after Phase 4) — read this first
 The sections further down describe the **Phase 0 baseline** (tcod console rendering, `map_codepoints`, `g.root_console`, …);
 where they disagree with this section, this section wins.
 
@@ -37,6 +37,9 @@ where they disagree with this section, this section wins.
   batches terrain; `Engine.render(canvas)` adds panels. Handlers get cell-based events and draw on a `Canvas` (`on_render(canvas)`).
   Tests init the window headlessly in `conftest` (`g.init(headless=True)`); `tests/render_helpers.py` inspects drawn pixels.
   tcod remains only for FOV, `tcod.path`, noise and `bresenham` (`test_no_tcod_rendering` enforces it).
+- **Layering (Phase 4).** `render_order.LAYERS` = CORPSE < ITEM < SHRUB < UNIT < TREE over the terrain; all visible entities are drawn.
+  `GameConfig.clutter_safeguard` (default on) caps corpses+items at 2 per tile (`MAX_GROUND_OBJECTS_PER_TILE`) with a `Canvas.badge`
+  "+" marker; `GameMap.hidden_ground_counts()` reports what is hidden; `GameMap.stack_at(x, y)` lists a tile top-first for names/loot.
 
 ## Differences from the brief (verified)
 | Brief said | Code says |

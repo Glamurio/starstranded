@@ -2,6 +2,13 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Phase 4 — sprite layering
+- **Everything on a tile is drawn in a fixed stack:** corpses, then items, then shrubs, then creatures, then trees, each with its own colour and facing.
+  You can now see the corpse and item you are standing on, or that an animal stands on.
+- **Piles are capped:** with more than two corpses/items on one tile only the top two are drawn and a small "+" shows there are more
+  (`GameConfig.clutter_safeguard`, on by default; creatures are never hidden).
+- Looking at a tile (names under the cursor) and the pick-up list now show the stack **topmost first**; long lists are cut with "...".
+
 ## Phase 3 — pygame-ce rendering and input
 - **The game window is now drawn with pygame-ce** (tcod is only used for FOV, pathfinding, noise and line drawing). Install
   `pygame-ce` (`pip install -r requirements.txt`). The sprite sheet and font are unchanged.
