@@ -204,3 +204,32 @@ class NoiseWorldSource:
             chunk.tiles[tx, ty] = tile_types.down_stairs.get_array()
             self.stairs = (chunk.x0 + tx, chunk.y0 + ty)
             world.downstairs_location = self.stairs
+
+
+class FlatWorldSource:
+    """An unbounded world of open floor and nothing else: a clean stage for tests and benchmarks (walking across
+    borders, NEAR-ring populations). Same protocol as `NoiseWorldSource`."""
+
+    bounds = None
+
+    def __init__(self, floor_seed: int = 0, floor: int = 1, spawn_point: Tuple[int, int] = (35, 20)):
+        self.floor_seed = floor_seed
+        self.floor = floor
+        self.spawn_point = spawn_point
+        self.stairs: Optional[Tuple[int, int]] = None
+
+    def definitions(self) -> List:
+        return []
+
+    def can_load(self, key: ChunkKey) -> bool:
+        return True
+
+    def mask(self, key: ChunkKey):
+        return True
+
+    def generate(self, world: World, key: ChunkKey) -> Chunk:
+        tiles = np.full((CHUNK_W, CHUNK_H), fill_value=tile_types.floor.get_array(), dtype=tile_types.tile_dt, order="F")
+        return Chunk(key, tiles)
+
+    def populate(self, world: World, chunk: Chunk) -> None:
+        pass
