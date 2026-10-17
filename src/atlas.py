@@ -1,0 +1,150 @@
+"""Sprite atlas: the Urizen tilesheet loaded once, with cached tinted / mirrored variants.
+
+The sheet is a 50x50 grid of 24x24 px sprites (``urizen_nogrid_white.png``). It is stored as an 8-bit
+palettised image where near-white pixels are the sprite and near-black pixels are the background, so
+loading converts it into a white RGBA surface (background transparent). Tinting is then a single
+multiply, which is how every sprite gets its colour.
+
+Sprites are addressed by *sprite id* = ``row * COLUMNS + column`` (see ``sprite_id``); definitions
+keep their ``(column, row)`` pairs and convert once at import time.
+"""
+from __future__ import annotations
+
+from typing import Dict, Optional, Tuple
+
+import numpy as np  # type: ignore
+import pygame
+
+RGB = Tuple[int, int, int]
+
+COLUMNS = 50
+ROWS = 50
+TILE = 24
+"""Pixel size of one sprite (and of one cell of the game's grid)."""
+
+NO_SPRITE = -1
+"""Sprite id meaning "draw nothing" (used for unexplored tiles)."""
+
+WHITE: RGB = (255, 255, 255)
+
+# Variants are cached by key; the cache is cleared wholesale when it grows past this many entries
+# (every tree has its own gaussian tint, so the number of distinct keys is not bounded by the content).
+MAX_CACHED_VARIANTS = 6000
+
+
+def sprite_id(column: int, row: int) -> int:
+    """Id of the sprite at `(column, row)` of the sheet."""
+    assert 0 <= column < COLUMNS and 0 <= row < ROWS, (column, row)
+    return row * COLUMNS + column
+
+
+def sprite_position(sprite: int) -> Tuple[int, int]:
+    """Inverse of `sprite_id`: `(column, row)`."""
+    return sprite % COLUMNS, sprite // COLUMNS
+
+
+def load_mask_sheet(path: str, *, threshold: int = 384) -> pygame.Surface:
+    """Load `path` as a white RGBA surface whose alpha is 255 where the source pixel is bright.
+
+    `threshold` is compared against r+g+b (so 384 = mid-grey).
+    """
+    source = pygame.image.load(path)
+    rgb = pygame.surfarray.array3d(source).astype(np.int32)
+    return _mask_to_surface(rgb.sum(axis=2) >= threshold)
+
+
+def load_alpha_sheet(path: str) -> pygame.Surface:
+    """Load `path` (an image with alpha) as a white RGBA surface keeping only its alpha channel."""
+    source = pygame.image.load(path)
+    if source.get_flags() & pygame.SRCALPHA:
+        mask = pygame.surfarray.array_alpha(source) > 127
+    else:
+        mask = pygame.surfarray.array3d(source).astype(np.int32).sum(axis=2) >= 384
+    return _mask_to_surface(mask)
+
+
+def _mask_to_surface(mask: np.ndarray) -> pygame.Surface:
+    surface = pygame.Surface(mask.shape, pygame.SRCALPHA, 32)
+    surface.fill((255, 255, 255, 0))
+    pygame.surfarray.pixels_alpha(surface)[:] = mask.astype(np.uint8) * 255
+    return surface
+
+
+class SpriteAtlas:
+    """Holds the sheet once and hands out cached sprite surfaces.
+
+    `get(sprite, flipped, tint)` returns a TILE x TILE surface with per-pixel alpha;
+    `get_on(sprite, flipped, tint, bg)` returns the same sprite composited over an opaque `bg` colour
+    (what terrain tiles use, so one blit draws background and sprite together).
+    Returned surfaces are shared: callers must not draw on them.
+    """
+
+    def __init__(self, sheet: pygame.Surface):
+        if pygame.display.get_surface() is not None:
+            sheet = sheet.convert_alpha()
+        self.sheet = sheet
+        self.columns = sheet.get_width() // TILE
+        self.rows = sheet.get_height() // TILE
+        self._cache: Dict[tuple, pygame.Surface] = {}
+
+    @classmethod
+    def load(cls, path: str) -> "SpriteAtlas":
+        return cls(load_mask_sheet(path))
+
+    def rect(self, sprite: int) -> pygame.Rect:
+        column, row = sprite % COLUMNS, sprite // COLUMNS
+        return pygame.Rect(column * TILE, row * TILE, TILE, TILE)
+
+    def get(self, sprite: int, flipped: bool = False, tint: RGB = WHITE) -> pygame.Surface:
+        key = (sprite, bool(flipped), tuple(tint))
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        surface = self.sheet.subsurface(self.rect(sprite)).copy()
+        if flipped:
+            surface = pygame.transform.flip(surface, True, False)
+        if tuple(tint) != WHITE:
+            surface.fill((*tint, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        self._cache[key] = surface
+        return surface
+
+    def get_on(self, sprite: int, flipped: bool, tint: RGB, bg: RGB) -> pygame.Surface:
+        """The sprite over an opaque background; `sprite == NO_SPRITE` gives just the background."""
+        key = (sprite, bool(flipped), tuple(tint), tuple(bg), "bg")
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        surface = pygame.Surface((TILE, TILE))
+        surface.fill(bg)
+        if sprite != NO_SPRITE:
+            surface.blit(self.get(sprite, flipped, tint), (0, 0))
+        if pygame.display.get_surface() is not None:
+            surface = surface.convert()
+        self._cache[key] = surface
+        return surface
+
+    def _make_room(self) -> None:
+        if len(self._cache) >= MAX_CACHED_VARIANTS:
+            self._cache.clear()
+
+    @property
+    def cached_variants(self) -> int:
+        return len(self._cache)
+
+
+_atlas: Optional[SpriteAtlas] = None
+
+
+def get_atlas() -> SpriteAtlas:
+    """The process-wide atlas, loaded on first use (relative to the working directory, like all assets)."""
+    global _atlas
+    if _atlas is None:
+        _atlas = SpriteAtlas.load("urizen_nogrid_white.png")
+    return _atlas
+
+
+def reset_atlas() -> None:
+    global _atlas
+    _atlas = None
