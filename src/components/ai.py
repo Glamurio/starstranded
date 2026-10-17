@@ -190,9 +190,11 @@ class PassiveAI(BaseAI):
     def perform(self) -> None:
         super().perform()
 
-        if not self.seeking and self.entity.hunger <= 90 or self.entity.thirst <= 90:
+        if self.entity.hunger <= 90 or self.entity.thirst <= 90:
             self.seeking = True
             return self.seek_food()
+
+        self.seeking = False  # reset when no longer hungry/thirsty
 
         if self.path:
             dest_x, dest_y = self.path[-1]
