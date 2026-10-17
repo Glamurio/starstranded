@@ -49,7 +49,7 @@ def test_save_payload_is_versioned(new_engine, tmp_path):
     path = tmp_path / "v.sav"
     new_engine.save_as(str(path))
     payload = pickle.loads(lzma.decompress(path.read_bytes()))
-    assert payload["version"] == SAVE_VERSION == 2 and payload["engine"].player.name
+    assert payload["version"] == SAVE_VERSION == 3 and payload["engine"].player.name
     assert not (tmp_path / "v.sav.tmp").exists()  # atomic write cleaned up
 
 
@@ -95,3 +95,15 @@ def test_main_menu_reports_incompatible_save(tmp_path, monkeypatch):
     menu.button_highlight = "Continue"
     result = menu.resolve_menu(None)
     assert isinstance(result, input_handlers.PopupMessage) and "Failed to load save" in result.text
+
+
+def test_version_2_saves_from_the_tcod_era_are_rejected(tmp_path):
+    """Tile graphics changed from codepoints to sprite ids in version 3, so older maps cannot be drawn."""
+    import lzma
+    import pickle
+    import pytest
+    import exceptions
+    path = tmp_path / "v2.sav"
+    path.write_bytes(lzma.compress(pickle.dumps({"version": 2, "engine": None})))
+    with pytest.raises(exceptions.IncompatibleSave, match="version 2"):
+        setup_game.load_game(str(path))

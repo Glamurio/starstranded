@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from world import GameMap, GameWorld
 
 
-SAVE_VERSION = 2
-"""Bump whenever the pickled object layout changes incompatibly. Version 1 = the pre-Phase-2 raw Engine pickle."""
+SAVE_VERSION = 3
+"""Bump whenever the pickled object layout changes incompatibly. 1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = tile graphics hold sprite ids (pygame port)."""
 
 
 class Engine:
