@@ -202,12 +202,12 @@ class MeleeAction(ActionWithDirection):
 
 class MovementAction(ActionWithDirection):
 
-    def __init__(self, entity: Unit, dest_x: int, dest_y: int, path: List[Tuple] = []):
+    def __init__(self, entity: Unit, dest_x: int, dest_y: int, path: Optional[List[Tuple]] = None):
         super().__init__(entity, dest_x, dest_y)
 
         self.dest_x = dest_x
         self.dest_y = dest_y
-        self.path = path
+        self.path = path if path is not None else []
 
     def perform(self) -> bool:
 

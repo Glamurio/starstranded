@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import numpy as np  # type: ignore
 import color
@@ -37,7 +37,7 @@ class Tile(object):
         walkable: int = False,
         transparent: int = False,
         object_type: str = "Name",
-        variations: List[Tuple[int, int, str]] = [],
+        variations: Optional[List[Tuple[int, int, str]]] = None,
         sprite_pos: Tuple[int, int] = (0, 0),
         dark_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         dark_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
@@ -51,7 +51,7 @@ class Tile(object):
         self.transparent = transparent
         self.sprite_pos = sprite_pos
 
-        self.variations = variations
+        self.variations = variations if variations is not None else []
         char_info = map_codepoints(self.object_type, sprite_pos, variations=variations)
         self.codepoint = char_info["sprite"]
 

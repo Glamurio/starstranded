@@ -89,10 +89,13 @@ class MainMenu(input_handlers.BaseEventHandler):
     menu_width = 12
     menu_i: int = 0
 
-    buttons = {}
+    buttons: dict
     button_height = 2
     button_names = ["New Game", "Continue", "Quit"]
     button_highlight = button_names[menu_i]
+
+    def on_init(self) -> None:
+        self.buttons = {}  # per-instance (was a class-level dict shared by all menus)
 
     def resolve_menu(self, event: tcod.event):
         """Resolves button and click logic"""

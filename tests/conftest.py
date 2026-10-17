@@ -16,12 +16,21 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC))
-os.chdir(SRC)
+_ORIGINAL_CWD = os.getcwd()
+os.chdir(SRC)  # needed only while importing: g.py / setup_game.py load assets at import time
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
 import setup_game  # noqa: E402,F401  (import first: resolves the circular import order)
+
+os.chdir(_ORIGINAL_CWD)  # keep pytest's own path handling (testpaths, rootdir) unaffected
+
+
+@pytest.fixture(autouse=True)
+def in_src_dir(monkeypatch):
+    """Game code resolves assets and data/ relative to the working directory."""
+    monkeypatch.chdir(SRC)
 
 
 @pytest.fixture(autouse=True)

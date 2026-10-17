@@ -412,15 +412,17 @@ class InventoryEventHandler(AskUserEventHandler):
     offset: int
 
     inventory: Inventory
-    inventory_entries: List[Item] = []
+    inventory_entries: List[Item]
     entries_amount: int = 0
 
-    buttons = {}
+    buttons: dict
     button_height: int = 2
     button_highlight: str = None
 
     def __init__(self, engine: Engine, inventory: Inventory = None, entities: List[Entity] = None, console: tcod.console.Console = None, offset: int = 0):
         super().__init__(engine)
+        self.inventory_entries = []
+        self.buttons = {}
         # If there's only one entity at target location, treat it as single inventory
         entity: Entity = entities[0] if entities and len(entities) == 1 else None
         self.inventory = entity.inventory if entity and not inventory else inventory
@@ -715,7 +717,8 @@ class InventoryDropHandler(InventoryEventHandler):
 class InventoryLootHandler(InventoryEventHandler):
     """Handle looting an item."""
 
-    def __init__(self, engine: Engine, looter: Entity, inventory: Inventory = None, entities: List[Entity] = [], console: tcod.console.Console = None, offset: int = 0):
+    def __init__(self, engine: Engine, looter: Entity, inventory: Inventory = None, entities: Optional[List[Entity]] = None, console: tcod.console.Console = None, offset: int = 0):
+        entities = [] if entities is None else entities
         super().__init__(engine, inventory, entities, console, offset)
 
         self.looter = looter

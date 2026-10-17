@@ -142,7 +142,7 @@ class Meat(FoodConsumable):
 
 
 class Fruit(FoodConsumable):
-    def __init__(self, parent: Union[GameMap, Inventory], factory: Dict[tuple[int, int, int], str] = {}):
+    def __init__(self, parent: Union[GameMap, Inventory], factory: Optional[Dict[tuple[int, int, int], str]] = None):
         FoodConsumable.__init__(self)
 
         if not factory:

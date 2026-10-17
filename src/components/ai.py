@@ -14,9 +14,13 @@ if TYPE_CHECKING:
 
 class BaseAI(Action):
     entity: Unit
-    path: List[Tuple[int, int]] = []
+    path: List[Tuple[int, int]]
     is_hostile: bool = False
     directions: List[Tuple[int, int]] = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+
+    def __init__(self, entity: Unit) -> None:
+        super().__init__(entity)
+        self.path = []  # per-instance; a class-level list would be shared by every AI
 
     def perform(self) -> None:
         time = self.engine.game_world.current_time

@@ -8,7 +8,7 @@ import random
 
 import numpy as np # type: ignore
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Tuple, List
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, List
 
 if TYPE_CHECKING:
     pass
@@ -206,7 +206,7 @@ def generate_name(origin: str):
     return tcod.namegen_generate(name_sets[0])
 
 
-def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: List[tuple] = []) -> Dict: # type: ignore
+def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, corpse_xy: tuple(int, int) = None, variations: Optional[List[tuple]] = None) -> Dict: # type: ignore
     """
     Function, which maps class_name to codepoint(s) and coordinates.
 
@@ -245,7 +245,7 @@ def map_codepoints(class_name: str, char_xy: tuple(int, int), mirror = False, co
         g.global_tileset.remap(corpse_i, corpse_xy[0], corpse_xy[1])
         values.append(corpse_i)
 
-    for j, variation in enumerate(variations):
+    for j, variation in enumerate(variations or []):
         variation_i = 1 + i + int(mirror) + int(bool(corpse_xy)) + j
         char_info[variation[2]] = variation_i
         g.global_tileset.remap(variation_i, variation[0], variation[1])

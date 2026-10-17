@@ -52,14 +52,6 @@ def test_current_setup_game_uses_asyncio_exceptions_module():
     assert not hasattr(setup_game.exceptions, "Impossible")
 
 
-def test_current_class_level_mutables_are_shared_between_instances():
-    from components.ai import BaseAI
-    assert isinstance(BaseAI.path, list)  # class attribute, shared unless an __init__ rebinds it
-    assert input_handlers.InventoryEventHandler.buttons is input_handlers.InventoryLootHandler.buttons
-    assert isinstance(input_handlers.InventoryEventHandler.inventory_entries, list)
-    assert setup_game.MainMenu.buttons is setup_game.MainMenu().buttons
-
-
 def test_current_character_creation_player_is_created_at_import_and_shared():
     assert setup_game.CharacterCreation.PLAYER is setup_game.CharacterCreation().PLAYER
 
