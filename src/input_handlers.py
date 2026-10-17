@@ -259,12 +259,12 @@ class PickupHandler(AskUserEventHandler):
     ) -> Optional[ActionOrHandler]:
         """By default any mouse click exits this input handler."""
         if event.button == MouseButton.LEFT:
-            targets = self.engine.game_map.get_entities_at_location(self.target_location.x, self.target_location.y)
+            targets = self.engine.game_map.stack_at(self.target_location.x, self.target_location.y)
             return self.on_tile_selected(targets)
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         if event.sym == Key.G or event.sym == Key.RETURN:
-            targets = self.engine.game_map.get_entities_at_location(self.target_location.x, self.target_location.y)
+            targets = self.engine.game_map.stack_at(self.target_location.x, self.target_location.y)
             return self.on_tile_selected(targets)
 
     def on_tile_selected(self, targets: List[Entity]) -> Optional[ActionOrHandler]:

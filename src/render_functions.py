@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
     if not game_map.in_bounds(x, y) or not game_map.visible[x, y]:
         return ""
-    names = ", ".join(entity.get_title() for entity in game_map.get_entities_at_location(x, y))
+    # Topmost first: the order the stack is seen in (hidden clutter is listed too).
+    names = ", ".join(entity.get_title() for entity in game_map.stack_at(x, y))
 
     return names
 
@@ -39,12 +40,15 @@ def render_dungeon_level(
     canvas.print(x, y, f"Floor: {dungeon_level}")
 
 def render_names_at_mouse_location(
-    canvas: Canvas, x: int, y: int, engine: Engine
+    canvas: Canvas, x: int, y: int, engine: Engine, width: int = 0
 ) -> None:
+    """Names of everything on the tile under the cursor, topmost first; cut with "..." if wider than `width` cells."""
     mouse_x, mouse_y = engine.mouse_location
 
     names_at_mouse_location = get_names_at_location(
         x=mouse_x, y=mouse_y, game_map=engine.game_map
     )
+    if width and len(names_at_mouse_location) > width:
+        names_at_mouse_location = names_at_mouse_location[: max(0, width - 3)] + "..."
 
     canvas.print(x, y, names_at_mouse_location)

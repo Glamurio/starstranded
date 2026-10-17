@@ -195,7 +195,7 @@ class Engine:
                 bg_full=full, bg_empty=empty, fg_color=color.bar_text, fg_text=label,
             )
 
-        render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self)
+        render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self, width=canvas.width - 21)
         self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
 
         render_functions.render_dungeon_level(canvas, self.game_world.current_floor, (self.game_map.width + 1, 1))
