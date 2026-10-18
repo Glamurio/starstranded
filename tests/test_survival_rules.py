@@ -164,3 +164,20 @@ def test_roguelike_death_offers_no_respawn(monkeypatch, tmp_path):
     e = new_game(mode="roguelike")
     (tmp_path / "bed").mkdir()
     assert not input_handlers.GameOverEventHandler(e).casual_respawn()
+
+
+def test_status_lines_show_temperature_and_credits():
+    import survival
+    engine = new_game()
+    engine.game_world.run.sponsor = "heavy_industries"
+    lines = survival.status_lines(engine)
+    assert lines[0][0] in ("Fine", "Cold", "Freezing", "Hot")
+    assert any(text.endswith("cr") for text, _ in lines)
+    engine.player.breath = 7
+    assert ("Breath 7" in [t for t, _ in survival.status_lines(engine)])
+
+
+def test_engine_render_with_status_panel(small_world):
+    from ui_helpers import SESSION
+    engine = new_game()
+    engine.render(SESSION.canvas)

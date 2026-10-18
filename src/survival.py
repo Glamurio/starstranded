@@ -83,6 +83,33 @@ def effective_temperature(engine, unit, sleeping: bool = False) -> float:
     return ambient + warmth
 
 
+def temperature_word(effective: float):
+    """(label, colour) for the side panel: how the body feels at this effective temperature."""
+    if effective < COMFORT - 15:
+        return "Freezing", color.enemy_atk
+    if effective < COMFORT:
+        return "Cold", color.yellow
+    if effective > HEAT:
+        return "Hot", color.enemy_atk
+    return "Fine", color.green
+
+
+def status_lines(engine):
+    """Side-panel lines for the player: [(text, colour)] for temperature, held breath, rescue countdown and credits."""
+    unit, run = engine.player, engine.game_world.run
+    lines = []
+    label, shade = temperature_word(effective_temperature(engine, unit, sleeping=getattr(unit, "sleeping", False)))
+    lines.append((label, shade))
+    if unit.breath is not None:
+        lines.append((f"Breath {max(0, unit.breath)}", color.enemy_atk))
+    due = run.flags.get("rescue_due")
+    if due is not None:
+        lines.append((f"Rescue {max(0, due - engine.game_world.current_time)}", color.green))
+    if run.sponsor:
+        lines.append((f"{run.credits} cr", color.menu_text))
+    return lines
+
+
 def gas_at(master: int, z: int, x: int, y: int) -> bool:
     """Is (x, y) inside a pocket of bad air? Deterministic from the seed; only deep caves have them."""
     if z > -GAS_MIN_DEPTH:
