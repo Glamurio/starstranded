@@ -60,6 +60,9 @@ class Unit(Entity):
         self.skill_practice: dict = {}                     # Skill -> practice points toward the next level
         self.extra_grants: tuple = ()                      # tags from background, sponsor gear, statuses
         self.move_debt: float = 0.0                        # fractional turns carried between steps (move_speed)
+        self.cold: int = 0                                 # turns spent below the comfort temperature (survival)
+        self.breath: Optional[float] = None                # breath left in bad air (None: breathing normally)
+        self.sleeping: bool = False
         ai_class = _AI_FOR_KIND.get(species.ai)
         self.ai = ai_class(self) if ai_class else None
 

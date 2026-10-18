@@ -1017,6 +1017,8 @@ class MainGameEventHandler(EventHandler):
             return actions.GatherAction(player)   # dig the ground (sand, clay)
         elif key == Key.T:
             return actions.SharpenAction(player)  # put an edge on the wielded tool
+        elif key == Key.Z:
+            return actions.SleepAction(player)    # sleep on a bed
 
         elif key == Key.C:
             return CharacterScreenEventHandler(self.engine)
@@ -1045,6 +1047,18 @@ class MainGameEventHandler(EventHandler):
             return InventoryLootHandler(self.engine, unit, entities=entities)
 
 class GameOverEventHandler(EventHandler):
+    """Roguelike: the run is over (the save is deleted). Casual: `R` wakes you at your last bed (the bed save)."""
+
+    def casual_respawn(self) -> bool:
+        import os
+        return self.engine.game_world.run.mode == "casual" and os.path.isdir(actions.BED_SAVE)
+
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
+        text = "R: wake at your last bed   ESC: give up" if self.casual_respawn() else "ESC: leave"
+        canvas.print(canvas.width // 2, canvas.height // 2, "You died.", fg=color.enemy_die, alignment=CENTER)
+        canvas.print(canvas.width // 2, canvas.height // 2 + 2, text, fg=color.menu_text, alignment=CENTER)
+
     def on_quit(self) -> None:
         """Handle exiting out of a finished game."""
         import shutil
@@ -1057,7 +1071,14 @@ class GameOverEventHandler(EventHandler):
     def ev_quit(self, event: events.Quit) -> None:
         self.on_quit()
 
-    def ev_keydown(self, event: events.KeyDown) -> None:
+    def ev_keydown(self, event: events.KeyDown):
+        if event.sym == Key.R and self.casual_respawn():
+            import savegame
+            engine = savegame.load_game(actions.BED_SAVE, self.engine.session)
+            engine.game_world.run.deaths += 1
+            engine.message_log.add_message("You wake at your last bed.", color.green)
+            self.session.reset(MainGameEventHandler(engine))
+            return None
         if event.sym == Key.ESCAPE:
             self.on_quit()
 

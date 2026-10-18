@@ -613,6 +613,76 @@ SPARK_TEMPERATURE = 450.0
 """Degrees C of a spark struck from a hard stone: enough to ignite anything with flammability >= 3.4."""
 
 
+BED_SAVE = "savegame_bed"
+"""Casual mode: where sleeping in a bed saves the game (death wakes you from this save)."""
+
+
+class SleepAction(Action):
+    """Sleep on a bed next to you: heals, keeps you warmer, and in Casual mode saves the game first. It stops when you are
+    hurt, an enemy comes into view, you are starving or dehydrated, or the night is over."""
+
+    MAX_TURNS = 80
+    MIN_NEED = 12
+
+    def __init__(self, entity: Unit):
+        super().__init__(entity)
+        self.slept = 0
+        self.hp = None
+
+    def _bed(self):
+        world, e = self.engine.game_map, self.entity
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for thing in world.get_entities_at_location(e.x + dx, e.y + dy):
+                    if getattr(thing, "station", None) == "bed":
+                        return thing
+        return None
+
+    def _enemy_in_view(self) -> bool:
+        e = self.entity
+        for other in self.engine.game_map.actors:
+            if other is e or other.category is not EntityCategory.UNIT or not other.is_alive or not other.ai or not other.ai.is_hostile:
+                continue
+            if max(abs(other.x - e.x), abs(other.y - e.y)) <= 8 and self.engine.can_see(e.x, e.y, other.x, other.y, 8):
+                return True
+        return False
+
+    def perform(self):
+        user, engine = self.entity, self.engine
+        log = engine.message_log
+        if self.slept == 0:
+            if self._bed() is None:
+                raise exceptions.Impossible("You need a bed next to you to sleep. Build one ('R').")
+            if self._enemy_in_view():
+                raise exceptions.Impossible("You cannot sleep with an enemy in sight.")
+            if user.hunger < self.MIN_NEED or user.thirst < self.MIN_NEED:
+                raise exceptions.Impossible("You are too hungry or thirsty to sleep.")
+            run = engine.game_world.run
+            if run.mode == "casual":
+                run.bed = (user.x, user.y, engine.game_map.z)
+                engine.save_as(BED_SAVE)
+                log.add_message("You settle in. Your progress is saved.", color.green)
+            else:
+                log.add_message("You settle in to sleep.")
+            self.hp = user.hp
+        elif user.hp < self.hp or self._enemy_in_view() or user.hunger < 4 or user.thirst < 4:
+            user.sleeping = False
+            log.add_message("You wake up.", color.impossible)
+            return False
+        user.sleeping = True
+        engine.game_world.pass_time(unit=user, time=1)
+        user.sleeping = False
+        self.hp = user.hp
+        self.slept += 1
+        if self.slept % 3 == 0:
+            user.heal(1)
+        daylight = __import__("lighting").daylight(engine.game_world.current_time, engine.config)
+        if self.slept >= self.MAX_TURNS or (self.slept >= 30 and daylight > 0.6):
+            log.add_message("You wake up rested.", color.green)
+            return False
+        return True
+
+
 class PlaceConstructableAction(Action):
     """Place a constructable item from inventory onto the map."""
 

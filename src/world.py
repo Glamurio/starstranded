@@ -897,6 +897,9 @@ class GameWorld:
                 unit.handle_thirst(-1)
             unit.tick_poison(1)
             unit.last_upkeep = self.current_time
+            if self.planet is not None:  # the old single-species test worlds have no climate
+                import survival
+                survival.tick(self.engine, unit, max(1, time))
 
             self.release_arrivals()
             from simulation import run_turn
