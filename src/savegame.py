@@ -1,7 +1,7 @@
 """Saving and loading: a directory with a manifest plus one file per chunk, pickles (the manifest lzma-compressed, chunks zlib-compressed: they are
 re-compressed on every unload, so speed matters more than size).
 
-    <save dir>/manifest.lzma                          {"version": 6, "body": <pickle>}
+    <save dir>/manifest.lzma                          {"version": 7, "body": <pickle>}
     <save dir>/layer<Z>/chunk_<cx>_<cy>.<gen>.zlib    one chunk: terrain, explored, its entities
 
 The manifest body holds, per layer (z: 0 surface, < 0 caves, > 0 upper floors), the seed, the chunk source (with the surface's
@@ -39,9 +39,10 @@ if TYPE_CHECKING:
     from engine import Engine
     from world import World
 
-SAVE_VERSION = 6
+SAVE_VERSION = 7
 """1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = sprite-id tiles; 4 = chunked world directory;
-5 = zlib chunk blobs; 6 = layers (z-levels), chunk blobs with the terrain readable without the entities."""
+5 = zlib chunk blobs; 6 = layers (z-levels), chunk blobs with the terrain readable without the entities;
+7 = sprite ids refer to the merged sprite sheet (urizen_white.png): older saves would draw wrong sprites."""
 
 MANIFEST = "manifest.lzma"
 COMPRESSION_LEVEL = 3

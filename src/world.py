@@ -8,6 +8,7 @@ from typing import Dict, Iterable, Iterator, KeysView, List, Optional, Tuple, TY
 import numpy as np  # type: ignore
 import pygame
 
+import atlas as atlas_module
 from atlas import TILE
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chebyshev, chunk_key, keys_around
 from config import DEFAULT_CONFIG, GameConfig
@@ -33,6 +34,15 @@ def distance(p1, p2, diag=True, euclidean=False):
         return math.sqrt(math.pow((p1.x - p2.x), 2) + math.pow((p1.y - p2.y), 2))
     
     return abs(p1.x - p2.x) + abs(p1.y - p2.y)
+
+
+# Terrain cells are grouped by one packed int64 key: sprite id + 1 (14 bits), flip (1), foreground rgb (24), background rgb (24).
+SPRITE_BITS = 14
+SPRITE_MASK = (1 << SPRITE_BITS) - 1
+FLIP_SHIFT = SPRITE_BITS
+FG_SHIFT = FLIP_SHIFT + 1
+BG_SHIFT = FG_SHIFT + 24
+assert atlas_module.COLUMNS * atlas_module.ROWS < SPRITE_MASK, "the sprite sheet outgrew the terrain render key; widen SPRITE_BITS"
 
 
 class ChunkSource:
@@ -552,18 +562,18 @@ class World(SpatialContainer):
             bg = gfx["bg"].astype(np.int64)
             keys = (
                 (gfx["sprite"].astype(np.int64) + 1)
-                | (gfx["flip"].astype(np.int64) << 12)
-                | (((fg[..., 0] << 16) | (fg[..., 1] << 8) | fg[..., 2]) << 13)
-                | (((bg[..., 0] << 16) | (bg[..., 1] << 8) | bg[..., 2]) << 37)
+                | (gfx["flip"].astype(np.int64) << FLIP_SHIFT)
+                | (((fg[..., 0] << 16) | (fg[..., 1] << 8) | fg[..., 2]) << FG_SHIFT)
+                | (((bg[..., 0] << 16) | (bg[..., 1] << 8) | bg[..., 2]) << BG_SHIFT)
             )[xs, ys]
             unique, inverse = np.unique(keys, return_inverse=True)
             tiles = []
             for key in unique.tolist():
-                fg_packed = (key >> 13) & 0xFFFFFF
-                bg_packed = key >> 37
+                fg_packed = (key >> FG_SHIFT) & 0xFFFFFF
+                bg_packed = key >> BG_SHIFT
                 tiles.append(atlas.get_on(
-                    (key & 0xFFF) - 1,
-                    bool((key >> 12) & 1),
+                    (key & SPRITE_MASK) - 1,
+                    bool((key >> FLIP_SHIFT) & 1),
                     (fg_packed >> 16, (fg_packed >> 8) & 255, fg_packed & 255),
                     (bg_packed >> 16, (bg_packed >> 8) & 255, bg_packed & 255),
                 ))

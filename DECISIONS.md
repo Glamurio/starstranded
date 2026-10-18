@@ -524,3 +524,10 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Alternatives:** keep the old 50x50 layout and append the new sheet (no coordinate changes, but two copies of everything);
   a runtime legacy-to-new coordinate table (hidden indirection); a slot picker that reads the gridded sheet directly (the build
   step makes the grid disappear instead). Official art that is 1-2 pixels different from your version was not adopted.
+
+## Render key width and save version after the sheet merge
+- **What:** `world.SPRITE_BITS` 14 (was a hard-coded 12) with an import-time assert against `atlas.COLUMNS * atlas.ROWS`; `SAVE_VERSION` 7.
+- **Why:** the merged sheet has 6250 cells; ids above 4095 wrapped in the packed terrain key and drew the wrong sprite (lake edges as
+  figures). Chunk blobs hold sprite ids, so pre-merge saves would draw wrong sprites too.
+- **Alternative:** migrate old saves with `legacy_map.json` — not done: procedural fruit and plant definitions inside the pickles also
+  carry old coordinates; the project already accepts rejecting old saves.

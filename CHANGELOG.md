@@ -3,6 +3,9 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 ## New Urizen sheet
+- Fix: lake edges drew as human figures. The terrain renderer packed sprite ids into 12 bits (max 4095) and the wider sheet
+  goes past that; it now has 14 bits, a guard that fails at import if the sheet outgrows them, and a test over every sprite id.
+- Save version 7: saves from before the sheet change store old sprite numbers and are refused (start a new game).
 - The game now draws from `src/urizen_white.png`: the updated official Urizen sprites (grid and separators removed, white for tinting)
   plus the project's own sprites. Every sprite the game uses looks exactly as before (a pixel-hash test guards this); only their
   position on the sheet changed. The sheet is 125 columns wide (see `tilesets/README.md`, `scripts/build_tileset.py`).
