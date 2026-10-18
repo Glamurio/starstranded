@@ -982,6 +982,8 @@ class MainGameEventHandler(EventHandler):
                 continue
             if entity == unit or entity == self.engine.player:
                 continue
+            if not entity.has_inventory and not isinstance(entity, Item):
+                continue  # scenery (a stump) has nothing to pick up
             if isinstance(entity, Item):
                 item: Item = entity
                 return actions.PickupAction(unit, item)

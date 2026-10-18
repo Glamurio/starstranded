@@ -2,6 +2,10 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Stumps
+- Felling a deciduous tree, evergreen or palm leaves a **Stump** (walkable scenery, nothing to pick up). Fungi and cacti leave
+  nothing yet (they will get their own remains later).
+
 ## Leather, flask, drinking, poison
 - Rabbits drop **Leather**. Craft a **Flask** from 1 leather. Use a flask next to a liquid tile to fill it (3 sips); use a full
   flask to drink (+40 thirst). Use it next to a *lit campfire* first to boil its contents.

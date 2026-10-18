@@ -9,7 +9,7 @@ import random
 from components.consumable import Fruit
 from components.inventory import Inventory
 from crafting import Branch
-from species import ItemKind, PlantCategory, PlantSpecies, make_plant_species
+from species import ItemKind, PlantCategory, PlantSpecies, STUMP, STUMP_SPRITES, make_plant_species
 
 from tile_types import roots
 
@@ -123,6 +123,9 @@ class Plant(Entity):
         if self._ground is not None:
             walkable, transparent, dark = self._ground
             world.modify_tile(x, y, walkable=walkable, transparent=transparent, dark=dark)
+        if self.kind.sprite in STUMP_SPRITES:
+            stump = Stump(self)
+            world.add_entity(stump, x, y)
         for item in loot:
             if item.parent is self.inventory:
                 self.inventory.items.remove(item)
@@ -132,6 +135,21 @@ class Plant(Entity):
         player = getattr(world.engine, "player", None)
         if player is not None and world.is_visible(x, y):
             world.engine.message_log.add_message(f"The {self.get_title()} is cut down.")
+
+
+class Stump(Entity):
+    """What a felled tree leaves behind: scenery, walked over freely, not pickable."""
+
+    object_type = "Stump"
+
+    def __init__(self, tree: Optional[Plant] = None):
+        Entity.__init__(self, STUMP)
+        if tree is not None:
+            self.color = self.shade = tree.shade
+            self.mirrored = tree.mirrored
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        return "Stump"
 
 
 class Tree(Plant):

@@ -146,5 +146,5 @@ def test_felled_plant_opens_its_tile_and_drops_its_goods(small_world):
     tiles = e.game_map.tiles
     assert {k: bool(tiles[k][3, 3]) for k in before} == before
     assert t.dead and t.parent is None and t not in e.game_map.entities
-    dropped = e.game_map.get_entities_at_location(3, 3)
+    dropped = [i for i in e.game_map.get_entities_at_location(3, 3) if type(i).__name__ != "Stump"]
     assert len(dropped) == 3 and all(type(i).__name__ == "Branch" for i in dropped)

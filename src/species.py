@@ -181,6 +181,7 @@ WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(45, 21), color
                                  equipment_type=EquipmentType.WEAPON, power_bonus=3, damage_type=DamageType.PIERCE))
 CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(7, 29), color=color.white,
                              lit_color=color.orange, light_radius=8))
+STUMP = register(ItemKind("stump", "Stump", sprite=(13, 5), color=color.brown, render_order=RenderOrder.CORPSE))
 WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(3, 2), color=(150, 105, 60)))
 WOODEN_STAIRS = register(ItemKind("wooden_stairs", "Wooden stairs", sprite=(12, 0), color=(150, 105, 60)))
 
@@ -230,3 +231,7 @@ def _random_color(rng: random.Random, threshold: int = 30) -> RGB:
     """`utilities.get_random_color` but driven by `rng`."""
     return (int(max(255 * rng.random(), threshold)), int(max(255 * rng.random(), threshold)),
             int(max(255 * rng.random(), threshold)))
+
+
+STUMP_SPRITES = frozenset({(0, 4), (1, 4), (2, 4), (3, 4), (4, 4), (11, 4)})
+"""Tree sprites (deciduous, evergreen, palm) that leave a stump when felled. Fungi (5, 4) and cacti (9, 4), (10, 4) do not."""
