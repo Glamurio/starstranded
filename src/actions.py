@@ -193,12 +193,15 @@ class MeleeAction(ActionWithDirection):
             attack_color = color.player_atk
         else:
             attack_color = color.enemy_atk
+        world = self.engine.game_map  # fights the player cannot see are not reported
+        seen = target is self.engine.player or world.is_visible(attacker.x, attacker.y) or world.is_visible(target.x, target.y)
         if damage > 0:
-            self.engine.message_log.add_message(
-                f"{attack_desc} for {damage} {damage_type} damage.", attack_color
-            )
+            if seen:
+                self.engine.message_log.add_message(
+                    f"{attack_desc} for {damage} {damage_type} damage.", attack_color
+                )
             target.handle_health(-damage, attacker)
-        else:
+        elif seen:
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
             )

@@ -100,6 +100,20 @@ class Unit(Entity):
     def resistances(self):
         return self.kind.resistances
 
+    @property
+    def diet(self):
+        return self.kind.diet
+
+    def can_eat(self, item) -> bool:
+        """Can this unit digest `item` (a food: plant matter for herbivores, meat for carnivores, both for omnivores)?"""
+        from species import Diet
+        nutrition = getattr(item, "nutrition", None)
+        if nutrition == "meat":
+            return self.diet is not Diet.HERBIVORE
+        if nutrition == "plant":
+            return self.diet is not Diet.CARNIVORE
+        return False
+
     def die(self, killer: Unit = None, quiet: bool = False) -> None:
         """Become a corpse (with two pieces of meat). `quiet`: no message (deaths in chunks the player cannot see)."""
         if self is self.engine.player:
@@ -119,7 +133,8 @@ class Unit(Entity):
         self.inventory.add(Meat(self.species, self.inventory))
 
 
-        if not quiet:
+        seen = self is self.engine.player or self.game_map is None or self.game_map.is_visible(self.x, self.y)
+        if not quiet and seen:
             self.engine.message_log.add_message(death_message, death_message_color)
 
         if killer:

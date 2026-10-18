@@ -28,6 +28,12 @@ class AIKind(Enum):
     HOSTILE = auto()
 
 
+class Diet(Enum):
+    HERBIVORE = auto()  # eats plant food; hunted by meat eaters
+    CARNIVORE = auto()  # eats meat; hunts herbivores
+    OMNIVORE = auto()   # eats both; hunts herbivores
+
+
 class PlantCategory(Enum):
     TREE = auto()
     SHRUB = auto()
@@ -102,6 +108,7 @@ class UnitSpecies(_Definition):
     level_up_base: int = 0
     xp_given: int = 0
     ai: AIKind = AIKind.NONE
+    diet: Diet = Diet.OMNIVORE
     damage_type: DamageType = DamageType.BLUNT  # natural attack
     resistances: Resistances = ()
     name_origin: Optional[str] = None  # namegen set for auto-generated names
@@ -150,15 +157,15 @@ HUMAN = register(UnitSpecies(
 SELENITE = register(UnitSpecies(
     "selenite", "Selenite", sprite=(2, 37), corpse_sprite=(44, 11), color=color.light_blue,
     max_hp=10, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.HOSTILE, name_origin="selenite",
-    damage_type=DamageType.SHARP,
+    damage_type=DamageType.SHARP, diet=Diet.CARNIVORE,
 ))
 RABBIT = register(UnitSpecies(
     "rabbit", "Rabbit", sprite=(3, 15), corpse_sprite=(44, 11), color=None,
-    max_hp=1, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.PASSIVE,
+    max_hp=1, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.PASSIVE, diet=Diet.HERBIVORE,
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
-MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10))
+MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10, thirst_amount=15))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(15, 5), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 21), color=(0, 191, 255), material="Bronze",
                            equipment_type=EquipmentType.WEAPON, power_bonus=2, damage_type=DamageType.SHARP))

@@ -122,6 +122,7 @@ class World(SpatialContainer):
         self.chunks: Dict[ChunkKey, Chunk] = {}
         self.stored: Dict[ChunkKey, bytes] = {}
         self.plant_queue = PlantQueue(self)
+        self.entity_version = 0  # bumped whenever an entity is added or removed (cache key for derived lookups)
         self._by_pos: Dict[Tuple[int, int], List[Entity]] = {}
         self.window = ViewWindow(self)
         self.downstairs_location: Optional[Tuple[int, int]] = None
@@ -193,6 +194,7 @@ class World(SpatialContainer):
             self._drop_position(entity)
             entity.parent = None
         del self.chunks[key]
+        self.entity_version += 1
         self.unloads += 1
 
     def update_tiers(self) -> None:
@@ -374,6 +376,7 @@ class World(SpatialContainer):
         entity._x, entity._y = x, y
         self._by_pos.setdefault((x, y), []).append(entity)
         chunk.index(entity)
+        self.entity_version += 1
         entity.on_added_to_map(self)
         if entity.category is EntityCategory.PLANT:
             self.plant_queue.track(entity, self._now())
@@ -389,6 +392,7 @@ class World(SpatialContainer):
             return
         chunk.unindex(entity)
         self._drop_position(entity)
+        self.entity_version += 1
         entity.parent = None
 
     def _drop_position(self, entity: Entity) -> None:

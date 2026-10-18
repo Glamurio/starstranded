@@ -4,7 +4,7 @@ Tiers are defined around the player's chunk (see `GameConfig`):
 
 - ACTIVE: chunks within `active_radius` (default 0 = the player's chunk): every actor runs its full AI every turn.
 - NEAR: loaded chunks within `near_radius`: every `near_interval` turns each actor gets its upkeep and one
-  simplified step (`near_step`): no pathfinding, no messages.
+  the same decisions as the full AI with greedy steps (`near_step`): no pathfinding.
 - FAR: not loaded (or loaded but beyond `near_radius`: frozen). Nothing runs.
 
 Survival upkeep (hunger, thirst, plant growth) is accounted *per entity* with `last_upkeep`: `upkeep(entity, now)`
@@ -28,8 +28,6 @@ if TYPE_CHECKING:
 HUNGER_PERIOD = 4  # hunger -1 every 4th turn
 THIRST_PERIOD = 2  # thirst -1 every 2nd turn
 GROWTH_PERIOD = 2  # plants grow every 2nd turn
-SEEK_THRESHOLD = 90  # passive animals look for food at or below this hunger/thirst (PassiveAI)
-HOSTILE_SIGHT = 15  # NEAR hostiles head for the player within this many tiles
 
 
 def steps_between(last: int, now: int, period: int) -> int:
@@ -181,73 +179,12 @@ def run_turn(engine: Engine) -> None:
 
 
 def near_step(engine: Engine, entity: Entity, now: int) -> None:
-    """Upkeep plus one cheap step for an actor in a NEAR chunk (wander / flee / approach / eat adjacent food)."""
+    """Upkeep plus one cheap step (`behavior.act(cheap=True)`) for an actor in a NEAR chunk."""
     upkeep(entity, now)
     if entity.category is not EntityCategory.UNIT or not entity.is_alive or not entity.ai:
         return
-    from components.ai import HostileAI
-    player = engine.player
-    if isinstance(entity.ai, HostileAI):
-        if max(abs(player.x - entity.x), abs(player.y - entity.y)) <= HOSTILE_SIGHT:
-            _step_towards(engine, entity, player.x, player.y)
-        elif random.getrandbits(1):
-            _random_step(engine, entity)
-        return
-    threat = _nearest_threat(engine, entity)
-    if threat is not None:
-        _step_towards(engine, entity, threat.x, threat.y, away=True)
-    elif (entity.hunger <= SEEK_THRESHOLD or entity.thirst <= SEEK_THRESHOLD) and _eat_adjacent(engine, entity):
-        return
-    elif random.getrandbits(1):
-        _random_step(engine, entity)
-
-
-def _nearest_threat(engine: Engine, unit) -> Optional[Entity]:
-    world = unit.game_map
-    for radius in range(1, 4):
-        for other in world.entities_on_ring(unit.x, unit.y, radius):
-            if other.category is EntityCategory.UNIT and other.is_alive and other.species != unit.species:
-                return other
-    return None
-
-
-def _eat_adjacent(engine: Engine, unit) -> bool:
-    from components.consumable import FoodConsumable
-    world = unit.game_map
-    for radius in (0, 1):
-        for other in world.entities_on_ring(unit.x, unit.y, radius):
-            food = None
-            if isinstance(other, FoodConsumable):
-                food = other
-            elif other.category is EntityCategory.PLANT and other.fruit and not other.inventory.is_empty():
-                food = next((item for item in other.inventory.items if isinstance(item, FoodConsumable)), None)
-            if food is not None:
-                unit.inventory.loot(food)
-                food.consume(unit)
-                return True
-    return False
-
-
-_DIRECTIONS = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
-
-
-def _random_step(engine: Engine, unit) -> None:
-    dx, dy = random.choice(_DIRECTIONS)
-    if engine.can_move(unit.x + dx, unit.y + dy):
-        unit.move(unit.x + dx, unit.y + dy)
-
-
-def _step_towards(engine: Engine, unit, x: int, y: int, away: bool = False) -> None:
-    """Greedy: the free neighbouring tile that most reduces (or, `away`, increases) the Chebyshev distance."""
-    best = None
-    current = max(abs(x - unit.x), abs(y - unit.y))
-    for dx, dy in _DIRECTIONS:
-        nx, ny = unit.x + dx, unit.y + dy
-        distance = max(abs(x - nx), abs(y - ny))
-        better = distance > current if away else distance < current
-        if better and engine.can_move(nx, ny):
-            score = -distance if away else distance
-            if best is None or score < best[0]:
-                best = (score, nx, ny)
-    if best is not None:
-        unit.move(best[1], best[2])
+    import behavior
+    try:
+        behavior.act(entity, entity.ai, cheap=True)
+    except exceptions.Impossible:
+        pass

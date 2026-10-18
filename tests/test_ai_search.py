@@ -26,11 +26,13 @@ def test_entities_on_ring(small_world):
 
 def test_hungry_rabbit_eats_adjacent_ground_food(small_world):
     e = small_world()
+    e.player.place(11, 9)  # out of the rabbit's sight, or it would run away instead of eating
     rabbit = Animal(); rabbit.place(5, 5, e.game_map)
     rabbit.hunger = 50
-    meat = Meat("x"); meat.place(6, 5, e.game_map)
+    from components.consumable import Fruit
+    fruit = Fruit(); fruit.place(6, 5, e.game_map)
     rabbit.ai.perform()
-    assert meat in rabbit.inventory.items  # forage_food loots it this turn
+    assert fruit in rabbit.inventory.items  # it loots the fruit this turn and eats it on the next
     assert_index_consistent(e.game_map)
 
 
@@ -43,6 +45,7 @@ def test_hungry_rabbit_forages_adjacent_fruiting_plant(small_world):
     tree = Tree(dataclasses.replace(make_plant_species(PlantCategory.TREE), fruit=fruit_kind))
     tree.place(6, 5, e.game_map)
     berry = Fruit(tree.inventory, fruit_kind); tree.inventory.add(berry)
+    e.player.place(11, 9)
     rabbit = Animal(); rabbit.place(5, 5, e.game_map)
     rabbit.hunger = 50
     rabbit.ai.perform()

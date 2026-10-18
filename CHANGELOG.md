@@ -2,6 +2,19 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Creature behaviour: hunger-driven hunting
+- Every creature now runs the same routine: flee from what hunts it, (hostile ones) chase the player, otherwise when hungry or
+  thirsty eat what it carries, else find food, walk to it, eat it or attack it.
+- **Diets:** rabbits are herbivores (fruit), Selenites carnivores (meat), the player an omnivore. Meat eaters hunt living herbivores
+  (so rabbits now flee from the player at 4 tiles, and Selenites hunt rabbits); rabbits do not eat meat, Selenites do not eat
+  fruit. Meat now also quenches 15 thirst (there is no water to drink yet).
+- Hungry animals walk to food that is not right next to them (they used to wander aimlessly) and no longer re-pick their wander
+  target every turn.
+- Creatures in the nearby (not fully simulated) chunks follow the same rules with simpler movement, so hunts and meals happen off
+  screen too. Fights and deaths the player cannot see are not logged; creatures killing each other no longer print "You gain
+  experience".
+- Selenites now spawn (about 8 % of the creatures).
+
 ## Combat: damage types, destructible plants
 - Attacks have a damage type (blunt, sharp, pierce; elemental types can be added in `damage.py`). Fists/natural attacks are
   blunt (Selenites claw: sharp), the dagger and the new axe are sharp, the spear pierces. Targets scale damage per type

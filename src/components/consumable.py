@@ -33,6 +33,8 @@ class Consumable(Item):
 
 
 class FoodConsumable(Consumable):
+    nutrition = "plant"  # what kind of eater can digest it: "plant" or "meat"
+
     @property
     def hunger_amount(self) -> int:
         return self.kind.hunger_amount
@@ -60,6 +62,8 @@ class FoodConsumable(Consumable):
 
 
 class Meat(FoodConsumable):
+    nutrition = "meat"
+
     def __init__(self, material: str, parent: Union[GameMap, Inventory, None] = None):
         FoodConsumable.__init__(self, defs.MEAT)
         self.material = material  # which creature it came from

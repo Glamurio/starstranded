@@ -66,76 +66,6 @@ class BaseAI(Action):
                 return MovementAction(self.entity, dx, dy, self.path).perform()
         return self.wander()
 
-    def seek_food(self) -> None:
-        """Attempt to find food, either in inventory or nearby."""
-        from components.consumable import FoodConsumable
-        if not self.entity.inventory.is_empty():
-            for item in self.entity.inventory.items:
-                if isinstance(item, FoodConsumable):
-                    self.entity.inventory.loot(item)
-                    return self.eat_food(item)
-
-        closest_plant: Plant = None
-        closest_food: Item = None
-        game_map = self.engine.game_map
-        max_radius = self.entity.radius  # Maximum radius to search for plants within
-        # Scan Chebyshev rings outwards through the spatial index. At each radius food items on the ground win
-        # over fruiting plants, as before; ties within a ring are resolved in ring order.
-        for radius in range(0, max_radius + 1):
-            ring = game_map.entities_on_ring(self.entity.x, self.entity.y, radius)
-            closest_food = next((e for e in ring if isinstance(e, FoodConsumable)), None)
-            if closest_food:
-                break
-            closest_plant = next(
-                (e for e in ring if e.category is EntityCategory.PLANT and e.fruit and not e.inventory.is_empty()),
-                None,
-            )
-            if closest_plant:
-                break
-        
-        if closest_food and self.engine.distance((self.entity.x, self.entity.y), (closest_food.x, closest_food.y)) <= 1:
-            return self.forage_food(closest_food)
-
-        if closest_plant and self.engine.distance((self.entity.x, self.entity.y), (closest_plant.x, closest_plant.y)) <= 1:
-            return self.forage_food(container=closest_plant.inventory)
-            
-        if not closest_plant or not closest_food:
-            return self.wander()
-
-        adjacent_tiles = self.engine.get_adjacent_tiles(closest_plant.x, closest_plant.y)
-        tile = self.engine.get_closest_tile(adjacent_tiles, self.entity.x, self.entity.y)
-        self.path = self.get_path(tile[0], tile[1])
-        return MovementAction(self.entity, tile[0], tile[1], self.path).perform()
-
-    def forage_food(self, food: FoodConsumable = None, container: Inventory = None):
-        from components.consumable import FoodConsumable
-        if not food and container:
-            for item in container.items:
-                if isinstance(item, FoodConsumable):
-                    food = item
-                    break
-
-        if not food:
-            return self.wander()
-
-        self.entity.inventory.loot(food)
-
-        player = self.engine.player
-        if self.engine.can_see(player.x, player.y, self.entity.x, self.entity.y, player.radius):
-            self.engine.message_log.add_message(
-                f"{self.entity.get_title()} begins eating the {food.get_title()}."
-            )
-        return WaitAction(self.entity).perform()
-
-    def eat_food(self, item: FoodConsumable):
-        item.consume(self.entity)
-        player = self.engine.player
-        if self.engine.can_see(player.x, player.y, self.entity.x, self.entity.y, player.radius):
-            self.engine.message_log.add_message(
-                f"{self.entity.get_title()} has eaten the {item.get_title()}."
-            )
-        return WaitAction(self.entity).perform()
-
     WANDER_RADIUS = 12
 
     def get_random_tile(self, walkable: bool = False) -> Tuple[int, int]:
@@ -154,68 +84,19 @@ class BaseAI(Action):
                 return x, y
         return self.entity.x, self.entity.y
 
-class PassiveAI(BaseAI):
-    def __init__(self, entity: Unit):
-        super().__init__(entity)
-        self.path: List[Tuple[int, int]] = []
-        self.seeking: bool = False
+class CreatureAI(BaseAI):
+    """Every living creature's brain: upkeep, then `behavior.act` (flee / hunt / feed / idle)."""
 
     def perform(self) -> None:
         super().perform()
+        import behavior
+        behavior.act(self.entity, self, cheap=False)
 
-        if self.entity.hunger <= 90 or self.entity.thirst <= 90:
-            self.seeking = True
-            return self.seek_food()
 
-        self.seeking = False  # reset when no longer hungry/thirsty
+class PassiveAI(CreatureAI):
+    """Not hostile to the player: it flees from what hunts it and otherwise minds its own needs."""
 
-        if self.path:
-            dest_x, dest_y = self.path[-1]
-            return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
 
-        # Run away from the closest unit (within 3 tiles) that's not own species
-        world = self.engine.game_map
-        for radius in range(1, 4):
-            for unit in world.entities_on_ring(self.entity.x, self.entity.y, radius):
-                if unit.category is not EntityCategory.UNIT:
-                    continue
-                if unit.species == self.entity.species or not unit.is_alive:  # corpses are not a threat
-                    continue
-                return self.flee(unit, self.entity.radius)
-
-        action = WaitAction(self.entity).perform() if bool(random.getrandbits(1)) else self.wander()
-        return action
-
-class HostileAI(BaseAI):
-    def __init__(self, entity: Unit):
-        super().__init__(entity)
-        self.path: List[Tuple[int, int]] = []
-        self.is_hostile = True
-
-    def perform(self) -> None:
-        super().perform()
-
-        target = self.engine.player
-
-        # Use relative offset only for distance check
-        dx = target.x - self.entity.x
-        dy = target.y - self.entity.y
-        distance = max(abs(dx), abs(dy))  # Chebyshev distance
-
-        if self.engine.game_map.is_visible(self.entity.x, self.entity.y):
-            if distance <= 1:
-                # Attack at the player's ABSOLUTE position
-                return MeleeAction(self.entity, target.x, target.y).perform()
-
-            # Path toward the player's ABSOLUTE position; an existing path is reused while the player has not
-            # moved far from where it ends (re-planning every turn for every chaser dominated the turn cost).
-            end = self.path[-1] if self.path else None
-            if end is None or max(abs(end[0] - target.x), abs(end[1] - target.y)) > 2:
-                self.path = self.get_path(target.x, target.y)
-
-        if self.path:
-            # Let MovementAction pop the next step from the path
-            dest_x, dest_y = self.path[0]
-            return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
-
-        return WaitAction(self.entity).perform()
+class HostileAI(CreatureAI):
+    """Hostile to the player: chases and attacks them on sight; otherwise lives like any other creature."""
+    is_hostile = True

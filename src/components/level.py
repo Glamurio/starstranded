@@ -40,6 +40,9 @@ class Level(BaseComponent):
 
         self.current_xp += xp
 
+        if self.parent is not self.engine.player:  # creatures that kill each other keep their xp quietly
+            return
+
         self.engine.message_log.add_message(f"You gain {xp} experience points.")
 
         if self.requires_level_up:

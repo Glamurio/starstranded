@@ -418,3 +418,25 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Dying:** `handle_health` and the bulk starvation path use `is_alive` instead of "has an AI" (the player's dummy AI is no longer
   load-bearing for that).
 - **Open:** no stump/log entity yet; no tool-power gating (e.g. a stone axe for hardwood); ranged attacks and elemental damage later.
+
+
+## AI rework: one behaviour routine for every tier
+- **Structure:** `behavior.act(unit, ai, cheap)` holds the decisions (flee > hostile hunt of the player > needs > idle). `CreatureAI`
+  (`PassiveAI`/`HostileAI`, the latter `is_hostile`) calls it with `cheap=False`; `simulation.near_step` calls it with
+  `cheap=True` (greedy steps instead of A*, no walking paths). The eating and attacking code is shared, so what happens off
+  screen is what would happen on screen: that is the "if the player cannot tell the difference, simulate it" rule applied to AI.
+- **Relations:** `Diet` on the species (herbivore / carnivore / omnivore). `preys_on(hunter, other)`: a living meat eater (carnivore
+  or omnivore, so also the player) hunts a living herbivore. Flee = being preyed on by someone within 4 tiles, found via a cached
+  list of the world's meat eaters (`behavior.hunters`, keyed by `World.entity_version`) instead of scanning rings.
+- **Needs:** `is_hungry` = hunger or thirst <= 90 (`SEEK_THRESHOLD`, unchanged). Food is found ring by ring (radius = the creature's
+  sight): ground food, corpses holding edible food, fruiting plants, prey. Eating is "loot, then consume next turn" in the full tier,
+  immediate in the cheap one.
+- **Hostile creatures** keep the old rule (chase when seen by the player, re-plan only if the player moved > 2 tiles from the path's
+  end) and fall back to the needs routine when the player is out of sight.
+- **Greedy movement** sidesteps on a plateau and takes a random step when boxed in; without that, NEAR-tier animals froze behind
+  trees and starved (found by a 1200-turn soak: 21 of 31 rabbits died of thirst).
+- **Ecology numbers:** Meat now gives 10 hunger + 15 thirst so a carnivore needs a kill about every 60-80 turns. Without drinking
+  water this is a stopgap; real drinking needs a liquid flag in the tile data (not done).
+- **Open:** Selenites spawn at weight 8 (~8 %); they are hostile and mostly chase the player, so they rarely hunt rabbits. A
+  proper ecology (reproduction, herds, territories) is a design item of its own.
+- **Perf note:** with 200 creatures a turn costs 15-35 ms in the full tier (path planning dominates); NEAR is ~5 ms.
