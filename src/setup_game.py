@@ -60,7 +60,7 @@ def new_game(player: Unit, session=None, mode: str = "roguelike") -> Engine:
     sponsor = getattr(player, "sponsor", None)
     if sponsor:
         import sponsors
-        sponsors.choose_sponsor(engine.game_world.run, player, sponsor)
+        sponsors.choose_sponsor(engine.game_world.run, player, sponsor, planet=engine.game_world.planet)
     engine.game_world.start()  # the surface: a chunked world around the start in chunk (0, 0)
     
     engine.message_log.add_message(

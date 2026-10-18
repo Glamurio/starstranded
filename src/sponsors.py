@@ -73,6 +73,8 @@ SPONSORS: Dict[str, Sponsor] = {s.key: s for s in (
 )}
 
 KNOWLEDGE_CONTRACT = "knowledge"   # a contract the government pays for in catalogue entries, not goods
+HUNT = "hunt:"                     # "hunt:<species key>": kill that many (counted from when the contract was offered)
+HUNTERS = ("heavy_industries", "government_agency", "agricultural_monopoly")
 
 
 # ── classifying and valuing items ───────────────────────────────────────────────────────────────────────────
@@ -154,6 +156,16 @@ class Contract:
     credits: int
     filled: int = 0
     done: bool = False
+    start_kills: int = 0
+    label: str = ""
+
+    @property
+    def is_hunt(self) -> bool:
+        return self.category.startswith(HUNT)
+
+    @property
+    def species_key(self) -> str:
+        return self.category[len(HUNT):]
 
     @property
     def remaining(self) -> int:
@@ -161,19 +173,37 @@ class Contract:
 
     @property
     def title(self) -> str:
+        if self.is_hunt:
+            return f"{SPONSORS[self.sponsor].name}: hunt {self.count} {self.label or self.species_key}"
         what = "catalogue entries" if self.category == KNOWLEDGE_CONTRACT else f"{self.category} (x{self.count})"
         return f"{SPONSORS[self.sponsor].name}: deliver {what}"
 
 
-def offer_contracts(seed: int, sponsor: str, completed: int, how_many: int = 3) -> List[Contract]:
-    """A deterministic set of contracts: same planet, sponsor and progress give the same offers."""
+def hunt_targets(planet) -> List[Tuple[str, str, int]]:
+    """Creatures of the planet a sponsor may put a bounty on: (species key, name, danger)."""
+    if planet is None:
+        return []
+    return [(s.key, s.name, s.max_hp + 2 * s.power) for s in planet.fauna]
+
+
+def offer_contracts(seed: int, sponsor: str, completed: int, how_many: int = 3, targets=(), kills=None) -> List[Contract]:
+    """A deterministic set of contracts: same planet, sponsor and progress give the same offers. With `targets` (see
+    `hunt_targets`) the sponsors in `HUNTERS` may ask for hunts; `kills` is the player's kill count so far (hunts count from there)."""
     rng = random.Random(f"{seed}:{sponsor}:{completed}")
     spec = SPONSORS[sponsor]
     options = list(spec.wants) + ([KNOWLEDGE_CONTRACT] if sponsor == "government_agency" else [])
+    if targets and sponsor in HUNTERS:
+        options.append(HUNT)
     offers = []
     for index in range(how_many):
         category = options[(index + rng.randrange(len(options))) % len(options)]
         count = rng.randint(2, 4 + min(4, completed))
+        if category == HUNT:
+            key, name, danger = targets[rng.randrange(len(targets))]
+            count = max(1, count // 2)
+            offers.append(Contract(f"{sponsor}:{completed}:{index}", sponsor, HUNT + key, count, reputation=count * 3,
+                                   credits=count * (8 + 3 * danger), start_kills=(kills or {}).get(key, 0), label=name))
+            continue
         base = BASE_VALUE.get(category, 12)
         offers.append(Contract(f"{sponsor}:{completed}:{index}", sponsor, category, count,
                                reputation=count * 2 + (2 if base >= 25 else 0), credits=count * base))
@@ -186,7 +216,7 @@ def knowledge_count(run) -> int:
 
 
 # ── the run's economy: reputation, credits, deliveries ───────────────────────────────────────────────────────
-def choose_sponsor(run, player, sponsor: str) -> None:
+def choose_sponsor(run, player, sponsor: str, planet=None) -> None:
     """Sign with a sponsor at the start of a run: starting credits, perk and the first reputation."""
     spec = SPONSORS[sponsor]
     run.sponsor = sponsor
@@ -205,7 +235,8 @@ def choose_sponsor(run, player, sponsor: str) -> None:
         player.extra_grants += (defs_grant("archaeology"),)
     elif sponsor == "government_agency":
         player.extra_grants += (defs_grant("survey_license"),)
-    run.contracts = offer_contracts(run.seed, sponsor, 0)
+    run.hunt_targets = hunt_targets(planet)
+    run.contracts = offer_contracts(run.seed, sponsor, 0, targets=run.hunt_targets, kills=run.kills)
 
 
 def defs_grant(tag: str):
@@ -233,7 +264,14 @@ def deliver(player, run, contract: Contract) -> Tuple[int, int]:
     import exceptions
     if contract.done:
         raise exceptions.Impossible("That contract is finished.")
-    if contract.category == KNOWLEDGE_CONTRACT:
+    if contract.is_hunt:
+        kills = run.kills.get(contract.species_key, 0) - contract.start_kills
+        take = min(contract.remaining, max(0, kills - contract.filled))
+        if not take:
+            raise exceptions.Impossible(f"You have not killed any {contract.label or contract.species_key} for this bounty yet.")
+        value = take * contract.credits // contract.count
+        delivered = take
+    elif contract.category == KNOWLEDGE_CONTRACT:
         have = knowledge_count(run) - run.knowledge_spent
         take = min(contract.remaining, max(0, have))
         if not take:
@@ -259,7 +297,8 @@ def deliver(player, run, contract: Contract) -> Tuple[int, int]:
         run.completed.append(contract.id)
         add_reputation(run, contract.sponsor, contract.reputation)
         run.contracts = [c for c in run.contracts if not c.done] + (
-            offer_contracts(run.seed, contract.sponsor, len(run.completed), 1) if len(run.contracts) < 3 else [])
+            offer_contracts(run.seed, contract.sponsor, len(run.completed), 1, run.hunt_targets, run.kills)
+            if len(run.contracts) < 3 else [])
     else:
         add_reputation(run, contract.sponsor, max(1, delivered))
     return delivered, value

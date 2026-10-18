@@ -210,6 +210,9 @@ class Unit(Entity):
 
         if killer:
             killer.level.add_xp(self.level.xp_given)
+            if killer is self.engine.player and self.kind.key:
+                kills = self.engine.game_world.run.kills
+                kills[self.kind.key] = kills.get(self.kind.key, 0) + 1
 
     def heal(self, amount: int) -> int:
         if self.hp == self.max_hp:

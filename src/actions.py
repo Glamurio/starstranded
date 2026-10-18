@@ -613,6 +613,104 @@ SPARK_TEMPERATURE = 450.0
 """Degrees C of a spark struck from a hard stone: enough to ignite anything with flammability >= 3.4."""
 
 
+PISTOL_RANGE = 9
+
+
+class FireAction(Action):
+    """Fire the wielded pistol at a tile: the first creature on the line of fire is hit (one round used)."""
+
+    def __init__(self, entity: Unit, x: int, y: int):
+        super().__init__(entity)
+        self.x, self.y = x, y
+
+    def perform(self) -> None:
+        import tcod.los
+        from damage import resolve
+        from items import Ammo
+        import species as defs
+        user, engine = self.entity, self.engine
+        weapon = user.equipment.weapon if user.equipment else None
+        if weapon is None or weapon.kind is not defs.PISTOL:
+            raise exceptions.Impossible("You are not wielding a pistol.")
+        ammo = next((i for i in user.inventory.items if isinstance(i, Ammo) and i.rounds > 0), None)
+        if ammo is None:
+            raise exceptions.Impossible("You are out of rounds.")
+        if (self.x, self.y) == (user.x, user.y):
+            raise exceptions.Impossible("You cannot shoot yourself.")
+        target = None
+        for x, y in tcod.los.bresenham((user.x, user.y), (self.x, self.y)).tolist()[1:PISTOL_RANGE + 1]:
+            if not engine.game_map.is_transparent(x, y):
+                break
+            unit = engine.game_map.get_unit_at_location(x, y)
+            if unit is not None and unit is not user and unit.is_alive:
+                target = unit
+                break
+        ammo.rounds -= 1
+        if ammo.rounds <= 0:
+            user.inventory.remove(ammo)
+        from skills import Skill
+        bonus = user.skills.level(Skill.MARKSMANSHIP)
+        if target is None:
+            engine.message_log.add_message("The shot hits nothing.", color.impossible)
+        else:
+            damage = resolve(user.power + bonus, target.defense, weapon.damage_type, target.resistances())
+            engine.message_log.add_message(f"You shoot {target.get_title()} for {damage} {weapon.damage_type} damage.", color.player_atk)
+            if damage > 0:
+                target.handle_health(-damage, user)
+            user.practice(Skill.MARKSMANSHIP, 1)
+        engine.game_world.pass_time(unit=user, time=1)
+
+
+TRACKER_MAX_CHARGES = 5
+TRACKER_RECHARGE = 100
+"""Turns for one tracker charge to come back."""
+
+
+def tracker_charges(run, now: int) -> int:
+    stored, stamp = run.tracker_charge
+    return min(TRACKER_MAX_CHARGES, stored + (now - stamp) // TRACKER_RECHARGE)
+
+
+class TrackAction(Action):
+    """Use the corporate tracker: point toward the nearest marked target within its signal range (costs a charge)."""
+
+    def perform(self) -> None:
+        import sponsors
+        user, engine = self.entity, self.engine
+        caps = user.capabilities
+        if not caps.has("target_tracker"):
+            raise exceptions.Impossible("You have no tracker.")
+        run, now = engine.game_world.run, engine.game_world.current_time
+        charges = tracker_charges(run, now)
+        if charges <= 0:
+            raise exceptions.Impossible("The tracker is recharging.")
+        hunts = [c for c in run.contracts if c.is_hunt and not c.done]
+        if not hunts:
+            raise exceptions.Impossible("You hold no bounty to track.")
+        reach = caps.magnitude("target_tracker")
+        stored, stamp = run.tracker_charge
+        gained = (now - stamp) // TRACKER_RECHARGE
+        run.tracker_charge = (TRACKER_MAX_CHARGES - 1, now) if stored + gained >= TRACKER_MAX_CHARGES \
+            else (stored + gained - 1, stamp + gained * TRACKER_RECHARGE)
+        found = False
+        for contract in hunts:
+            best = None
+            for unit in engine.game_map.actors:
+                if unit.category is EntityCategory.UNIT and unit.is_alive and getattr(unit.kind, "key", None) == contract.species_key:
+                    d = max(abs(unit.x - user.x), abs(unit.y - user.y))
+                    if d <= reach and (best is None or d < best[0]):
+                        best = (d, unit)
+            if best is None:
+                engine.message_log.add_message(f"Tracker: no {contract.label} signal in range.", color.impossible)
+                continue
+            found = True
+            d, unit = best
+            dx, dy = unit.x - user.x, unit.y - user.y
+            heading = ("N" if dy < 0 else "S" if dy > 0 else "") + ("W" if dx < 0 else "E" if dx > 0 else "")
+            engine.message_log.add_message(f"Tracker: {contract.label}, {d} tiles {heading}.", color.orange)
+        engine.game_world.pass_time(unit=user, time=1)
+
+
 BED_SAVE = "savegame_bed"
 """Casual mode: where sleeping in a bed saves the game (death wakes you from this save)."""
 

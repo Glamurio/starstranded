@@ -1019,6 +1019,10 @@ class MainGameEventHandler(EventHandler):
             return actions.SharpenAction(player)  # put an edge on the wielded tool
         elif key == Key.Z:
             return actions.SleepAction(player)    # sleep on a bed
+        elif key == Key.P:
+            return SingleRangedAttackHandler(self.engine, lambda xy: actions.FireAction(player, *xy))  # fire the pistol
+        elif key == Key.K:
+            return actions.TrackAction(player)    # use the tracker
 
         elif key == Key.C:
             return CharacterScreenEventHandler(self.engine)
