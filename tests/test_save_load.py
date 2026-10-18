@@ -52,8 +52,8 @@ def test_save_directory_layout_is_versioned(new_engine, tmp_path):
     path = tmp_path / "v"
     new_engine.save_as(str(path))
     payload = pickle.loads(lzma.decompress((path / "manifest.lzma").read_bytes()))
-    assert payload["version"] == SAVE_VERSION == 5 and "engine" not in payload  # no whole-engine pickle
-    chunk_files = sorted(p.name for p in (path / "floor1").iterdir())
+    assert payload["version"] == SAVE_VERSION == 6 and "engine" not in payload  # no whole-engine pickle
+    chunk_files = sorted(p.name for p in (path / "layer0").iterdir())
     assert len(chunk_files) == len(new_engine.game_map.chunks)
     assert all(name.startswith("chunk_") and name.endswith(".1.zlib") for name in chunk_files)
     assert not list(path.rglob("*.tmp"))  # atomic writes cleaned up

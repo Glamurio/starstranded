@@ -3,7 +3,7 @@
 > Fresh session? Read this, then ARCHITECTURE_NOTES.md (final architecture) and the bottom of DECISIONS.md ("Phase 5 outcome").
 
 ## Current state
-- **All phases (0–5) DONE.** 355 tests pass (`python -m pytest -q`, ~10 s). Branch `modernize` (forked from `crafting` @ e01d7a4).
+- **All phases (0–5) DONE.** 375 tests pass (`python -m pytest -q`, ~10 s). Branch `modernize` (forked from `crafting` @ e01d7a4).
 - Working tree clean at hand-off. Deliverables: ARCHITECTURE_NOTES.md (final), DECISIONS.md, CHANGELOG.md, BENCHMARKS.md
   (baseline vs final), README dev section, screenshots in `docs/phase3`, `docs/phase4`, `docs/phase5` (Phase 0 tcod ones in `docs/baseline`).
 - Owner instruction: the performance overhaul is **postponed**; owner decisions were delegated (see "Needs owner decision" in the final report).

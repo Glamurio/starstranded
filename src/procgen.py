@@ -31,6 +31,12 @@ enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     0: [(units.Animal, 100), (units.Selenite, 8)],
 }
 
+cave_enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
+    0: [(units.Selenite, 100), (units.Animal, 15)],
+}
+"""Creatures of the caves: mostly Selenites (they are carnivores and hunt the cave's few rabbits, and you)."""
+
+
 def get_max_value_for_floor(
     max_value_by_floor: List[Tuple[int, int]], floor: int
 ) -> int:
@@ -73,7 +79,7 @@ def get_entities_at_random(
     )
 
 
-def place_entities(world: World, floor_number: int, area: Tuple[int, int, int, int], reserved=()) -> None:
+def place_entities(world: World, floor_number: int, area: Tuple[int, int, int, int], reserved=(), enemies=None) -> None:
     """Spawn this floor's monsters and items at random tiles of `area` (a world rectangle, normally one chunk).
 
     Uses the global RNGs (chunk generation wraps this in `worldgen.seeded_rng`). A spawn is skipped (no retry, as
@@ -88,7 +94,7 @@ def place_entities(world: World, floor_number: int, area: Tuple[int, int, int, i
     )
 
     monsters: List[Callable[[], Entity]] = get_entities_at_random(
-        enemy_chances, number_of_monsters, floor_number
+        enemy_chances if enemies is None else enemies, number_of_monsters, floor_number
     )
     items: List[Callable[[], Entity]] = get_entities_at_random(
         item_chances, number_of_items, floor_number

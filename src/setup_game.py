@@ -52,7 +52,7 @@ def new_game(player: Unit, session=None) -> Engine:
 
     engine = Engine(player=player, session=session)
     engine.game_world = GameWorld(engine=engine)  # the game seed is drawn from `random`
-    engine.game_world.generate_floor()  # floor 1: a chunked world around the start in chunk (0, 0)
+    engine.game_world.start()  # the surface: a chunked world around the start in chunk (0, 0)
     
     engine.message_log.add_message(
         f"Hello and welcome, {player.name}, to yet another dungeon!", color.welcome_text

@@ -102,6 +102,7 @@ class _LoadedView:
         return any(self._getter(chunk) for chunk in self._world.chunks.values())
 
 
+LOOK_DOWN = 3  # how many layers deep an open tile shows
 NIGHT_TINT = (6, 8, 30, 255)
 NIGHT_ALPHA = 150  # opacity of the night shade at midnight (0-255)
 
@@ -119,26 +120,28 @@ class World(SpatialContainer):
     serialised bytes in `stored` (and written to disk by the save code).
     """
 
-    def __init__(self, engine: Engine, source: ChunkSource, *, floor: int = 1, seed: int = 0):
+    def __init__(self, engine: Engine, source: ChunkSource, *, floor: int = 1, seed: int = 0, z: int = 0):
         self.engine = engine
+        self.z = z  # the layer: 0 surface, < 0 caves, > 0 upper floors
         self.source = source
         self.floor = floor
         self.seed = seed
         self.bounds: Optional[Rect] = source.bounds
         self.chunks: Dict[ChunkKey, Chunk] = {}
         self.stored: Dict[ChunkKey, bytes] = {}
+        self._terrain_cache: Dict[ChunkKey, tuple] = {}
         self.plant_queue = PlantQueue(self)
         self.entity_version = 0  # bumped whenever an entity is added or removed (cache key for derived lookups)
         self._by_pos: Dict[Tuple[int, int], List[Entity]] = {}
         self.window = ViewWindow(self)
         self.downstairs_location: Optional[Tuple[int, int]] = None
-        self.has_sky = floor <= 1  # open to the sun (and the dark): deeper floors only have the night radius
+        self.has_sky = z >= 0  # open to the sun (and the dark): caves only have the night radius
         self.loads = 0
         self.unloads = 0
 
-    def init_loaded(self, engine: Engine, source: ChunkSource, *, floor: int, seed: int) -> None:
+    def init_loaded(self, engine: Engine, source: ChunkSource, *, floor: int, seed: int, z: int = 0) -> None:
         """Initialise a World object created empty while loading a save (entities already point at it)."""
-        World.__init__(self, engine, source, floor=floor, seed=seed)
+        World.__init__(self, engine, source, floor=floor, seed=seed, z=z)
 
     def find_uid(self, uid: int) -> Optional[Entity]:
         """The loaded entity with this uid (linear scan; only used for rare cross-chunk references in saves)."""
@@ -203,6 +206,44 @@ class World(SpatialContainer):
         del self.chunks[key]
         self.entity_version += 1
         self.unloads += 1
+
+    def suspend(self) -> None:
+        """Store every chunk (the player has left this layer): nothing here is simulated until it is entered again."""
+        for key in list(self.chunks):
+            self.unload_chunk(key)
+
+    def terrain_tiles(self, key: ChunkKey) -> Optional[np.ndarray]:
+        """The tiles of chunk `key` without loading it: from the resident chunk, from its stored bytes, or as the source
+        generates them. Used to look down onto this layer from the one above (read-only)."""
+        chunk = self.chunks.get(key)
+        if chunk is not None:
+            return chunk.tiles
+        blob = self.stored.get(key)
+        if blob is not None:
+            cached = self._terrain_cache.get(key)
+            if cached is None or cached[0] is not blob:
+                import savegame
+                cached = self._terrain_cache[key] = (blob, savegame.blob_tiles(blob))
+            return cached[1]
+        if not self.source.can_load(key) or not hasattr(self.source, "terrain"):
+            return None
+        return self.source.terrain(key)
+
+    def terrain_region(self, field: str, rect: Rect) -> np.ndarray:
+        """Like `region` for a tile field, but for chunks that are not loaded too (see `terrain_tiles`)."""
+        x0, y0, width, height = rect
+        fill = tile_types.SHROUD if field in ("light", "dark") else 0
+        out = np.full((width, height), fill_value=fill, dtype=tile_types.tile_dt[field], order="F")
+        for ky in range(y0 // CHUNK_H, (y0 + height - 1) // CHUNK_H + 1):
+            for kx in range(x0 // CHUNK_W, (x0 + width - 1) // CHUNK_W + 1):
+                tiles = self.terrain_tiles((kx, ky))
+                if tiles is None:
+                    continue
+                cx0, cy0 = kx * CHUNK_W, ky * CHUNK_H
+                ix0, iy0 = max(x0, cx0), max(y0, cy0)
+                ix1, iy1 = min(x0 + width, cx0 + CHUNK_W), min(y0 + height, cy0 + CHUNK_H)
+                out[ix0 - x0:ix1 - x0, iy0 - y0:iy1 - y0] = tiles[field][ix0 - cx0:ix1 - cx0, iy0 - cy0:iy1 - cy0]
+        return out
 
     def update_tiers(self) -> None:
         """Load every chunk within `near_radius` of the centre; unload those beyond `unload_radius`."""
@@ -498,9 +539,13 @@ class World(SpatialContainer):
         shown = visible | explored
         xs, ys = np.nonzero(shown)
         if xs.size:
+            light = self.region("light", rect)
+            open_here = visible & self.region("open", rect)
+            if open_here.any():
+                self._look_down(light, open_here, rect)
             gfx = np.select(
                 condlist=[visible, explored],
-                choicelist=[self.region("light", rect), self.region("dark", rect)],
+                choicelist=[light, self.region("dark", rect)],
                 default=tile_types.SHROUD,
             )
             fg = gfx["fg"].astype(np.int64)
@@ -550,6 +595,19 @@ class World(SpatialContainer):
             canvas.badge(x - x0, y - y0)
         self._render_night(canvas, rect, visible, window.lit_region(rect))
 
+    def _look_down(self, gfx: np.ndarray, mask: np.ndarray, rect: Rect) -> None:
+        """Replace the graphics of the cells in `mask` (open tiles: no floor) by what lies below them: the next layer's terrain,
+        drawn in its dim "explored" look, and further down where that is open too (up to `LOOK_DOWN` layers)."""
+        game_world = getattr(self.engine, "game_world", None)
+        if game_world is None:
+            return
+        for depth in range(1, LOOK_DOWN + 1):
+            layer = game_world.world_at(self.z - depth)
+            gfx[mask] = layer.terrain_region("dark", rect)[mask]
+            mask = mask & layer.terrain_region("open", rect)
+            if not mask.any():
+                break
+
     def _render_night(self, canvas: Canvas, rect: Rect, visible: np.ndarray, lit: np.ndarray) -> None:
         """Dim what is seen but not lit by a light source, more the darker it is (nothing by day)."""
         dark = lighting.darkness(self, self.engine.game_world.current_time, self.config)
@@ -582,8 +640,8 @@ class GameMap(World):
         for entity in entities:
             self.add_entity(entity, entity.x, entity.y)
 
-    def init_loaded(self, engine: Engine, source: ChunkSource, *, floor: int, seed: int) -> None:
-        World.__init__(self, engine, source, floor=floor, seed=seed)
+    def init_loaded(self, engine: Engine, source: ChunkSource, *, floor: int, seed: int, z: int = 0) -> None:
+        World.__init__(self, engine, source, floor=floor, seed=seed, z=z)
         self.width, self.height = source.landscape.shape
         self._center = (0, 0)
 
@@ -616,8 +674,11 @@ class GameMap(World):
 
 class GameWorld:
     """
-    The floors and the clock: holds the game seed, the current floor number and time, and creates a new `World`
-    (own seed, own chunk grid) for every floor when the player takes the stairs.
+    The layers and the clock: holds the game seed, the layer the player is on (`current_z`) and the time.
+
+    Every layer (0 = surface, < 0 caves, > 0 upper floors, see `shafts`) is a `World` of its own, created on first use in
+    `layers`. Only the player's layer is loaded and simulated; the others are stored chunk by chunk (`World.suspend`) and
+    catch up when the player returns.
     """
 
     def __init__(
@@ -625,34 +686,115 @@ class GameWorld:
         *,
         engine: Engine,
         seed: Optional[int] = None,
-        current_floor: int = 0,
+        current_z: int = 0,
+        current_floor: Optional[int] = None,  # old spelling: the depth, 1 = surface
         current_time: int = 0,
         **_legacy,  # map_width/map_height/max_rooms/room_*: accepted for old callers, unused (worlds are unbounded)
     ):
         self.engine = engine
         self.seed = seed if seed is not None else random.getrandbits(62)  # from `random`: seeding it reproduces a game
-        self.current_floor = current_floor
+        self.current_z = current_z if current_floor is None else 1 - current_floor
         self.current_time = current_time
+        self.layers: Dict[int, World] = {}
+
+    @property
+    def current_floor(self) -> int:
+        """The depth: 1 on the surface, 2 one cave below it, 0 on the first upper floor."""
+        return 1 - self.current_z
 
     def floor_seed(self, floor: int) -> int:
         from worldgen import mix_seed
         return mix_seed(self.seed, floor)
 
-    def make_world(self, floor: int) -> World:
-        from worldgen import NoiseWorldSource
-        floor_seed = self.floor_seed(floor)
-        return World(self.engine, NoiseWorldSource(floor_seed, floor), floor=floor, seed=floor_seed)
+    @property
+    def master_seed(self) -> int:
+        """The seed every layer's generation derives from (it is the surface's own seed)."""
+        return self.floor_seed(1)
 
-    def generate_floor(self) -> None:
-        """Create the next floor's World and put the player on its start tile (the previous floor is dropped)."""
-        self.current_floor += 1
-        world = self.make_world(self.current_floor)
-        world.load_chunk((0, 0))  # chunk (0, 0) holds the start and the staircase
+    def make_world(self, z: int) -> World:
+        from worldgen import CaveSource, NoiseWorldSource, SkySource
+        if z == 0:
+            source = NoiseWorldSource(self.master_seed, 1)
+        elif z < 0:
+            source = CaveSource(self.master_seed, z)
+        else:
+            source = SkySource(self.master_seed, z)
+        return World(self.engine, source, floor=source.floor, seed=source.floor_seed, z=z)
+
+    def world_at(self, z: int) -> World:
+        """The World of layer `z`, created (empty, nothing loaded) if it was never visited."""
+        world = self.layers.get(z)
+        if world is None:
+            world = self.layers[z] = self.make_world(z)
+        return world
+
+    def start(self) -> None:
+        """Begin the game on the surface: load the start chunk and put the player on its spawn point."""
+        self.current_z = 0
+        world = self.world_at(0)
+        world.load_chunk((0, 0))  # chunk (0, 0) holds the start and the cave entrance
         player = self.engine.player
         player.place(*world.source.spawn_point, world)
         self.engine.game_map = world
         world.update_tiers()
         self.engine.update_fov()
+
+    def change_layer(self, z: int, x: int, y: int) -> World:
+        """Move the player to (x, y) of layer `z`; the layer left is stored away."""
+        from chunks import chunk_key
+        engine, player = self.engine, self.engine.player
+        old = engine.game_map
+        old.remove_entity(player)
+        old.suspend()
+        old.window.visible[:] = False
+        new = self.world_at(z)
+        self.current_z = z
+        new.load_chunk(chunk_key(x, y))
+        player.place(x, y, new)
+        engine.game_map = new
+        new.update_tiers()
+        self.drop_far_layers()
+        engine.update_fov()
+        return new
+
+    def drop_far_layers(self) -> None:
+        """Forget layers that were never changed (nothing stored) so the layer table stays small."""
+        for z in [z for z, w in self.layers.items() if z != self.current_z and not w.stored and not w.chunks]:
+            del self.layers[z]
+
+    def tile_on_layer(self, z: int, x: int, y: int):
+        """A copy of the tile record at (x, y) of layer `z` (loaded or not), or None."""
+        from chunks import chunk_key
+        tiles = self.world_at(z).terrain_tiles(chunk_key(x, y))
+        if tiles is None:
+            return None
+        return tiles[x % CHUNK_W, y % CHUNK_H].copy()
+
+    def edit_tile(self, z: int, x: int, y: int, tile) -> None:
+        """Set the tile at (x, y) of layer `z`, loading its chunk if needed (and storing it again if the layer is not current)."""
+        from chunks import chunk_key
+        world = self.world_at(z)
+        key = chunk_key(x, y)
+        was_loaded = key in world.chunks
+        world.load_chunk(key)
+        world.set_tile(x, y, tile)
+        if not was_loaded and world is not self.engine.game_map:
+            world.unload_chunk(key)
+
+    def take_stairs(self, direction: int) -> int:
+        """Use the staircase under the player: `+1` up, `-1` down. Returns the new z; `Impossible` if there is none that way."""
+        import exceptions
+        from chunks import chunk_key
+        engine, player = self.engine, self.engine.player
+        world = engine.game_map
+        tile = world.tile_at(player.x, player.y)
+        stairs = int(tile["stairs"]) if tile is not None else 0
+        if stairs == 0:
+            raise exceptions.Impossible("There are no stairs here.")
+        if direction and stairs != direction:
+            raise exceptions.Impossible("These stairs only go " + ("up." if stairs > 0 else "down."))
+        self.change_layer(world.z + stairs, player.x, player.y)
+        return self.current_z
 
     def pass_time(self, unit: Unit, time: int) -> int:
         """Passes game time in minutes after every player turn and runs the tiered simulation. Returns the time."""

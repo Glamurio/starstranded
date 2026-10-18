@@ -130,20 +130,20 @@ class WaitAction(Action):
 
 
 class TakeStairsAction(Action):
-    def perform(self) -> None:
-        """
-        Take the stairs, if any exist at the entity's location.
-        """
-        # TODO: Rework into general transition action
-        super().perform()
+    """Use the staircase under the entity: `direction` +1 climbs, -1 descends, 0 (default) takes whichever is here."""
 
-        if (self.entity.x, self.entity.y) == self.engine.game_map.downstairs_location:
-            self.engine.game_world.generate_floor()
-            self.engine.message_log.add_message(
-                "You descend the staircase.", color.descend
-            )
-        else:
-            raise exceptions.Impossible("There are no stairs here.")
+    def __init__(self, entity: Unit, direction: int = 0):
+        super().__init__(entity)
+        self.direction = direction
+
+    def perform(self) -> None:
+        super().perform()
+        game_world = self.engine.game_world
+        before = game_world.current_z
+        game_world.take_stairs(self.direction)
+        self.engine.message_log.add_message(
+            "You climb the staircase." if game_world.current_z > before else "You descend the staircase.", color.descend
+        )
 
 
 class ActionWithDirection(Action):
@@ -332,14 +332,19 @@ class PlaceConstructableAction(Action):
         if dx > 1 or dy > 1:
             raise exceptions.Impossible("Too far away to place that.")
 
-        if not self.engine.can_move(self.dest_x, self.dest_y):
+        check = getattr(self.item, "can_place_at", None)
+        if check is not None:  # building pieces change the terrain and have their own rules
+            reason = check(self.engine.game_map, self.dest_x, self.dest_y)
+            if reason:
+                raise exceptions.Impossible(reason)
+        elif not self.engine.can_move(self.dest_x, self.dest_y):
             # Allow placing on own tile even if "blocked" by self
             if not (self.dest_x == self.entity.x and self.dest_y == self.entity.y):
                 raise exceptions.Impossible("Can't place that there.")
 
         self.item.place_on_map(self.dest_x, self.dest_y, self.engine.game_map)
         self.engine.message_log.add_message(
-            f"You place the {self.item.get_title()}.",
+            f"You build the {self.item.get_title()}." if check is not None else f"You place the {self.item.get_title()}.",
             color.menu_text,
         )
         self.engine.game_world.pass_time(unit=self.entity, time=1)

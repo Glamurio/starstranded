@@ -453,3 +453,28 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Visible map size:** fixed at one 70x40 view (like Caves of Qud's single 80x25 zone screen: the world is bigger than what is
   shown, the window only scales it). Chosen so the sprite grid stays crisp and gameplay does not depend on monitor size; the
   alternative, a window-dependent view, would make the visible area (and so difficulty) vary per player.
+
+## Layered world (z-levels) and real stairs — design
+- **What:** the world is a stack of layers keyed by `z` (0 = surface, < 0 caves, > 0 upper floors of buildings), all sharing
+  one (x, y) grid. Each layer is its own `World` (own chunk grid, own `ChunkSource`) held by `GameWorld.layers`; the player is on
+  one of them (`engine.game_map`). Only that layer is simulated; leaving a layer stores all its chunks (like far chunks), and
+  returning replays elapsed time through the existing `upkeep` catch-up (creatures) and the plant queue (plants).
+- **Stairs are deterministic "links":** `shafts.links(master_seed, chunk_key)` is a pure function giving the stair points
+  `(x, y, z)` that connect layer `z` and `z+1` in a chunk. Layer `z` puts `stairs_up` there, layer `z+1` `stairs_down`, so any
+  layer can be generated independently, in any order, and unloaded/reloaded without cross-layer bookkeeping. Surface chunks may
+  have a cave shaft (1-3 floors deep) or a building (1-3 floors up); the start chunk always has a cave entrance 8-20 tiles from
+  the spawn. A shaft's stairs are 4 tiles apart per floor, so a floor can have both an up and a down staircase.
+- **Terrain:** caves (z < 0) are noise-thresholded open space with 3x3 rooms and a corridor to the chunk centre carved at every
+  stair so a staircase is never walled in; buildings are walled rectangles with a door, whose upper floors are walled rooms
+  surrounded by `open_air`.
+- **Tile flags:** `tile_dt` gains `open` (no floor here: you see the layer below through it; not walkable) and `stairs`
+  (+1 up, -1 down, 0 none). Stairs are found by flag, not by comparing sprites.
+- **Seeing down (Dwarf-Fortress style):** a visible `open` tile draws the layer below's terrain at that position, dimmed. The
+  lower layer's terrain comes from its resident chunk, its stored chunk (terrain is the cheap outer part of the chunk blob), or
+  the pure generator, so nothing has to be loaded or simulated for it.
+- **Player building:** a placeable *wooden floor* turns an `open` tile (or any floor-less tile) into a walkable built floor.
+- **Alternatives:** (1) one 3D chunk array — rejected: every system (FOV, pathfinding, chunk index, saves) is 2D and tuned; layers
+  reuse all of it unchanged. (2) simulating adjacent layers too — rejected for now (cost); a creature on another layer is
+  "frozen then caught up", the same approximation already used for far chunks. (3) falling when walking onto `open` tiles —
+  deferred; `open` tiles are simply not walkable.
+- **Saves:** version 6, one directory per layer (`z<N>/`); old saves are rejected (no migration needed, per the brief).

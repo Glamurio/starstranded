@@ -106,10 +106,13 @@ def test_units_cannot_step_into_unloaded_chunks():
 # ── seams ──────────────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("seed", [3, 11, 2024])
 @pytest.mark.parametrize("neighbour", [(1, 0), (0, 1), (-1, 0), (0, -1)])
-def test_terrain_is_continuous_across_chunk_borders(seed, neighbour):
+def test_terrain_is_continuous_across_chunk_borders(seed, neighbour, monkeypatch):
     """Two chunks generated separately agree with one generation of their union wherever the result does not depend
-    on the chunk's RNG (roots/trees and the random 'center' water variation)."""
+    on the chunk's RNG (roots/trees and the random 'center' water variation). (Buildings and cave entrances are
+    structures laid over the natural terrain and are switched off here.)"""
+    import shafts
     from world import World
+    monkeypatch.setattr(shafts, "structure", lambda master, key: shafts.Structure())
     source = NoiseWorldSource(seed)
     world = World(None, source)
     keys = [(0, 0), neighbour]
@@ -371,18 +374,19 @@ def test_unvisited_chunks_are_never_written(tmp_path):
     e = flat_engine()
     path = tmp_path / "s"
     e.save_as(str(path))
-    names = {f.name.split(".")[0] for f in (path / "floor1").iterdir()}
+    names = {f.name.split(".")[0] for f in (path / "layer0").iterdir()}
     assert names == {f"chunk_{kx}_{ky}" for kx, ky in e.game_map.chunks}
 
 
 # ── floors ─────────────────────────────────────────────────────────────────────────
-def test_taking_the_stairs_creates_the_next_floor_world(new_engine):
+def test_taking_the_stairs_goes_down_into_a_cave_layer(new_engine):
     e = new_engine
     first = e.game_map
-    stairs = first.downstairs_location
-    e.player.place(*stairs)
+    e.player.place(*first.downstairs_location)
     actions.TakeStairsAction(e.player).perform()
     second = e.game_map
-    assert second is not first and second.floor == 2 and e.game_world.current_floor == 2
-    assert e.player.parent is second and (e.player.x, e.player.y) == second.source.spawn_point
-    assert second.seed != first.seed and second.downstairs_location is not None
+    assert second is not first and second.z == -1 and e.game_world.current_z == -1
+    assert second.floor == 2 and e.game_world.current_floor == 2
+    assert e.player.parent is second and (e.player.x, e.player.y) == first.downstairs_location
+    assert second.tile_at(e.player.x, e.player.y)["stairs"] == 1  # arrives on the staircase back up
+    assert second.seed != first.seed and not first.chunks

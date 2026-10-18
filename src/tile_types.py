@@ -29,6 +29,8 @@ tile_dt = np.dtype(
         ("transparent", bool),   # type: ignore # True if this tile doesn't block FOV.
         ("dark", graphic_dt),  # Graphics for when this tile was explored but is not in FOV.
         ("light", graphic_dt),  # Graphics for when the tile is in FOV.
+        ("open", bool),  # type: ignore # True if there is no floor here: the layer below is visible through it.
+        ("stairs", np.int8),  # +1: stairs up, -1: stairs down, 0: none.
     ]
 )
 
@@ -53,6 +55,8 @@ class Tile(object):
         dark_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         light_bg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         light_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
+        open: bool = False,
+        stairs: int = 0,
         dtype: np.dtype = tile_dt,
     ):
         
@@ -73,17 +77,19 @@ class Tile(object):
         self.light_fg = light_fg
         self.light = (self.sprite, False, light_fg, light_bg)
 
+        self.open = open
+        self.stairs = stairs
         self.dtype = dtype
 
     def get_array(self) -> np.ndarray:
         """Helper function for returning individual tile types"""
-        return np.array((self.walkable, self.transparent, self.dark, self.light), dtype=self.dtype)
+        return np.array((self.walkable, self.transparent, self.dark, self.light, self.open, self.stairs), dtype=self.dtype)
 
 # SHROUD represents unexplored, unseen tiles
 SHROUD = np.array((NO_SPRITE, False, (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 # VOID is what lies outside a bounded map (and fills the unused part of its chunk): nothing to walk on or see through.
-VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist()), dtype=tile_dt)
+VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist(), False, 0), dtype=tile_dt)
 
 floor = Tile(
     object_type="Floor",
@@ -162,13 +168,60 @@ wall = Tile(
     dark_bg=color.black,
     dtype=tile_dt
 )
-down_stairs = Tile(  # walkable: stand on it and press L to descend
+down_stairs = Tile(  # walkable: stand on it and press > (or L) to descend
     object_type="Downstairs",
     walkable=True,
     transparent=True,
     sprite=(11, 0),
     dark_fg=(50, 50, 150),
     light_fg=(200, 180, 50),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    stairs=-1,
+    dtype=tile_dt
+)
+up_stairs = Tile(  # walkable: stand on it and press < (or L) to climb
+    object_type="Upstairs",
+    walkable=True,
+    transparent=True,
+    sprite=(12, 0),
+    dark_fg=(50, 50, 150),
+    light_fg=(220, 200, 90),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    stairs=1,
+    dtype=tile_dt
+)
+open_air = Tile(  # no floor: you look down on the layer below (drawn by the world renderer); cannot be walked on
+    object_type="Open air",
+    walkable=False,
+    transparent=True,
+    sprite=(2, 2),
+    dark_fg=(30, 40, 70),
+    light_fg=(60, 80, 130),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    open=True,
+    dtype=tile_dt
+)
+built_floor = Tile(  # a floor the player laid
+    object_type="Wooden floor",
+    walkable=True,
+    transparent=True,
+    sprite=(3, 2),
+    dark_fg=(60, 40, 25),
+    light_fg=(150, 105, 60),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    dtype=tile_dt
+)
+cave_floor = Tile(
+    object_type="Cave floor",
+    walkable=True,
+    transparent=True,
+    sprite=(0, 2),
+    dark_fg=(45, 40, 50),
+    light_fg=(110, 100, 120),
     dark_bg=color.black,
     light_bg=color.nigh_black,
     dtype=tile_dt

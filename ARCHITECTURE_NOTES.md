@@ -112,3 +112,12 @@ previous floor is dropped (no way back up).
 | stairs mechanic | the noise generator never placed stairs (fixed in Phase 5) |
 | deps: tcod, numpy | `matplotlib` was imported by `procgen` (removed in Phase 1) |
 | noise seeded by `random` | it was not (fixed in Phase 2; per-chunk seeds since Phase 5) |
+
+## Layers (z-levels)
+- `shafts.py` is the pure vertical-structure generator (links = stairs between z and z+1, buildings, cave/sky terrain); the
+  sources in `worldgen.py` (`NoiseWorldSource` surface, `CaveSource`, `SkySource`) only wrap it with entity population.
+- `GameWorld.layers` maps z -> `World`; `GameWorld.change_layer`/`take_stairs` move the player, `World.suspend` stores a layer,
+  `World.terrain_tiles/terrain_region` read a layer's terrain without loading it (used by `World._look_down` for open tiles and
+  by `GameWorld.tile_on_layer/edit_tile`). Tile flags `open` and `stairs` live in `tile_types.tile_dt`.
+- Chunk blobs are `{key, tiles, explored, entities: <inner pickle>}` so terrain can be read without unpickling entities.
+

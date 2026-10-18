@@ -52,7 +52,7 @@ def old_replace_variations(tile, landscape, width, height):
             else:
                 tile_char = char_info.get(names[key], default)
             landscape[x][y] = (tile.walkable, tile.transparent, (tile_char, False, tile.dark_fg, tile.dark_bg),
-                               (tile_char, False, tile.light_fg, tile.light_bg))
+                               (tile_char, False, tile.light_fg, tile.light_bg), tile.open, tile.stairs)
     return landscape
 
 

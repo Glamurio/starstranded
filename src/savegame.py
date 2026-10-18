@@ -1,12 +1,12 @@
 """Saving and loading: a directory with a manifest plus one file per chunk, pickles (the manifest lzma-compressed, chunks zlib-compressed: they are
 re-compressed on every unload, so speed matters more than size).
 
-    <save dir>/manifest.lzma                          {"version": 5, "body": <pickle>}
-    <save dir>/floor<N>/chunk_<cx>_<cy>.<gen>.zlib    one chunk: terrain, explored, its entities
+    <save dir>/manifest.lzma                          {"version": 6, "body": <pickle>}
+    <save dir>/layer<Z>/chunk_<cx>_<cy>.<gen>.zlib    one chunk: terrain, explored, its entities
 
-The manifest body holds the floor (number, seed, chunk source with the floor's procedural species), the clock, the
-player (with inventory and equipment), the message log, the config, the loaded chunk set, the chunk file table
-(`key -> (filename, digest)`) and the next free uid. No whole-engine pickle.
+The manifest body holds, per layer (z: 0 surface, < 0 caves, > 0 upper floors), the seed, the chunk source (with the surface's
+procedural species), the loaded chunk set and the chunk file table (`key -> (filename, digest)`); and the current layer, the
+clock, the player (with inventory and equipment), the message log, the config and the next free uid. No whole-engine pickle.
 
 Chunk pickles use *persistent ids*: the World, the Engine, the player and the floor's procedural definitions are
 written as references and re-bound on load, so a chunk file never drags in the rest of the world. An entity of
@@ -39,8 +39,9 @@ if TYPE_CHECKING:
     from engine import Engine
     from world import World
 
-SAVE_VERSION = 5
-"""1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = sprite-id tiles; 4 = chunked world directory."""
+SAVE_VERSION = 6
+"""1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = sprite-id tiles; 4 = chunked world directory;
+5 = zlib chunk blobs; 6 = layers (z-levels), chunk blobs with the terrain readable without the entities."""
 
 MANIFEST = "manifest.lzma"
 COMPRESSION_LEVEL = 3
@@ -107,35 +108,39 @@ def _members(chunk: Chunk, player) -> set:
 def _dumps(obj, refs: Dict[int, tuple], members: Optional[set]) -> bytes:
     buffer = io.BytesIO()
     _Pickler(buffer, refs, members).dump(obj)
-    return zlib.compress(buffer.getvalue(), COMPRESSION_LEVEL)
+    return buffer.getvalue()
 
 
-def _loads(blob: bytes, bindings: Dict[tuple, object], world: Optional[World]):
-    return _Unpickler(io.BytesIO(zlib.decompress(blob)), bindings, world).load()
+def _loads(data: bytes, bindings: Dict[tuple, object], world: Optional[World]):
+    return _Unpickler(io.BytesIO(data), bindings, world).load()
 
 
 # ── chunks ─────────────────────────────────────────────────────────────────────────
 def serialize_chunk(world: World, chunk: Chunk) -> bytes:
-    """One chunk as bytes: terrain, explored, its entities in insertion order (the player is never included)."""
+    """One chunk as bytes: terrain, explored, its entities in insertion order (the player is never included).
+
+    The outer pickle holds the arrays and the entities as an inner pickle, so `blob_tiles` can read the terrain alone."""
     player = getattr(world.engine, "player", None)
-    payload = {
-        "key": chunk.key,
-        "tiles": chunk.tiles,
-        "explored": chunk.explored,
-        "entities": [e for e in chunk.entities if e is not player],
-    }
     refs, _ = _references(world)
-    return _dumps(payload, refs, _members(chunk, player))
+    inner = _dumps([e for e in chunk.entities if e is not player], refs, _members(chunk, player))
+    outer = {"key": chunk.key, "tiles": chunk.tiles, "explored": chunk.explored, "entities": inner}
+    return zlib.compress(pickle.dumps(outer, protocol=pickle.HIGHEST_PROTOCOL), COMPRESSION_LEVEL)
+
+
+def blob_tiles(blob: bytes):
+    """The terrain array of a serialised chunk (without restoring its entities)."""
+    return pickle.loads(zlib.decompress(blob))["tiles"]
 
 
 def restore_chunk(world: World, blob: bytes) -> Chunk:
     """Re-create a chunk from `serialize_chunk` bytes in `world`, then catch its actors up to the current time."""
     from simulation import upkeep
     _, bindings = _references(world)
-    payload = _loads(blob, bindings, world)
-    chunk = Chunk(payload["key"], payload["tiles"], payload["explored"])
+    outer = pickle.loads(zlib.decompress(blob))
+    entities = _loads(outer["entities"], bindings, world)
+    chunk = Chunk(outer["key"], outer["tiles"], outer["explored"])
     world.chunks[chunk.key] = chunk
-    for entity in payload["entities"]:
+    for entity in entities:
         entity.parent = None
         world.add_entity(entity, entity._x, entity._y)
     game_world = getattr(world.engine, "game_world", None)
@@ -172,16 +177,8 @@ def _read_manifest_body(directory: str) -> Optional[dict]:
         return None
 
 
-def save_game(engine: Engine, directory: str) -> None:
-    """Write the game to `directory` (created if needed). See the module docstring for the format."""
-    if os.path.isfile(directory):
-        os.remove(directory)  # an old single-file save of the same name
-    world = engine.game_map
-    game_world = engine.game_world
-    previous = _read_manifest_body(directory) or {}
-    previous_files = previous.get("chunks", {}) if previous.get("floor") == world.floor else {}
-    generation = previous.get("generation", 0) + 1
-
+def _layer_files(world: World, directory: str, previous_files: dict, generation: int) -> Dict[ChunkKey, Tuple[str, str]]:
+    """Write the chunks of one layer that changed; the file table `key -> (filename, digest)`."""
     blobs = dict(world.stored)
     for key, chunk in world.chunks.items():
         blobs[key] = serialize_chunk(world, chunk)
@@ -192,23 +189,46 @@ def save_game(engine: Engine, directory: str) -> None:
         if old and old[1] == digest and os.path.exists(os.path.join(directory, old[0])):
             files[key] = old
             continue
-        name = f"floor{world.floor}/chunk_{key[0]}_{key[1]}.{generation}.zlib"
+        name = f"layer{world.z}/chunk_{key[0]}_{key[1]}.{generation}.zlib"
         _atomic_write(os.path.join(directory, name), blob)
         files[key] = (name, digest)
+    return files
+
+
+def save_game(engine: Engine, directory: str) -> None:
+    """Write the game to `directory` (created if needed). See the module docstring for the format."""
+    if os.path.isfile(directory):
+        os.remove(directory)  # an old single-file save of the same name
+    world = engine.game_map
+    game_world = engine.game_world
+    previous = _read_manifest_body(directory) or {}
+    previous_layers = previous.get("layers", {})
+    generation = previous.get("generation", 0) + 1
+
+    game_world.layers[world.z] = world  # the current layer, even if the world was attached by hand (tests)
+    layers = {}
+    for z, layer in sorted(game_world.layers.items()):
+        if layer is not world and not layer.stored and not layer.chunks:
+            continue  # never visited
+        files = _layer_files(layer, directory, previous_layers.get(z, {}).get("chunks", {}), generation)
+        layers[z] = {
+            "floor": layer.floor,
+            "seed": layer.seed,
+            "source": layer.source,
+            "downstairs": layer.downstairs_location,
+            "loaded": sorted(layer.chunks),
+            "chunks": files,
+        }
 
     body = {
         "generation": generation,
-        "floor": world.floor,
-        "floor_seed": world.seed,
-        "source": world.source,
+        "z": world.z,
+        "layers": layers,
         "seed": game_world.seed,
         "time": game_world.current_time,
         "player": engine.player,
         "message_log": engine.message_log,
         "config": engine.config,
-        "downstairs": world.downstairs_location,
-        "loaded": sorted(world.chunks),
-        "chunks": files,
         "next_uid": new_uid(),
     }
     refs = {id(world): ("world",), id(engine): ("engine",)}
@@ -217,8 +237,9 @@ def save_game(engine: Engine, directory: str) -> None:
     manifest = lzma.compress(pickle.dumps({"version": SAVE_VERSION, "world_class": type(world), "body": buffer.getvalue()}))
     _atomic_write(os.path.join(directory, MANIFEST), manifest)  # commit point
 
-    referenced = {os.path.normpath(os.path.join(directory, name)) for name, _ in files.values()}
-    for path in glob.glob(os.path.join(directory, "floor*", "chunk_*.zlib*")):
+    referenced = {os.path.normpath(os.path.join(directory, name))
+                  for info in layers.values() for name, _ in info["chunks"].values()}
+    for path in glob.glob(os.path.join(directory, "layer*", "chunk_*.zlib*")):
         if os.path.normpath(path) not in referenced:
             os.remove(path)
 
@@ -251,20 +272,23 @@ def load_game(directory: str, session=None) -> Engine:
     except Exception as exc:
         raise exceptions.IncompatibleSave(f"Unreadable save file ({type(exc).__name__}).") from exc
 
+    from world import World
+
     engine.config = body["config"]
     engine.message_log = body["message_log"]
     engine.player = body["player"]
-    engine.game_world = GameWorld(engine=engine, seed=body["seed"], current_floor=body["floor"], current_time=body["time"])
-    world = world_shell
-    world.init_loaded(engine, body["source"], floor=body["floor"], seed=body["floor_seed"])
-    world.downstairs_location = body["downstairs"]
-    engine.game_map = world
+    engine.game_world = GameWorld(engine=engine, seed=body["seed"], current_z=body["z"], current_time=body["time"])
     bump_uid_counter(body["next_uid"])
-
-    for key, (name, _) in body["chunks"].items():
-        with open(os.path.join(directory, name), "rb") as f:
-            world.stored[key] = f.read()
-    for key in body["loaded"]:
+    for z, info in body["layers"].items():
+        world = world_shell if z == body["z"] else object.__new__(World)
+        world.init_loaded(engine, info["source"], floor=info["floor"], seed=info["seed"], z=z)
+        world.downstairs_location = info["downstairs"]
+        for key, (name, _) in info["chunks"].items():
+            with open(os.path.join(directory, name), "rb") as f:
+                world.stored[key] = f.read()
+        engine.game_world.layers[z] = world
+    world = engine.game_map = world_shell
+    for key in body["layers"][body["z"]]["loaded"]:
         world.load_chunk(key)
     player = engine.player
     player.parent = None

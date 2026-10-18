@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Dict, TYPE_CHECKING
+from typing import List, Dict, Optional, TYPE_CHECKING
 
 from components.inventory import Inventory
 from components.consumable import Consumable
@@ -8,6 +8,7 @@ from components.equippable import Axe, Equippable
 from equipment_types import EquipmentType
 from entity import Constructable
 import species as defs
+import tile_types
 
 from utilities import get_shade, get_gaussian_shade
 
@@ -78,6 +79,62 @@ class Campfire(Constructable):
     def get_title(self, exclude_attributes: bool = False) -> str:
         state = "lit" if self.is_lit else "unlit"
         return f"Campfire ({state})"
+
+
+# ─── Crafted: building pieces (they change the terrain instead of becoming an entity) ──────
+
+class BuildingPiece(Constructable):
+    """A constructable that is built into the terrain of a tile next to the player and used up."""
+
+    def can_place_at(self, game_map, x: int, y: int) -> Optional[str]:
+        """None if the piece can be built at (x, y) of `game_map`, otherwise the reason it cannot."""
+        raise NotImplementedError
+
+    def build(self, game_map, x: int, y: int) -> None:
+        raise NotImplementedError
+
+    def place_on_map(self, x: int, y: int, game_map) -> None:
+        if isinstance(self.parent, Inventory):
+            self.parent.remove(self)
+        self.build(game_map, x, y)
+
+
+class WoodenFloor(BuildingPiece):
+    """Lays a floor where there is none (open air above a lower layer), so that you can walk there."""
+
+    def __init__(self, parent=None):
+        Constructable.__init__(self, defs.WOODEN_FLOOR)
+        self.parent = parent
+
+    def can_place_at(self, game_map, x: int, y: int) -> Optional[str]:
+        tile = game_map.tile_at(x, y)
+        if tile is None or not tile["open"]:
+            return "There is nothing to build on there: floors go where there is open air."
+        return None
+
+    def build(self, game_map, x: int, y: int) -> None:
+        game_map.set_tile(x, y, tile_types.built_floor.get_array())
+
+
+class WoodenStairs(BuildingPiece):
+    """A staircase up from a floor tile to the layer above (which gets the way down at the same place)."""
+
+    def __init__(self, parent=None):
+        Constructable.__init__(self, defs.WOODEN_STAIRS)
+        self.parent = parent
+
+    def can_place_at(self, game_map, x: int, y: int) -> Optional[str]:
+        tile = game_map.tile_at(x, y)
+        if tile is None or not tile["walkable"] or tile["stairs"] or game_map.get_entities_at_location(x, y, True):
+            return "Stairs need a free floor tile."
+        above = game_map.engine.game_world.tile_on_layer(game_map.z + 1, x, y)
+        if above is None or not (above["open"] or above["walkable"]) or above["stairs"]:
+            return "There is no room above for the stairs to lead to."
+        return None
+
+    def build(self, game_map, x: int, y: int) -> None:
+        game_map.set_tile(x, y, tile_types.up_stairs.get_array())
+        game_map.engine.game_world.edit_tile(game_map.z + 1, x, y, tile_types.down_stairs.get_array())
 
 
 # ─── Recipe system ───────────────────────────────────────────────────
@@ -165,6 +222,20 @@ RECIPES: List[Recipe] = [
         description="Provides light and warmth. Place from inventory.",
         ingredients={"Branch": 3},
         result_class=Campfire,
+        is_placeable=True,
+    ),
+    Recipe(
+        name="Wooden Floor",
+        description="A plank floor for open air: build it next to you, then walk out onto it.",
+        ingredients={"Branch": 2},
+        result_class=WoodenFloor,
+        is_placeable=True,
+    ),
+    Recipe(
+        name="Wooden Stairs",
+        description="A staircase up to the layer above (the way down appears there too).",
+        ingredients={"Branch": 4},
+        result_class=WoodenStairs,
         is_placeable=True,
     ),
 ]

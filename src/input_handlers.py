@@ -943,6 +943,12 @@ class MainGameEventHandler(EventHandler):
 
         elif key == Key.L:
             return actions.TakeStairsAction(player)
+        elif key == Key.PERIOD and modifier & (Mod.LSHIFT | Mod.RSHIFT):
+            return actions.TakeStairsAction(player, -1)
+        elif key == Key.COMMA and modifier & (Mod.LSHIFT | Mod.RSHIFT):
+            return actions.TakeStairsAction(player, 1)
+        elif key == Key.LESS:  # the "<" / ">" key of ISO keyboards (Shift gives ">")
+            return actions.TakeStairsAction(player, -1 if modifier & (Mod.LSHIFT | Mod.RSHIFT) else 1)
 
         elif key == Key.V:
             return HistoryViewer(self.engine)

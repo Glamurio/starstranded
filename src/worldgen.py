@@ -18,6 +18,7 @@ from typing import Iterator, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np  # type: ignore
 import tcod
 
+import shafts
 import tile_types
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chunk_origin
 from species import PlantCategory, PlantSpecies, make_plant_species
@@ -125,8 +126,16 @@ class NoiseWorldSource:
             with seeded_rng(mix_seed(floor_seed, 1000)):
                 species = (make_plant_species(PlantCategory.TREE), make_plant_species(PlantCategory.SHRUB))
         self.tree_species, self.shrub_species = species
-        self.spawn_point: Optional[Tuple[int, int]] = None
-        self.stairs: Optional[Tuple[int, int]] = None
+
+    @property
+    def spawn_point(self) -> Tuple[int, int]:
+        """Where the player starts: a free tile near the middle of chunk (0, 0)."""
+        return shafts.start_point(self.floor_seed)[0]
+
+    @property
+    def stairs(self) -> Optional[Tuple[int, int]]:
+        """The cave entrance of the start chunk (a staircase down), if it has one."""
+        return shafts.entrance_of(self.floor_seed)
 
     def __getstate__(self):  # tcod noise objects are rebuilt from the seed
         state = self.__dict__.copy()
@@ -153,14 +162,16 @@ class NoiseWorldSource:
     def mask(self, key: ChunkKey):
         return True
 
+    def terrain(self, key: ChunkKey) -> np.ndarray:
+        """The chunk's tiles as generated (a copy; pure, nothing is loaded): used to look down onto this layer."""
+        return shafts.surface_layer(self.floor_seed, key)[0]
+
     def generate(self, world: World, key: ChunkKey) -> Chunk:
-        x0, y0 = chunk_origin(key)
-        with seeded_rng(self.chunk_seed(key)):
-            tiles, tree_map = generate_terrain(self.noise, x0, y0, CHUNK_W, CHUNK_H)
+        tiles, tree_map = shafts.surface_layer(self.floor_seed, key)
         chunk = Chunk(key, tiles)
         chunk.pending_trees = tree_map  # consumed by populate()
         if key == (0, 0):
-            self._place_start_and_stairs(world, chunk, tree_map)
+            world.downstairs_location = self.stairs
         return chunk
 
     def populate(self, world: World, chunk: Chunk) -> None:
@@ -182,29 +193,6 @@ class NoiseWorldSource:
         for entity in chunk.entities:
             if entity not in before:
                 entity.last_upkeep = now
-
-    def _place_start_and_stairs(self, world: World, chunk: Chunk, tree_map: np.ndarray) -> None:
-        """Start = the walkable tile (no tree) closest to the chunk centre; stairs = a walkable tile 8-20 tiles away."""
-        free = chunk.tiles["walkable"] & ~tree_map
-        if not free.any():  # a solid chunk: open its centre so there is somewhere to stand
-            chunk.tiles[CHUNK_W // 2, CHUNK_H // 2] = tile_types.floor.get_array()
-            free = chunk.tiles["walkable"] & ~tree_map
-        xs, ys = np.nonzero(free)
-        d = np.maximum(np.abs(xs - CHUNK_W // 2), np.abs(ys - CHUNK_H // 2))
-        i = int(np.lexsort((ys, xs, d))[0])
-        sx, sy = int(xs[i]), int(ys[i])
-        self.spawn_point = (chunk.x0 + sx, chunk.y0 + sy)
-        ring = np.maximum(np.abs(xs - sx), np.abs(ys - sy))
-        candidates = np.nonzero((ring >= 8) & (ring <= 20))[0]
-        if candidates.size == 0:
-            candidates = np.nonzero(ring >= 1)[0]
-        if candidates.size:
-            with seeded_rng(mix_seed(self.chunk_seed(chunk.key), 2)):
-                j = int(candidates[random.randrange(candidates.size)])
-            tx, ty = int(xs[j]), int(ys[j])
-            chunk.tiles[tx, ty] = tile_types.down_stairs.get_array()
-            self.stairs = (chunk.x0 + tx, chunk.y0 + ty)
-            world.downstairs_location = self.stairs
 
 
 class FlatWorldSource:
@@ -228,9 +216,82 @@ class FlatWorldSource:
     def mask(self, key: ChunkKey):
         return True
 
+    def terrain(self, key: ChunkKey) -> np.ndarray:
+        return np.full((CHUNK_W, CHUNK_H), fill_value=tile_types.floor.get_array(), dtype=tile_types.tile_dt, order="F")
+
     def generate(self, world: World, key: ChunkKey) -> Chunk:
-        tiles = np.full((CHUNK_W, CHUNK_H), fill_value=tile_types.floor.get_array(), dtype=tile_types.tile_dt, order="F")
-        return Chunk(key, tiles)
+        return Chunk(key, self.terrain(key))
+
+    def populate(self, world: World, chunk: Chunk) -> None:
+        pass
+
+
+class CaveSource:
+    """A cave layer (z < 0): noise caves, Selenites rather than rabbits, no sky. Stairs come from `shafts`."""
+
+    bounds = None
+
+    def __init__(self, master_seed: int, z: int):
+        self.master_seed = master_seed
+        self.z = z
+        self.floor = 1 - z
+        self.floor_seed = mix_seed(master_seed, z)
+        self.spawn_point = None
+        self.stairs = None
+
+    def definitions(self) -> List:
+        return []
+
+    def can_load(self, key: ChunkKey) -> bool:
+        return True
+
+    def mask(self, key: ChunkKey):
+        return True
+
+    def terrain(self, key: ChunkKey) -> np.ndarray:
+        return shafts.cave_layer(self.master_seed, self.z, key)
+
+    def generate(self, world: World, key: ChunkKey) -> Chunk:
+        return Chunk(key, self.terrain(key).copy())
+
+    def populate(self, world: World, chunk: Chunk) -> None:
+        from procgen import cave_enemy_chances, place_entities
+        now = world.engine.game_world.current_time if getattr(world.engine, "game_world", None) else 0
+        before = set(chunk.entities)
+        with seeded_rng(mix_seed(self.floor_seed, chunk.key[0], chunk.key[1], 1)):
+            place_entities(world, self.floor, area=(chunk.x0, chunk.y0, CHUNK_W, CHUNK_H), enemies=cave_enemy_chances)
+        for entity in chunk.entities:
+            if entity not in before:
+                entity.last_upkeep = now
+
+
+class SkySource:
+    """An upper layer (z > 0): open air, with the upper floors of the buildings below it."""
+
+    bounds = None
+
+    def __init__(self, master_seed: int, z: int):
+        self.master_seed = master_seed
+        self.z = z
+        self.floor = max(1, 1 - z)
+        self.floor_seed = mix_seed(master_seed, z)
+        self.spawn_point = None
+        self.stairs = None
+
+    def definitions(self) -> List:
+        return []
+
+    def can_load(self, key: ChunkKey) -> bool:
+        return True
+
+    def mask(self, key: ChunkKey):
+        return True
+
+    def terrain(self, key: ChunkKey) -> np.ndarray:
+        return shafts.sky_layer(self.master_seed, self.z, key)
+
+    def generate(self, world: World, key: ChunkKey) -> Chunk:
+        return Chunk(key, self.terrain(key).copy())
 
     def populate(self, world: World, chunk: Chunk) -> None:
         pass

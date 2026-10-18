@@ -177,6 +177,8 @@ WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(45, 21), color
                                  equipment_type=EquipmentType.WEAPON, power_bonus=3, damage_type=DamageType.PIERCE))
 CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(7, 29), color=color.white,
                              lit_color=color.orange, light_radius=8))
+WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(3, 2), color=(150, 105, 60)))
+WOODEN_STAIRS = register(ItemKind("wooden_stairs", "Wooden stairs", sprite=(12, 0), color=(150, 105, 60)))
 
 
 # ── Procedural definitions ───────────────────────────────────────────────────────

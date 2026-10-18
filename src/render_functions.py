@@ -30,14 +30,21 @@ def render_bar(
     canvas.draw_bar(x, y, total_width, current_value, maximum_value, bg_full, bg_empty, fg_color, fg_text)
 
 def render_dungeon_level(
-    canvas: Canvas, dungeon_level: int, location: Tuple[int, int]
+    canvas: Canvas, z: int, location: Tuple[int, int]
 ) -> None:
     """
-    Render the level the player is currently on, at the given location.
+    Render the layer the player is currently on (0 surface, below it caves, above it building floors), at the given location.
     """
     x, y = location
 
-    canvas.print(x, y, f"Floor: {dungeon_level}")
+    canvas.print(x, y, layer_name(z))
+
+
+def layer_name(z: int) -> str:
+    """"Surface", "Cave 2" (two layers down) or "Floor 1" (the first storey above the ground)."""
+    if z == 0:
+        return "Surface"
+    return f"Cave {-z}" if z < 0 else f"Floor {z}"
 
 def render_names_at_mouse_location(
     canvas: Canvas, x: int, y: int, engine: Engine, width: int = 0

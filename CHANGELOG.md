@@ -2,6 +2,19 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Layers: real stairs, caves, buildings, building your own floors
+- The world is now a stack of layers (z): the surface, caves below it, upper floors of buildings above it. Stairs go to the
+  same x/y on the next layer (`L` takes whichever staircase you stand on; `<` / `>` pick the direction). The HUD shows
+  "Surface", "Cave 2", "Floor 1".
+- The start chunk has a cave entrance 8-20 tiles from where you spawn; elsewhere about 3 in 10 chunks have a cave shaft (1-3
+  layers deep) and 1 in 5 a building (1-3 floors). Caves are dark and full of Selenites; there is no sun underground.
+- Open air (no floor) lets you see the layer below, dimmed, Dwarf-Fortress style: upper floors look down on the ground around
+  the building.
+- Craft a **Wooden Floor** (2 branches) to build a floor onto open air next to you, and **Wooden Stairs** (4 branches) to
+  put a staircase up from any floor tile (the way down appears on the layer above).
+- Leaving a layer stores it; coming back replays hunger/growth/etc. like for far-away chunks. Saves keep every layer (save
+  version 6; older saves are rejected, as agreed).
+
 ## Day and night, light sources
 - A day lasts 480 turns (you start in the morning). By day you see the whole screen (radius 41); at night only a small circle
   around you (radius 4), and the map is shaded dark. Underground (floor 2+) it is always night-dark.

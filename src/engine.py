@@ -185,7 +185,9 @@ class Engine:
         render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self, width=canvas.width - 21)
         self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
 
-        render_functions.render_dungeon_level(canvas, self.game_world.current_floor, (71, 1))
-        canvas.print(71, 2, lighting.clock_text(self.game_world.current_time, self.config).replace(", ", " ")[:9])
-        canvas.print(71, 3, f"X {player.x}")
-        canvas.print(71, 4, f"Y {player.y}")
+        render_functions.render_dungeon_level(canvas, self.game_world.current_z, (71, 1))
+        day, time = lighting.clock_text(self.game_world.current_time, self.config).split(", ")
+        canvas.print(71, 2, day)
+        canvas.print(71, 3, time)
+        canvas.print(71, 4, f"X {player.x}")
+        canvas.print(71, 5, f"Y {player.y}")
