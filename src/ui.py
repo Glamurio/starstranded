@@ -85,6 +85,19 @@ class Font:
             ttf = pygame.font.Font(None, TEXT_SIZE + 4)
         return cls(atlas_module.load_alpha_sheet(path), ttf)
 
+    def big(self, text: str, fg: RGB = WHITE, size: int = 56) -> pygame.Surface:
+        """Large title text (rendered once per string)."""
+        key = (text, tuple(fg), size)
+        hit = self._text.get(key)
+        if hit is None:
+            try:
+                face = pygame.font.Font(TEXT_FONT, size)
+            except (OSError, pygame.error):
+                face = pygame.font.Font(None, size + 8)
+            face.set_bold(True)
+            hit = self._text[key] = face.render(text, True, fg)
+        return hit
+
     def width(self, text: str) -> int:
         """Pixel width of `text` on one line."""
         return self.ttf.size(text)[0] if self.ttf is not None else len(text) * CHAR_W
@@ -206,6 +219,12 @@ class Canvas:
         if line.strip():
             surface = self.font.text(line, fg)
             self.surface.blit(surface, (px, y * CELL + (CELL - surface.get_height()) // 2))
+
+    def print_big(self, x: int, y: int, text: str, fg: RGB = WHITE, size: int = 56) -> int:
+        """Large text centred on cell column `x` with its top at row `y`; returns the rows it covers."""
+        surface = self.font.big(text, fg, size)
+        self.surface.blit(surface, (x * CELL - surface.get_width() // 2, y * CELL))
+        return -(-surface.get_height() // CELL)
 
     def text_width(self, text: str) -> int:
         """Width in cells (rounded up) of the widest line."""

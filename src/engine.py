@@ -15,6 +15,7 @@ from events import Point
 from config import DEFAULT_CONFIG, GameConfig
 from message_log import MessageLog
 import render_functions
+import message_log
 import color
 import lighting
 import math
@@ -189,6 +190,7 @@ class Engine:
     def render(self, canvas: Canvas) -> None:
         """Draw the map, the bottom panel (status bars, names under the cursor, message log) and the side panel."""
         self.game_map.render(canvas)
+        self._draw_panels(canvas)
 
         player = self.player
         for row, (value, maximum, full, empty, label) in zip((40, 42, 44), (
@@ -216,5 +218,16 @@ class Engine:
             row += 1
         import survival
         for text, shade in survival.status_lines(self):
-            canvas.print(71, row, text[:9], fg=shade)
+            canvas.print(71, row, text[:19], fg=message_log.legible(shade))
             row += 1
+
+    @staticmethod
+    def _draw_panels(canvas: Canvas) -> None:
+        """The dark glass behind the side panel and the bottom panel, with a thin rule where they meet the map."""
+        import pygame
+        from ui import Theme
+        canvas.fill(70, 0, 10, 40, Theme.BG)
+        canvas.fill(0, 40, 80, 5, Theme.BG)
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (70 * 24, 0), (70 * 24, 40 * 24), 2)
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (0, 40 * 24), (80 * 24, 40 * 24), 2)
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (21 * 24 - 8, 40 * 24), (21 * 24 - 8, 45 * 24), 1)

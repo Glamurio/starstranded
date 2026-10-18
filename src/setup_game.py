@@ -11,7 +11,7 @@ import pygame
 import color
 import events
 from events import Key, Point
-from ui import CENTER
+from ui import CENTER, RIGHT
 from engine import Engine
 
 import input_handlers
@@ -97,7 +97,7 @@ class MainMenu(input_handlers.BaseEventHandler):
 
     console_height: int
     console_width: int
-    menu_width = 12
+    menu_width = 24
     menu_i: int = 0
 
     buttons: dict
@@ -133,43 +133,30 @@ class MainMenu(input_handlers.BaseEventHandler):
             raise SystemExit()
 
     def on_render(self, canvas: Canvas) -> None:
-        """Render the main menu on a background image."""
+        """The main menu: the planet backdrop, a framed window with the title and the choices."""
+        from ui import Theme
         self.console_height = canvas.height
         self.console_width = canvas.width
         canvas.blit_image(background_image())
-
-        canvas.print(
-            canvas.width // 2,
-            canvas.height // 2 - 4,
-            text="Starstranded",
-            fg=color.menu_title,
-            alignment=CENTER,
-        )
-        canvas.print(
-            canvas.width // 2,
-            canvas.height - 2,
-            text="By Ryou",
-            fg=color.menu_title,
-            alignment=CENTER,
-        )
-
+        count = len(self.button_names)
+        height = 12 + count * 2
+        x, y, width = (canvas.width - 34) // 2, (canvas.height - height) // 2 - 2, 34
+        ix, iy, iw, ih = canvas.window(x, y, width, height, hints=[("Up/Down", "choose"), ("Enter", "select")])
+        rows = canvas.print_big(canvas.width // 2, iy, "STARSTRANDED", Theme.TITLE, 44)
+        canvas.print(canvas.width // 2, iy + rows + 1, "a survival roguelike on an alien world", fg=Theme.DIM, alignment=CENTER)
         has_save = os.path.isdir(SAVE_PATH) or os.path.isfile(SAVE_PATH)
         for i, text in enumerate(self.button_names):
             button_x = canvas.width // 2
-            button_y = canvas.height // 2 - 2 + (i*2)
+            button_y = iy + rows + 4 + i * 2
             self.buttons[text] = {'x': button_x, 'y': button_y}
             selected = text == self.button_highlight
-            fg = color.menu_text_inverse if selected else color.menu_text
+            if selected:
+                canvas.fill(ix, button_y, iw, 1, Theme.HILITE)
+            fg = Theme.HILITE_TEXT if selected else Theme.TEXT
             if text == "Continue" and not has_save and not selected:
-                fg = color.impossible   # nothing to continue (it still reports so when chosen)
-            canvas.print(
-                button_x,
-                button_y,
-                text=text.center(self.menu_width),
-                fg=fg,
-                bg=color.white if selected else None,
-                alignment=CENTER,
-            )
+                fg = Theme.DIM   # nothing to continue (it still reports so when chosen)
+            canvas.print(button_x, button_y, text, fg=fg, alignment=CENTER)
+        canvas.print(canvas.width // 2, canvas.height - 2, "By Ryou", fg=Theme.TITLE, alignment=CENTER)
 
     def ev_keydown(
         self, event: events.KeyDown
@@ -235,16 +222,23 @@ class SettingsMenu(input_handlers.BaseEventHandler):
         settings_module.apply(self.settings, self.session)
 
     def on_render(self, canvas: Canvas) -> None:
+        from ui import Theme
         canvas.blit_image(background_image())
-        x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 6, 40
-        canvas.draw_frame(x=x, y=y, width=width, height=13, title="Settings", clear=True, fg=color.menu_text, bg=color.nigh_black)
+        x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 7, 40
+        ix, iy, iw, ih = canvas.window(x, y, width, 14, title="Settings", hints=[("Up/Down", "row"), ("Left/Right", "change"), ("Esc", "back")])
         for i, (label, field) in enumerate(self.ROWS):
             value = getattr(self.settings, field)
-            text = ("on" if value else "off") if field == "fullscreen" else "#" * value + "." * (settings_module.MAX_VOLUME - value)
             selected = i == self.row
-            canvas.print(x + 2, y + 2 + i * 2, f"{label:<16}{text}", fg=color.black if selected else color.menu_text,
-                         bg=color.white if selected else color.nigh_black)
-        canvas.print(x + 2, y + 10, "LEFT/RIGHT change, ESC back", fg=color.impossible)
+            row = iy + 1 + i * 2
+            if selected:
+                canvas.fill(ix, row, iw, 1, Theme.HILITE)
+            canvas.print(ix, row, label, fg=Theme.HILITE_TEXT if selected else Theme.TEXT)
+            if field == "fullscreen":
+                canvas.print(ix + iw - 1, row, "on" if value else "off", fg=Theme.HILITE_TEXT if selected else Theme.TEXT, alignment=RIGHT)
+            else:
+                bar_x = (ix + iw - 10) * 24
+                for step in range(settings_module.MAX_VOLUME):
+                    canvas.surface.fill(Theme.KEY if step < value else Theme.BORDER_DIM, (bar_x + step * 22, row * 24 + 6, 18, 12))
 
     def ev_keydown(self, event: events.KeyDown):
         if event.sym == Key.UP:
@@ -314,7 +308,7 @@ class CharacterCreation(input_handlers.BaseEventHandler):
             import sponsors as sp
             lines = characters.describe(race, background)
             lines += ["", f"Sponsor: {sp.SPONSORS[self.selected('sponsor')].name}",
-                      f"Mode: {self.MODES[self.choice['mode']][1]}", "", "ENTER: begin   ESC: back"]
+                      f"Mode: {self.MODES[self.choice['mode']][1]}", ""]
             return lines
         return []
 
@@ -324,34 +318,36 @@ class CharacterCreation(input_handlers.BaseEventHandler):
                                            sponsor=self.selected("sponsor"))
 
     def on_render(self, canvas: Canvas) -> None:
-        import textwrap
+        import widgets
+        from ui import Theme
+        canvas.blit_image(background_image())
         step = self.STEPS[self.step]
         if step == "name":
-            width = len(self.TITLE) + 4
-            x = canvas.width // 2 - width // 2
-            y = canvas.height // 2 - 4
-            canvas.draw_frame(x, y, width=width, height=5, title=self.TITLE, clear=True, fg=(255, 255, 255), bg=(0, 0, 0))
-            canvas.print(x=x + 2, y=y + 2, text=f"{self.player.name}")
-            if len(self.player.name) < self.MAX_CHARS - 1:
-                canvas.print(x=x + len(self.player.name) + 2, y=y + 2, text="_")
+            x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 5, 40
+            ix, iy, iw, ih = canvas.window(x, y, width, 9, title=self.TITLE, hints=[("Enter", "next"), ("Esc", "back")])
+            shown = self.player.name + ("_" if len(self.player.name) < self.MAX_CHARS - 1 else "")
+            canvas.fill(ix, iy + 1, iw, 1, Theme.PANEL)
+            canvas.print(ix, iy + 1, shown, fg=Theme.HILITE_TEXT)
             return
-        x, y, width, height = 4, 2, canvas.width - 8, canvas.height - 6
         title = {"race": "Choose your people", "background": "Choose your background", "sponsor": "Choose your sponsor",
                  "mode": "Choose your mode", "confirm": f"{self.player.name}: ready?"}[step]
-        canvas.draw_frame(x=x, y=y, width=width, height=height, title=title, clear=True, fg=color.menu_text, bg=color.nigh_black)
+        hints = [("Enter", "begin"), ("Esc", "back")] if step == "confirm" else [("Up/Down", "choose"), ("Enter", "next"), ("Esc", "back")]
+        ix, iy, iw, ih = canvas.window((canvas.width - 70) // 2, 8, 70, 26, title=title, hints=hints)
         options = self.options(step)
-        for i, (_, label) in enumerate(options):
-            selected = i == self.choice.get(step, -1)
-            canvas.print(x + 2, y + 2 + i, f"{label:<26}", fg=color.black if selected else color.menu_text,
-                         bg=color.white if selected else color.nigh_black)
-        left = x + 32 if options else x + 2
-        line = y + 2
-        for paragraph in self.details(step):
-            for text in (textwrap.wrap(paragraph, width - (left - x) - 2) or [""]):
-                canvas.print(left, line, text, fg=color.menu_text)
-                line += 1
-        if step != "confirm":
-            canvas.print(x + 2, y + height - 2, "UP/DOWN choose, ENTER next, ESC back", fg=color.impossible)
+        left_w = 24 if options else 0
+        if options:
+            rows = [widgets.Row(label, data=i) for i, (_, label) in enumerate(options)]
+            view = widgets.ListView(rows)
+            view.selected = self.choice.get(step, 0)
+            view.draw(canvas, ix, iy, left_w, ih)
+        dx = ix + (left_w + 1 if options else 0)
+        if options:
+            import pygame
+            pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (dx * 24 - 12, iy * 24), (dx * 24 - 12, (iy + ih) * 24), 1)
+        lines = []
+        for k, paragraph in enumerate(self.details(step)):
+            lines.append((paragraph, Theme.TEXT))
+        widgets.text_block(canvas, dx, iy, iw - (left_w + 1 if options else 0), ih, lines)
 
     def ev_textinput(self, event: events.TextInput) -> Optional[input_handlers.BaseEventHandler]:
         if self.STEPS[self.step] != "name":
@@ -387,7 +383,9 @@ class CharacterCreation(input_handlers.BaseEventHandler):
                 self.player.set_name(self.player.name[:-1])
         elif step in self.choice:
             count = len(self.options(step))
-            if event.sym == Key.UP:
+            if Key.A <= event.sym <= Key.Z and event.sym - Key.A < count:
+                self.choice[step] = event.sym - Key.A
+            elif event.sym == Key.UP:
                 self.choice[step] = (self.choice[step] - 1) % count
             elif event.sym == Key.DOWN:
                 self.choice[step] = (self.choice[step] + 1) % count

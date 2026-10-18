@@ -59,7 +59,9 @@ def render_names_at_mouse_location(
     names_at_mouse_location = get_names_at_location(
         x=mouse_x, y=mouse_y, game_map=engine.game_map
     )
-    if width and len(names_at_mouse_location) > width:
-        names_at_mouse_location = names_at_mouse_location[: max(0, width - 3)] + "..."
+    from ui import Theme
+    limit = canvas.chars(width) if width else 0
+    if limit and len(names_at_mouse_location) > limit:
+        names_at_mouse_location = names_at_mouse_location[: max(0, limit - 3)] + "..."
 
-    canvas.print(x, y, names_at_mouse_location)
+    canvas.print(x, y, names_at_mouse_location, fg=Theme.TITLE)

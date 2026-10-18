@@ -51,6 +51,13 @@ def crafting_view(engine, main_handler):
     return handler
 
 
+def creation():
+    cc = setup_game.CharacterCreation(SESSION)
+    cc.player.set_name("Pascal")
+    cc.step = 1
+    return cc
+
+
 def main(names):
     engine = game()
     main_handler = ih.MainGameEventHandler(engine)
@@ -67,6 +74,8 @@ def main(names):
         "look": lambda: press(main_handler, Key.SLASH),
         "pickup": lambda: press(main_handler, Key.G),
         "menu": lambda: setup_game.MainMenu(SESSION),
+        "settings": lambda: setup_game.SettingsMenu(SESSION),
+        "creation": lambda: creation(),
     }
     for name in names or screens:
         try:
