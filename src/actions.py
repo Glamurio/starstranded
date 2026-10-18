@@ -671,6 +671,37 @@ def tracker_charges(run, now: int) -> int:
     return min(TRACKER_MAX_CHARGES, stored + (now - stamp) // TRACKER_RECHARGE)
 
 
+class ScanAction(Action):
+    """Read what is at a tile with the scanner: the more you know (skills, tags), the more it tells you. One turn."""
+
+    SCAN_RANGE = 8
+
+    def __init__(self, entity: Unit, x: int, y: int):
+        super().__init__(entity)
+        self.x, self.y = x, y
+
+    def perform(self) -> None:
+        import lore
+        user, engine = self.entity, self.engine
+        if max(abs(self.x - user.x), abs(self.y - user.y)) > self.SCAN_RANGE:
+            raise exceptions.Impossible("That is out of scanner range.")
+        if not engine.game_map.is_visible(self.x, self.y):
+            raise exceptions.Impossible("You cannot see that.")
+        result = lore.scan(engine, self.x, self.y)
+        if result is None:
+            raise exceptions.Impossible("There is nothing to scan there.")
+        title, learned = result
+        log = engine.message_log.add_message
+        if not learned:
+            log(f"Scanner: {title} - nothing new beyond what you know.", color.impossible)
+            return
+        log(f"Scanner: {title}", color.player_atk)
+        run = engine.game_world.run
+        for fact, level in learned:
+            label = fact.key.replace("_", " ")
+            log(f"  {label} ({level.name.lower()})", color.player_atk)
+
+
 class TrackAction(Action):
     """Use the corporate tracker: point toward the nearest marked target within its signal range (costs a charge)."""
 

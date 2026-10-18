@@ -265,6 +265,47 @@ class AskUserEventHandler(EventHandler):
         self.resolve_handler()
         
 
+class CodexHandler(AskUserEventHandler):
+    """The codex: everything the scanner and your work have taught you, by category. Left/right changes page."""
+
+    TITLE = "Codex"
+
+    def __init__(self, engine: Engine):
+        super().__init__(engine)
+        self.page = 0
+
+    def pages(self):
+        import lore
+        entries = lore.codex_entries(self.engine)
+        run = self.engine.game_world.run
+        out = []
+        for category, items in entries.items():
+            lines = []
+            for subject, title, facts in items:
+                lines.append(title)
+                lines.extend("  " + l for l in lore.describe_lines(run, subject, facts))
+            out.append((category, lines or ["Nothing learned yet."]))
+        return out
+
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
+        pages = self.pages()
+        self.page %= len(pages)
+        category, lines = pages[self.page]
+        tabs = "  ".join(("[" + c + "]") if i == self.page else c for i, (c, _) in enumerate(pages))
+        height = min(len(lines) + 4, 40)
+        canvas.draw_frame(x=2, y=1, width=76, height=height, title=self.TITLE, clear=True, fg=(255, 255, 255), bg=(0, 0, 0))
+        canvas.print(x=3, y=2, text=tabs)
+        for i, line in enumerate(lines[:height - 4]):
+            canvas.print(x=3, y=4 + i, text=line[:72])
+
+    def ev_keydown(self, event):
+        if event.sym in (Key.LEFT, Key.RIGHT):
+            self.page += 1 if event.sym == Key.RIGHT else -1
+            return None
+        return super().ev_keydown(event)
+
+
 class PickupHandler(AskUserEventHandler):
 
     def __init__(self, engine: Engine):
@@ -1029,6 +1070,10 @@ class MainGameEventHandler(EventHandler):
             return SingleRangedAttackHandler(self.engine, lambda xy: actions.FireAction(player, *xy))  # fire the pistol
         elif key == Key.K:
             return actions.TrackAction(player)    # use the tracker
+        elif key == Key.S:
+            return SingleRangedAttackHandler(self.engine, lambda xy: actions.ScanAction(player, *xy))  # scanner
+        elif key == Key.O:
+            return CodexHandler(self.engine)      # what you have learned
 
         elif key == Key.C:
             return CharacterScreenEventHandler(self.engine)
