@@ -1,7 +1,7 @@
 """Saving and loading: a directory with a manifest plus one file per chunk, pickles (the manifest lzma-compressed, chunks zlib-compressed: they are
 re-compressed on every unload, so speed matters more than size).
 
-    <save dir>/manifest.lzma                          {"version": 7, "body": <pickle>}
+    <save dir>/manifest.lzma                          {"version": 8, "body": <pickle>}
     <save dir>/layer<Z>/chunk_<cx>_<cy>.<gen>.zlib    one chunk: terrain, explored, its entities
 
 The manifest body holds, per layer (z: 0 surface, < 0 caves, > 0 upper floors), the seed, the chunk source (with the surface's
@@ -39,10 +39,11 @@ if TYPE_CHECKING:
     from engine import Engine
     from world import World
 
-SAVE_VERSION = 7
+SAVE_VERSION = 8
 """1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = sprite-id tiles; 4 = chunked world directory;
 5 = zlib chunk blobs; 6 = layers (z-levels), chunk blobs with the terrain readable without the entities;
-7 = sprite ids refer to the merged sprite sheet (urizen_white.png): older saves would draw wrong sprites."""
+7 = sprite ids refer to the merged sprite sheet (urizen_white.png): older saves would draw wrong sprites;
+8 = the run state (mode, reputation, contracts, knowledge, escape progress) and the player's culture."""
 
 MANIFEST = "manifest.lzma"
 COMPRESSION_LEVEL = 3
@@ -228,6 +229,8 @@ def save_game(engine: Engine, directory: str) -> None:
         "layers": layers,
         "seed": game_world.seed,
         "time": game_world.current_time,
+        "culture": game_world.culture,
+        "run": game_world.run,
         "player": engine.player,
         "message_log": engine.message_log,
         "config": engine.config,
@@ -279,7 +282,9 @@ def load_game(directory: str, session=None) -> Engine:
     engine.config = body["config"]
     engine.message_log = body["message_log"]
     engine.player = body["player"]
-    engine.game_world = GameWorld(engine=engine, seed=body["seed"], current_z=body["z"], current_time=body["time"])
+    engine.game_world = GameWorld(engine=engine, seed=body["seed"], current_z=body["z"], current_time=body["time"],
+                                  culture=body["culture"])
+    engine.game_world.run = body["run"]
     bump_uid_counter(body["next_uid"])
     for z, info in body["layers"].items():
         world = world_shell if z == body["z"] else object.__new__(World)

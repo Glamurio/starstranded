@@ -277,6 +277,7 @@ HULL_PLATE = register(ItemKind("hull_plate", "Hull plate", sprite=(0, 25), color
 LENS = register(ItemKind("lens", "Lens", sprite=(2, 23), color=(200, 230, 255)))
 MEDKIT = register(ItemKind("medkit", "Medkit", sprite=(2, 24), color=(240, 100, 100)))
 SURVEY_KIT = register(ItemKind("survey_kit", "Survey kit", sprite=(3, 21), color=(120, 180, 240), tool_tags=("surveying",)))
+ARTIFACT = register(ItemKind("artifact", "Relic", sprite=(30, 21), color=(120, 230, 200), light_radius=0))
 NAV_UNIT = register(ItemKind("nav_unit", "Navigation unit", sprite=(51, 22), color=(120, 160, 240)))
 
 

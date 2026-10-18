@@ -222,3 +222,19 @@ class Ammo(Item):
 
     def activate(self, user) -> None:
         raise exceptions.Impossible("Rounds are loaded by firing the pistol ('V').")
+
+
+class Artifact(Item):
+    """A precursor relic from a ruin: worthless to eat or wear, priceless to collectors, and part of the ancient route."""
+
+    def __init__(self, parent=None, name: str = "Precursor relic", index: int = 0):
+        Item.__init__(self, defs.ARTIFACT)
+        self.parent = parent
+        self.relic_name = name
+        self.index = index
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        return self.relic_name
+
+    def activate(self, user) -> None:
+        raise exceptions.Impossible("You turn the relic over. It hums faintly; it will need the right place to wake.")

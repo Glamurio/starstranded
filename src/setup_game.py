@@ -46,12 +46,21 @@ def create_player() -> Unit:
 
     return player
 
-def new_game(player: Unit, session=None) -> Engine:
+CULTURE_OF_RACE = {"human": "human", "selenite_people": "selenite", "mau": "mau"}
+"""The naming culture of the planet's catalogue follows the player's people (see `planet`)."""
+
+
+def new_game(player: Unit, session=None, mode: str = "roguelike") -> Engine:
     """Return a brand new game session as an Engine instance."""
     from world import GameWorld
 
     engine = Engine(player=player, session=session)
-    engine.game_world = GameWorld(engine=engine)  # the game seed is drawn from `random`
+    engine.game_world = GameWorld(engine=engine, culture=CULTURE_OF_RACE.get(player.kind.key, "human"))  # the seed is drawn from `random`
+    engine.game_world.run.mode = mode
+    sponsor = getattr(player, "sponsor", None)
+    if sponsor:
+        import sponsors
+        sponsors.choose_sponsor(engine.game_world.run, player, sponsor)
     engine.game_world.start()  # the surface: a chunked world around the start in chunk (0, 0)
     
     engine.message_log.add_message(

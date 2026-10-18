@@ -709,6 +709,8 @@ class GameWorld:
         self.culture = culture  # naming culture of the planet's catalogue (the player's people)
         self.layers: Dict[int, World] = {}
         self.arrivals: List[tuple] = []  # (due time, unit, z, x, y): followers still on the stairs
+        from run import RunState
+        self.run = RunState(seed=self.seed)  # mode, reputation, contracts, discoveries, escape progress
 
     @property
     def planet(self):

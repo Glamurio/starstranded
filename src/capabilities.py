@@ -119,6 +119,9 @@ _tag("improved_crafting", TagKind.MODIFIER, "Wastes less when crafting: eligible
 _tag("enhanced_salvaging", TagKind.MODIFIER, "Recovers more from salvage.", ("salvage",),
      effects=(Effect("salvage_yield", Op.MULT, 1.5),))
 
+_tag("survey_license", TagKind.MODIFIER, "A government survey licence: the scanner reads one tier deeper.",
+     ("scanner",), effects=(Effect("scan_depth", Op.ADD, 1.0),))
+
 # ── capabilities (what a unit can do or perceive) ─────────────────────────────────────────────────────
 _tag("darkvision", TagKind.CAPABILITY, "Sees in the dark. Magnitude = radius (tiles) seen at night.", ("perception",),
      default_magnitude=12.0)
