@@ -20,7 +20,7 @@ def test_add_until_full_raises_for_player(small_world):
     inv = e.player.inventory
     while not inv.is_full():
         inv.add(Meat("x", inv))
-    assert len(inv.items) == inv.capacity == 10
+    assert len(inv.items) == inv.capacity == 20
     with pytest.raises(exceptions.Impossible):
         inv.add(Meat("x", inv))
 
