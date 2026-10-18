@@ -7,7 +7,7 @@ from chunks import CHUNK_H, CHUNK_W, chunk_key, keys_around
 
 def test_loaded_chunks_shapes_and_dtypes(new_engine):
     m = new_engine.game_map
-    assert set(m.chunks) == set(keys_around((0, 0), new_engine.config.near_radius))
+    assert set(m.chunks) == set(keys_around((0, 0), new_engine.config.load_radius))
     for chunk in m.chunks.values():
         assert chunk.tiles.shape == chunk.explored.shape == (CHUNK_W, CHUNK_H)  # [x, y] indexing, width first
         assert chunk.tiles.dtype == tile_types.tile_dt and chunk.explored.dtype == np.bool_

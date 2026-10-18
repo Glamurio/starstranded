@@ -3,9 +3,9 @@
 Tiers are defined around the player's chunk (see `GameConfig`):
 
 - ACTIVE: chunks within `active_radius` (default 0 = the player's chunk): every actor runs its full AI every turn.
-- NEAR: loaded chunks within `near_radius`: every `near_interval` turns each actor gets its upkeep and one
+- NEAR: loaded chunks within `GameConfig.sim_radius` (default 2): every `near_interval` turns each actor gets its upkeep and one
   the same decisions as the full AI with greedy steps (`near_step`): no pathfinding.
-- FAR: not loaded (or loaded but beyond `near_radius`: frozen). Nothing runs.
+- FAR: not loaded (or loaded but beyond the simulated radius: frozen). Nothing runs.
 
 Survival upkeep (hunger, thirst, plant growth) is accounted *per entity* with `last_upkeep`: `upkeep(entity, now)`
 applies every step in `(last_upkeep, now]`. One elapsed turn runs the original per-turn code; longer gaps (an entity
@@ -156,7 +156,7 @@ def run_turn(engine: Engine) -> None:
         distance = chebyshev(key, center)
         if distance <= config.active_radius:
             active.append(chunk)
-        elif distance <= config.near_radius:
+        elif distance <= config.load_radius:
             near.append(chunk)
 
     world.plant_queue.run(now)

@@ -246,13 +246,13 @@ class World(SpatialContainer):
         return out
 
     def update_tiers(self) -> None:
-        """Load every chunk within `near_radius` of the centre; unload those beyond `unload_radius`."""
+        """Load every chunk within `load_radius` (the simulated radius) of the centre; unload those beyond `unload_radius`."""
         config = self.config
         center = self.center_key()
         self._center = center
-        for key in keys_around(center, config.near_radius):
+        for key in keys_around(center, config.load_radius):
             self.load_chunk(key)
-        unload_radius = max(config.unload_radius, config.near_radius)
+        unload_radius = max(config.unload_radius, config.load_radius)
         for key in [k for k in self.chunks if chebyshev(k, center) > unload_radius]:
             self.unload_chunk(key)
 

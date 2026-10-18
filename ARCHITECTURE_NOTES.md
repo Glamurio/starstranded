@@ -64,7 +64,7 @@ savegame: chunk (de)serialisation (also used for unloading) and the save directo
 
 ## Simulation
 - `GameWorld.pass_time` (player turns): advance the clock, player hunger/thirst, `simulation.run_turn`, `update_fov`.
-- ACTIVE (`active_radius`, default the player's chunk): full AI each turn. NEAR (`near_radius`, default the 8 neighbours): every
+- ACTIVE (`active_radius`, default the player's chunk): full AI each turn. NEAR (`sim_radius`, default 2 = the 24 surrounding chunks): every
   `near_interval` (2) turns `near_step` (upkeep + flee / approach / eat adjacent / random step; no pathfinding, no messages).
   Loaded chunks beyond `near_radius` (the `unload_radius` hysteresis band) are frozen; beyond `unload_radius` they are unloaded.
 - `upkeep(entity, now)` per entity (`last_upkeep`): one turn = the original code; longer = analytic (hunger/thirst steps and

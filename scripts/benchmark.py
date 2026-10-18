@@ -9,7 +9,7 @@ positions drawn from fixed seeds. That makes runs comparable across code version
 `src/`, e.g. an older commit extracted with `git archive`; a small adapter covers the pre-Phase-2 API).
 
 Sections (milliseconds unless noted):
-  floor_generation   GameWorld.generate_floor() from a seeded RNG (terrain + vegetation + monsters/items)
+  floor_generation   GameWorld.start() (older checkouts: generate_floor()) from a seeded RNG (terrain + vegetation + monsters/items)
   spawn_trees_x500   creating and placing 500 trees of one kind on an empty map
   turn_*             one full turn = player WaitAction + every AI, with N extra units
                      (passive = idle rabbits, hungry = rabbits seeking food, hostile = Selenites chasing)
@@ -58,7 +58,20 @@ NEW_API = hasattr(GameMap, "add_entity")  # Phase 2+: spatial index, species def
 PYGAME_API = "sprite" in (tile_types.graphic_dt.names or ())  # Phase 3+: pygame-ce rendering, sprite-id tiles
 CHUNKED = (SRC / "chunks.py").exists()  # Phase 5+: chunked world
 # The scenario terrain exists in both tile layouts (codepoints for the tcod-era code, sprite ids for Phase 3+).
-LANDSCAPE = np.load(HERE / "bench_data" / ("scenario_landscape.npy" if PYGAME_API else "scenario_landscape_tcod.npy"))
+_LOADED = np.load(HERE / "bench_data" / ("scenario_landscape.npy" if PYGAME_API else "scenario_landscape_tcod.npy"))
+
+
+def _upgrade(landscape):
+    """The stored landscape predates newer tile fields (open, stairs): copy it into the current dtype."""
+    if landscape.dtype == tile_types.tile_dt or not PYGAME_API:
+        return landscape
+    out = np.zeros(landscape.shape, dtype=tile_types.tile_dt, order="F")
+    for name in landscape.dtype.names:
+        out[name] = landscape[name]
+    return out
+
+
+LANDSCAPE = _upgrade(_LOADED)
 
 
 # ── adapter over the pre-/post-Phase-2 APIs ─────────────────────────────────────────────
@@ -147,7 +160,14 @@ def scenario(units: int = 0, kind: str = "passive", trees: int = 60):
 # ── benchmarks ─────────────────────────────────────────────────────────────────
 def bench_floor_generation(repeat: int) -> dict:
     engine = seeded_engine()
-    return timed(engine.game_world.generate_floor, repeat)
+    game_world = engine.game_world
+    if not hasattr(game_world, "generate_floor"):  # layered worlds: generating the first world = start() on a fresh layer table
+        def generate():
+            game_world.layers.clear()
+            engine.game_map = game_world.world_at(0)
+            game_world.start()
+        return timed(generate, repeat)
+    return timed(game_world.generate_floor, repeat)
 
 
 def bench_spawn_trees(repeat: int) -> dict:

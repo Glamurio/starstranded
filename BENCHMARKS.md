@@ -182,3 +182,14 @@ Same script and machine within one session (`--quick` before, full run after); n
 | plants per turn | ~3 ms (polling every plant) | ~0 | event-driven growth (`simulation.PlantQueue`) |
 
 Rendering (2.5 ms to draw, ~5 ms with present, only on change) was left alone: it is far inside the 16.7 ms budget.
+
+## Simulated radius 2 (5x5 chunks), layers, lighting (this VM, `--quick`, noisy)
+| Section | Before (sim radius 1) | After (sim radius 2) |
+|---|---|---|
+| `chunked.border_crossing` (player steps into the next chunk) | ~20 ms | ~53 ms (loads 5 chunks instead of 3) |
+| `chunked.turn_near_ring_*.near_tick` (turn on which NEAR chunks are simulated, natural spawns) | ~5 ms | ~8 ms (24 chunks instead of 8) |
+| `floor_generation` (start: spawn chunk + the 24 around it) | ~50 ms | ~124 ms |
+| `chunked.save` / `load` (40 chunks) | ~23 ms / n.a. | 94 ms / 131 ms |
+| `render.frame_no_present` | ~3 ms | ~2.9 ms (night shading and look-down included) |
+`fov` stays ~0.12 ms; the lighting model adds one shadowcast per light source in the window. The benchmark script now works with
+the layered `GameWorld` (and still with older checkouts).

@@ -45,7 +45,7 @@ def assert_tiers(engine):
     world, config = engine.game_map, engine.config
     center = chunk_key(engine.player.x, engine.player.y)
     assert world.center_key() == center
-    assert set(keys_around(center, config.near_radius)) <= set(world.chunks)
+    assert set(keys_around(center, config.load_radius)) <= set(world.chunks)
     assert all(chebyshev(key, center) <= config.unload_radius for key in world.chunks)
     assert not set(world.chunks) & set(world.stored)
 
@@ -96,7 +96,7 @@ def test_camera_follows_and_mouse_maps_to_world_tiles():
 
 
 def test_units_cannot_step_into_unloaded_chunks():
-    e = flat_engine(near_radius=1, unload_radius=1)
+    e = flat_engine(near_radius=1, sim_radius=1, unload_radius=1)
     world = e.game_map
     edge_x = 2 * CHUNK_W - 1  # last column of chunk (1, 0); chunk (2, 0) is not loaded
     assert world.in_bounds(edge_x, 20) and not world.in_bounds(edge_x + 1, 20)
@@ -242,7 +242,7 @@ def test_active_chunk_runs_every_turn_near_chunks_every_interval():
 
 
 def test_far_entities_are_not_simulated_at_all():
-    e = flat_engine(near_radius=1, unload_radius=3)
+    e = flat_engine(near_radius=1, sim_radius=1, unload_radius=3)
     world = e.game_map
     frozen = boxed_rabbit(world, 3 * CHUNK_W + 10, 20) if world.load_chunk((3, 0)) else None
     before = frozen.last_upkeep

@@ -2,6 +2,11 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Bigger simulated world
+- Everything alive within 2 chunks of you (a 350x200 tile area, 5x the screen's width) now eats, hunts and flees by the same
+  rules as on screen (before: 1 chunk). Setting `GameConfig.sim_radius` changes it. The first load and crossing a chunk border
+  cost a bit more (see BENCHMARKS.md).
+
 ## Layers: real stairs, caves, buildings, building your own floors
 - The world is now a stack of layers (z): the surface, caves below it, upper floors of buildings above it. Stairs go to the
   same x/y on the next layer (`L` takes whichever staircase you stand on; `<` / `>` pick the direction). The HUD shows

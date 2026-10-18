@@ -478,3 +478,12 @@ The plan above was implemented as written, with these specifics and deviations:
   "frozen then caught up", the same approximation already used for far chunks. (3) falling when walking onto `open` tiles —
   deferred; `open` tiles are simply not walkable.
 - **Saves:** version 6, one directory per layer (`z<N>/`); old saves are rejected (no migration needed, per the brief).
+
+## Simulated radius 2
+- **What:** new `GameConfig.sim_radius` (default 2) is the NEAR tier; `near_radius` (1) now only sizes the view window; `unload_radius`
+  default 3. `load_radius = max(near_radius, sim_radius)`.
+- **Why:** "if the player can't tell the difference, simulate it": the screen shows 70x40 tiles, so one chunk of margin was
+  already invisible, but creatures two chunks away are what you meet after walking for a minute. Cost measured in BENCHMARKS.md.
+- **Alternative:** simulate stored chunks abstractly (population dynamics) — rejected: the catch-up in `upkeep` already
+  covers hunger/growth, and a second ecology model would need to agree with the real one. Layers you are not on stay frozen
+  and catch up (same approximation as far chunks).

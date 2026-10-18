@@ -31,12 +31,21 @@ class GameConfig:
     """Chunks within this distance of the player's chunk run the full AI every turn (ACTIVE tier)."""
 
     near_radius: int = 1
-    """Chunks within this Chebyshev distance of the player's chunk are loaded and simulated (NEAR tier, the player's own
-    chunk is ACTIVE). Also the radius of the stitched view window (1 -> 3x3 chunks = 210x120 tiles)."""
+    """The radius of the stitched view window (1 -> 3x3 chunks = 210x120 tiles) and the least that is always loaded."""
 
-    unload_radius: int = 2
-    """Chunks further than this from the player's chunk are serialised and dropped (FAR). The band between
-    `near_radius` and `unload_radius` stays loaded but frozen, so walking back and forth over a border does not thrash."""
+    sim_radius: int = 2
+    """Chunks within this Chebyshev distance of the player's chunk are loaded and simulated (NEAR tier; the player's own
+    chunk is ACTIVE): everything alive there eats, hunts and flees by the same rules as on screen, only with simpler
+    movement. 2 -> 5x5 chunks = 350x200 tiles, well beyond what the screen (70x40) shows."""
+
+    unload_radius: int = 3
+    """Chunks further than this from the player's chunk are serialised and dropped (FAR). The band between the simulated
+    radius and `unload_radius` stays loaded but frozen, so walking back and forth over a border does not thrash."""
+
+    @property
+    def load_radius(self) -> int:
+        """Chunks within this distance are kept loaded (and simulated)."""
+        return max(self.near_radius, self.sim_radius)
 
     near_interval: int = 2
     """NEAR chunks are simulated every this many turns (upkeep for the whole interval + one simplified AI step)."""
