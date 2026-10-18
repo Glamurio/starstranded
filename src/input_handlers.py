@@ -197,6 +197,9 @@ class EventHandler(BaseEventHandler):
             elif self.engine.player.level.requires_level_up:
                 return LevelUpEventHandler(self.engine)
 
+            if isinstance(self, SelectIndexHandler) and self in self.session.handlers:
+                # a targeting screen that has just done its job (place, scan, fire ...) is finished: back to the map
+                self.reset_to_handler(MainGameEventHandler(self.engine))
             if not len(self.session.handlers):
                 self.reset_to_handler(MainGameEventHandler(self.engine)) # Return to the main handler.
 
