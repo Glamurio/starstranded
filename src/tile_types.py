@@ -31,6 +31,8 @@ tile_dt = np.dtype(
         ("light", graphic_dt),  # Graphics for when the tile is in FOV.
         ("open", bool),  # type: ignore # True if there is no floor here: the layer below is visible through it.
         ("stairs", np.int8),  # +1: stairs up, -1: stairs down, 0: none.
+        ("liquid", np.int8),  # 0: none, else the kind of liquid (see liquids.LiquidKind).
+        ("depth", np.int8),  # liquid depth: 0 none, 1 shallow (can be waded), 2 and 3 deeper (cannot).
     ]
 )
 
@@ -57,6 +59,8 @@ class Tile(object):
         light_fg: Tuple[int, Tuple[int, int, int]] = (255, 255, 255),
         open: bool = False,
         stairs: int = 0,
+        liquid: int = 0,
+        depth: int = 0,
         dtype: np.dtype = tile_dt,
     ):
         
@@ -79,17 +83,20 @@ class Tile(object):
 
         self.open = open
         self.stairs = stairs
+        self.liquid = liquid
+        self.depth = depth
         self.dtype = dtype
 
     def get_array(self) -> np.ndarray:
         """Helper function for returning individual tile types"""
-        return np.array((self.walkable, self.transparent, self.dark, self.light, self.open, self.stairs), dtype=self.dtype)
+        return np.array((self.walkable, self.transparent, self.dark, self.light, self.open, self.stairs,
+                         self.liquid, self.depth), dtype=self.dtype)
 
 # SHROUD represents unexplored, unseen tiles
 SHROUD = np.array((NO_SPRITE, False, (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 # VOID is what lies outside a bounded map (and fills the unused part of its chunk): nothing to walk on or see through.
-VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist(), False, 0), dtype=tile_dt)
+VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist(), False, 0, 0, 0), dtype=tile_dt)
 
 floor = Tile(
     object_type="Floor",
@@ -121,7 +128,7 @@ water_variations = [
     (16, 32, "west_solo")
 ]
 water = Tile(
-    object_type="Water",
+    object_type="Liquid",
     variations=water_variations,
     walkable=False,
     transparent=True,

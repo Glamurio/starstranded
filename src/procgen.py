@@ -104,7 +104,7 @@ def place_entities(world: World, floor_number: int, area: Tuple[int, int, int, i
         y = random.randint(y0, y0 + height - 1)
         if (x, y) in reserved:
             continue
-        if world.is_walkable(x, y) and not world.is_blocked(x, y):
+        if world.is_walkable(x, y) and not world.is_blocked(x, y) and not world.tile_at(x, y)["liquid"]:
             world.add_entity(factory(), x, y)
 
 

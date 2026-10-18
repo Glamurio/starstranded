@@ -9,6 +9,7 @@ the same entities (only uids differ).
 """
 from __future__ import annotations
 
+import colorsys
 import contextlib
 import hashlib
 import random
@@ -26,8 +27,13 @@ from species import PlantCategory, PlantSpecies, make_plant_species
 if TYPE_CHECKING:
     from world import World
 
-MARGIN = 2
-"""Padding (tiles) around a chunk for neighbour-dependent generation steps: dilation (1) + variations (1)."""
+MARGIN = 4
+"""Padding (tiles) around a chunk for neighbour-dependent generation steps: dilation (1) + variations (1) + the two
+erosions that give the liquid depths (2)."""
+
+LIQUID_HUES = 24
+DEPTH_BRIGHTNESS = (1.0, 0.78, 0.58)  # shallow, deep, very deep: the same hue, darker
+IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 HEIGHT_LIMITS = (-1.1, -0.3, 0.3, 1.1)  # water | floor | wall (values outside stay wall, as before)
 
@@ -58,7 +64,7 @@ class TerrainNoise:
     def __init__(self, floor_seed: int):
         self.noises = [
             tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(floor_seed, i) % 2**31)
-            for i in range(4)
+            for i in range(6)
         ]
 
     def sample(self, index: int, scale: float, x0: int, y0: int, width: int, height: int) -> np.ndarray:
@@ -71,6 +77,14 @@ class TerrainNoise:
 
     def heights(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         return (self.sample(0, 0.05, x0, y0, width, height) + self.sample(1, 0.25, x0, y0, width, height)) / 2
+
+    def liquid_kind_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Slowly varying noise that decides what a lake is made of (a lake is mostly one kind)."""
+        return self.sample(4, 0.006, x0, y0, width, height)
+
+    def liquid_hue_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Slowly varying noise for the colour of a lake: unrelated to its kind on purpose."""
+        return self.sample(5, 0.004, x0, y0, width, height)
 
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
@@ -91,6 +105,29 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
     return kinds
 
 
+def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int) -> None:
+    """Give the lake tiles (`liquid` mask) their depth (1 on the shore, +1 per tile inwards, at most 3: deeper liquid is
+    always ringed by shallower), kind and hue. Shallow liquid can be waded, deeper liquid cannot."""
+    from procgen import neighbour_masks
+    depth = liquid.astype(np.int8)
+    inner = liquid
+    for _ in range(2):
+        left, right, up, down = neighbour_masks(inner)
+        inner = inner & left & right & up & down
+        depth += inner
+    kind_value = noise.liquid_kind_field(x0, y0, width, height)
+    kind = np.where(kind_value < IMPURE_BELOW, 1, np.where(kind_value < TOXIC_BELOW, 2, 3)).astype(np.int8)
+    hue_index = np.clip(((noise.liquid_hue_field(x0, y0, width, height) + 1) / 2 * LIQUID_HUES).astype(np.int32), 0, LIQUID_HUES - 1)
+    palette = np.array([colorsys.hsv_to_rgb(i / LIQUID_HUES, 0.7, 0.85) for i in range(LIQUID_HUES)]) * 255
+    brightness = np.array((0, *DEPTH_BRIGHTNESS))[depth]
+    light = (palette[hue_index] * brightness[..., None]).astype(np.uint8)
+    landscape["liquid"][liquid] = kind[liquid]
+    landscape["depth"][liquid] = depth[liquid]
+    landscape["walkable"][liquid] = depth[liquid] == 1
+    landscape["light"]["fg"][liquid] = light[liquid]
+    landscape["dark"]["fg"][liquid] = (light[liquid] * 0.5).astype(np.uint8)
+
+
 def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
     """Tiles and tree map for a world rectangle, generated on a padded region. Uses the global RNGs (wrap it in
     `seeded_rng`). Returns `(tiles, tree_map)` for the unpadded rectangle."""
@@ -103,6 +140,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     landscape[kinds == 1] = tile_types.floor.get_array()
     landscape = replace_variations(tile_types.water, landscape, pw, ph)
     landscape = replace_variations(tile_types.wall, landscape, pw, ph)
+    _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
 
     # Vegetation: roots wherever the vegetation noise beats a random threshold (not in lakes), as before.
     random_map = np.random.rand(pw, ph)

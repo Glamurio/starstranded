@@ -2,6 +2,13 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Liquids (lakes have depth and a hidden kind)
+- Lakes are now called "liquid" and have depths shown as darker shades of the same colour: shallow (can be waded), deep and very
+  deep (cannot). Deeper liquid is always ringed by shallower liquid. Lake colours vary from lake to lake.
+- Each lake has a kind you cannot see: impure (unsafe to drink, boiling makes it safe), toxic (poisonous even when boiled) or acidic
+  (burns you and sometimes your armor when you wade through it, and destroys a flask dipped into it). Creatures avoid acid.
+- Buildings and the spawn/cave entrance are never placed in a lake.
+
 ## Bigger simulated world
 - Everything alive within 2 chunks of you (a 350x200 tile area, 5x the screen's width) now eats, hunts and flees by the same
   rules as on screen (before: 1 chunk). Setting `GameConfig.sim_radius` changes it. The first load and crossing a chunk border

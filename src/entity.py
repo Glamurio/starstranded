@@ -220,6 +220,9 @@ class Entity:
         elif self.x < dest_x:
             self.mirrored = True
         self.set_position(dest_x, dest_y)
+        if self.category is EntityCategory.UNIT and isinstance(self.parent, SpatialContainer):
+            import liquids
+            liquids.on_enter(self, self.parent)
 
     def set_name(self, name: str) -> str:
         """Sets the entity name."""

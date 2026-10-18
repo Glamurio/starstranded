@@ -249,9 +249,17 @@ def _announce(unit, text: str) -> None:
 
 
 # ── greedy movement (NEAR tier, no pathfinding) ───────────────────────────────────
+def free_step(engine, x: int, y: int) -> bool:
+    """Can a creature step onto (x, y)? Creatures know better than to wade through acid (the player does not)."""
+    if not engine.can_move(x, y):
+        return False
+    tile = engine.game_map.tile_at(x, y)
+    return tile is None or int(tile["liquid"]) != 3
+
+
 def random_step(engine, unit) -> None:
     dx, dy = random.choice(DIRECTIONS)
-    if engine.can_move(unit.x + dx, unit.y + dy):
+    if free_step(engine, unit.x + dx, unit.y + dy):
         unit.move(unit.x + dx, unit.y + dy)
 
 
@@ -266,7 +274,7 @@ def step_towards(engine, unit, x: int, y: int, away: bool = False) -> None:
     current = max(abs(x - unit.x), abs(y - unit.y))
     for dx, dy in DIRECTIONS:
         nx, ny = unit.x + dx, unit.y + dy
-        if not engine.can_move(nx, ny):
+        if not free_step(engine, nx, ny):
             continue
         distance = max(abs(x - nx), abs(y - ny))
         better = distance > current if away else distance < current

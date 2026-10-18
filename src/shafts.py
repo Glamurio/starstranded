@@ -95,7 +95,7 @@ def raw_surface(master: int, key: ChunkKey) -> Tuple[np.ndarray, np.ndarray]:
 def start_point(master: int) -> Tuple[Tuple[int, int], bool]:
     """The spawn point (the free tile closest to the centre of chunk (0, 0)) and whether the centre had to be carved open."""
     tiles, tree_map = raw_surface(master, (0, 0))
-    free = tiles["walkable"] & ~tree_map
+    free = tiles["walkable"] & ~tree_map & (tiles["liquid"] == 0)
     carved = not free.any()
     if carved:
         free = np.zeros_like(free)
@@ -109,7 +109,7 @@ def start_point(master: int) -> Tuple[Tuple[int, int], bool]:
 def _open_floor(master: int, key: ChunkKey) -> np.ndarray:
     """Surface tiles of a chunk that are walkable and free of trees (after the spawn carve)."""
     tiles, tree_map = raw_surface(master, key)
-    free = tiles["walkable"] & ~tree_map
+    free = tiles["walkable"] & ~tree_map & (tiles["liquid"] == 0)
     if key == (0, 0):
         (sx, sy), carved = start_point(master)
         if carved:
@@ -124,13 +124,17 @@ def structure(master: int, key: ChunkKey) -> Structure:
     rng = random.Random(_mix(master, key[0], key[1], 7))
     roll = rng.random()
     if key != (0, 0) and roll < BUILDING_CHANCE:
-        w, h = rng.randint(9, 15), rng.randint(7, 11)
-        building = Building(
-            x=rng.randint(4, CHUNK_W - 4 - w), y=rng.randint(4, CHUNK_H - 5 - h), w=w, h=h, floors=rng.randint(1, 3)
-        )
-        x0, y0 = chunk_origin(key)
-        links = tuple(Link(x0 + building.x + 2 + 2 * i, y0 + building.y + 2, i) for i in range(building.floors))
-        return Structure(links, building)
+        liquid = raw_surface(master, key)[0]["liquid"]
+        for _ in range(8):  # a site without liquid (no building in a lake)
+            w, h = rng.randint(9, 15), rng.randint(7, 11)
+            building = Building(
+                x=rng.randint(4, CHUNK_W - 4 - w), y=rng.randint(4, CHUNK_H - 5 - h), w=w, h=h, floors=rng.randint(1, 3)
+            )
+            if not liquid[building.x - 1:building.x + w + 1, building.y - 1:building.y + h + 2].any():
+                x0, y0 = chunk_origin(key)
+                links = tuple(Link(x0 + building.x + 2 + 2 * i, y0 + building.y + 2, i) for i in range(building.floors))
+                return Structure(links, building)
+        return Structure()
     if key != (0, 0) and roll >= BUILDING_CHANCE + SHAFT_CHANCE:
         return Structure()
     free = _open_floor(master, key)

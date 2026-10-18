@@ -91,6 +91,8 @@ class Engine:
         cost = (window.in_bounds[crop] & (window.walkable[crop] | ~explored)).astype(np.int32)
         if not ignore_obstacles:
             cost = np.where(cost > 0, cost + 10 * world.region("blocked", rect), 0).astype(np.int32)
+        if origin is not self.player:  # creatures do not wade through acid (the player cannot tell it from other liquid)
+            cost[world.region("liquid", rect) == 3] = 0
 
         graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
         pathfinder = tcod.path.Pathfinder(graph)
