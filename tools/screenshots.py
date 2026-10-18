@@ -58,6 +58,18 @@ def creation():
     return cc
 
 
+def tooltip(engine, main_handler):
+    import world
+    from components.unit import Unit
+    kind = next(k for k in engine.game_world.planet.fauna if k.hide is not None)
+    animal = Unit(kind)
+    animal.place(engine.player.x + 3, engine.player.y - 2, engine.game_map)
+    animal.hp = animal.max_hp // 2
+    engine.update_fov()
+    engine.mouse_location = (animal.x, animal.y)
+    return main_handler
+
+
 def main(names):
     engine = game()
     main_handler = ih.MainGameEventHandler(engine)
@@ -71,7 +83,7 @@ def main(names):
         "help": lambda: press(main_handler, Key.H),
         "navigation": lambda: press(main_handler, Key.M),
         "history": lambda: press(main_handler, Key.V),
-        "look": lambda: press(main_handler, Key.SLASH),
+        "tooltip": lambda: tooltip(engine, main_handler),
         "pickup": lambda: press(main_handler, Key.G),
         "menu": lambda: setup_game.MainMenu(SESSION),
         "settings": lambda: setup_game.SettingsMenu(SESSION),

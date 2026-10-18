@@ -34,7 +34,7 @@ WRECK_LOOT: Tuple[Tuple[Tuple[str, int], ...], ...] = (
     (("ingot", 3), ("wire", 1)),
     (("medkit", 1), ("cloth", 2)),
 )
-WRECK_NAMES = ("Cargo section", "Hull section", "Avionics rack", "Galley wreck", "Engine nacelle", "Crew pod")
+WRECK_NAMES = ("cargo section", "hull section", "avionics rack", "galley wreck", "engine nacelle", "crew pod")
 
 
 class Structure(Entity):
@@ -60,7 +60,7 @@ class Ship(Structure):
         Structure.__init__(self, defs.SHIP)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
-        return "Your crashed ship"
+        return "your crashed ship"
 
     def interact(self, user, engine):
         run = engine.game_world.run
@@ -169,7 +169,7 @@ class CargoPod(Structure):
         Structure.__init__(self, defs.CARGO_POD)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
-        return "Sponsor cargo pod"
+        return "sponsor cargo pod"
 
     def interact(self, user, engine):
         import input_handlers

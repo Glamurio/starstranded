@@ -205,6 +205,10 @@ class Engine:
 
         render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self, width=canvas.width - 21)
         self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
+        try:
+            render_functions.render_tooltip(canvas, self)
+        except Exception:   # the tooltip is a courtesy: never let it break the frame
+            pass
 
         render_functions.render_dungeon_level(canvas, self.game_world.current_z, (71, 1))
         day, time = lighting.clock_text(self.game_world.current_time, self.config).split(", ")
