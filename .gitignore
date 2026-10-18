@@ -3,3 +3,4 @@ __pycache__/
 *.sav
 *.sav.tmp
 docs/_scratch/
+settings.json

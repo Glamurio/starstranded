@@ -48,7 +48,7 @@ def test_main_menu_draws_and_navigates():
     assert menu.button_highlight == "Continue"
     press(menu, Key.UP)
     press(menu, Key.UP)
-    assert menu.button_highlight == "Quit"
+    assert menu.button_highlight == "Exit"
     with pytest.raises(SystemExit):
         press(menu, Key.RETURN)
 
@@ -78,6 +78,9 @@ def test_new_game_leads_to_character_creation_and_into_the_game():
     assert creation.player.name.endswith("Zeq")
     assert isinstance(press(creation, Key.ESCAPE), setup_game.MainMenu)
     creation = setup_game.CharacterCreation()
+    for _ in range(5):          # name, people, background, sponsor, mode -> confirm
+        assert press(creation, Key.RETURN) is creation
+        drawn(creation)
     started = press(creation, Key.RETURN)
     assert isinstance(started, ih.MainGameEventHandler)
     assert SESSION.handlers == [started]

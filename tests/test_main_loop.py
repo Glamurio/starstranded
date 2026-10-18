@@ -57,7 +57,8 @@ def test_play_through_menu_creation_and_game_then_quit_saves(loop):
     key = lambda k: pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=k, mod=0, unicode=""))  # noqa: E731
     key(pygame.K_RETURN)  # New Game
     pygame.event.post(pygame.event.Event(pygame.TEXTINPUT, text="Q"))
-    key(pygame.K_RETURN)  # start
+    for _ in range(6):
+        key(pygame.K_RETURN)  # name, people, background, sponsor, mode, start
     key(pygame.K_RIGHT)
     pygame.event.post(pygame.event.Event(pygame.QUIT))
     with pytest.raises(SystemExit):

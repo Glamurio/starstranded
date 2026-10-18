@@ -82,6 +82,8 @@ def main() -> None:
     from session import Session
 
     session = Session.create()
+    import settings
+    settings.apply(settings.load(), session)
     run(setup_game.MainMenu(session), session)
 
 

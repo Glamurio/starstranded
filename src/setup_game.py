@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import exceptions
+import os
 import traceback
 from typing import TYPE_CHECKING, Optional
 
@@ -14,6 +15,7 @@ from ui import CENTER
 from engine import Engine
 
 import input_handlers
+import settings as settings_module
 
 from utilities import is_mouse_in_rectangle
 
@@ -89,7 +91,7 @@ class MainMenu(input_handlers.BaseEventHandler):
 
     buttons: dict
     button_height = 2
-    button_names = ["New Game", "Continue", "Quit"]
+    button_names = ["New Game", "Continue", "Settings", "Exit"]
     button_highlight = button_names[menu_i]
 
     def on_init(self) -> None:
@@ -97,12 +99,10 @@ class MainMenu(input_handlers.BaseEventHandler):
 
     def resolve_menu(self, event: events.Event):
         """Resolves button and click logic"""
-        
+
         if self.button_highlight == 'New Game':
-            # New Game
             return CharacterCreation(self.session)
         elif self.button_highlight == 'Continue':
-            # Continue Game
             try:
                 return input_handlers.MainGameEventHandler(load_game(SAVE_PATH, self.session))
             except FileNotFoundError:
@@ -110,8 +110,9 @@ class MainMenu(input_handlers.BaseEventHandler):
             except Exception as exc:
                 traceback.print_exc()  # Print to stderr.
                 return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
-        elif self.button_highlight == 'Quit':
-            # Quit
+        elif self.button_highlight == 'Settings':
+            return SettingsMenu(self.session, self)
+        elif self.button_highlight == 'Exit':
             raise SystemExit()
 
     def on_render(self, canvas: Canvas) -> None:
@@ -135,23 +136,21 @@ class MainMenu(input_handlers.BaseEventHandler):
             alignment=CENTER,
         )
 
-        # Iterate over menu buttons, save their position for highlighting
+        has_save = os.path.isdir(SAVE_PATH) or os.path.isfile(SAVE_PATH)
         for i, text in enumerate(self.button_names):
-
             button_x = canvas.width // 2
             button_y = canvas.height // 2 - 2 + (i*2)
-
-            self.buttons[text] = {
-                'x': button_x,
-                'y': button_y,
-            }
-
+            self.buttons[text] = {'x': button_x, 'y': button_y}
+            selected = text == self.button_highlight
+            fg = color.menu_text_inverse if selected else color.menu_text
+            if text == "Continue" and not has_save and not selected:
+                fg = color.impossible   # nothing to continue (it still reports so when chosen)
             canvas.print(
                 button_x,
                 button_y,
                 text=text.center(self.menu_width),
-                fg=color.menu_text_inverse if text == self.button_highlight else color.menu_text,
-                bg=color.white if text == self.button_highlight else None,
+                fg=fg,
+                bg=color.white if selected else None,
                 alignment=CENTER,
             )
 
@@ -160,16 +159,10 @@ class MainMenu(input_handlers.BaseEventHandler):
     ) -> Optional[input_handlers.BaseEventHandler]:
 
         if event.sym == Key.UP:
-            if not self.button_highlight:
-                self.menu_i = 0
-            else:
-                self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.button_names)-1
+            self.menu_i = self.menu_i-1 if self.menu_i > 0 else len(self.button_names)-1
         elif event.sym == Key.DOWN:
-            if not self.button_highlight:
-                self.menu_i = 0
-            else:
-                self.menu_i = self.menu_i+1 if not self.menu_i == len(self.button_names)-1 else 0
-        self.button_highlight = self.button_names[self.menu_i] if type(self.menu_i) == int else self.button_highlight
+            self.menu_i = self.menu_i+1 if not self.menu_i == len(self.button_names)-1 else 0
+        self.button_highlight = self.button_names[self.menu_i]
 
         if event.sym in input_handlers.CONFIRM_KEYS:
             return self.resolve_menu(event)
@@ -203,56 +196,182 @@ class MainMenu(input_handlers.BaseEventHandler):
                 self.button_highlight = self.button_names[i]
 
 
+class SettingsMenu(input_handlers.BaseEventHandler):
+    """Audio levels and fullscreen. UP/DOWN pick a row, LEFT/RIGHT change it, ESC saves and goes back."""
+
+    ROWS = (("Master volume", "master_volume"), ("Music volume", "music_volume"), ("Effects volume", "sfx_volume"),
+            ("Fullscreen", "fullscreen"))
+
+    def __init__(self, session=None, back=None, settings=None):
+        self.settings = settings if settings is not None else settings_module.load()
+        self.back = back
+        self.row = 0
+        super().__init__(session)
+
+    def change(self, step: int) -> None:
+        field = self.ROWS[self.row][1]
+        if field == "fullscreen":
+            self.settings.fullscreen = not self.settings.fullscreen
+        else:
+            setattr(self.settings, field, getattr(self.settings, field) + step)
+        self.settings.clamp()
+        settings_module.apply(self.settings, self.session)
+
+    def on_render(self, canvas: Canvas) -> None:
+        canvas.blit_image(background_image())
+        x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 6, 40
+        canvas.draw_frame(x=x, y=y, width=width, height=13, title="Settings", clear=True, fg=color.menu_text, bg=color.nigh_black)
+        for i, (label, field) in enumerate(self.ROWS):
+            value = getattr(self.settings, field)
+            text = ("on" if value else "off") if field == "fullscreen" else "#" * value + "." * (settings_module.MAX_VOLUME - value)
+            selected = i == self.row
+            canvas.print(x + 2, y + 2 + i * 2, f"{label:<16}{text}", fg=color.black if selected else color.menu_text,
+                         bg=color.white if selected else color.nigh_black)
+        canvas.print(x + 2, y + 10, "LEFT/RIGHT change, ESC back", fg=color.impossible)
+
+    def ev_keydown(self, event: events.KeyDown):
+        if event.sym == Key.UP:
+            self.row = (self.row - 1) % len(self.ROWS)
+        elif event.sym == Key.DOWN:
+            self.row = (self.row + 1) % len(self.ROWS)
+        elif event.sym == Key.LEFT:
+            self.change(-1)
+        elif event.sym == Key.RIGHT or event.sym in input_handlers.CONFIRM_KEYS:
+            self.change(1)
+        elif event.sym == Key.ESCAPE:
+            settings_module.save(self.settings)
+            return self.back if self.back is not None else MainMenu(self.session)
+        return None
+
+
 class CharacterCreation(input_handlers.BaseEventHandler):
+    """Name -> people -> background -> sponsor -> mode -> confirm. ENTER goes on, ESC goes back (from the name: to the menu)."""
+
     TITLE = "What is your name?"
     MAX_CHARS = 16
+    STEPS = ("name", "race", "background", "sponsor", "mode", "confirm")
+    MODES = (("roguelike", "Roguelike", "Permadeath: when you die the run and its save are gone."),
+             ("casual", "Casual", "Sleep in a bed to save; after a death you return to your last bed."))
 
     def on_init(self):
         self.player = create_player()  # a fresh player per visit (was one Player built at import and reused)
+        self.step = 0
+        self.choice = {"race": 0, "background": 0, "sponsor": 0, "mode": 0}
         self.session.start_text_input()
 
+    # the options of each step, as (key, label)
+    def options(self, step: str):
+        import characters
+        import sponsors
+        if step == "race":
+            return [(k, info.species.name) for k, info in characters.RACES.items()]
+        if step == "background":
+            return [(k, b.name) for k, b in characters.BACKGROUNDS.items()]
+        if step == "sponsor":
+            return [(k, s.name) for k, s in sponsors.SPONSORS.items()]
+        if step == "mode":
+            return [(k, label) for k, label, _ in self.MODES]
+        return []
+
+    def selected(self, step: str) -> str:
+        return self.options(step)[self.choice[step]][0]
+
+    def details(self, step: str):
+        import characters
+        import sponsors
+        race, background = self.selected("race"), self.selected("background")
+        if step == "race":
+            info = characters.RACES[race]
+            return [info.lore, "", "Strengths: " + ", ".join(info.strengths), "Weaknesses: " + ", ".join(info.weaknesses),
+                    "Lifespan: " + info.ages]
+        if step == "background":
+            bg = characters.BACKGROUNDS[background]
+            return [bg.description, "", "Skills: " + ", ".join(f"{s} {l}" for s, l in bg.skills),
+                    "Kit: " + (", ".join(bg.kit) or "none extra")]
+        if step == "sponsor":
+            spec = sponsors.SPONSORS[self.selected("sponsor")]
+            return [spec.blurb, "", "Wants: " + ", ".join(spec.wants), "Perk: " + spec.perk]
+        if step == "mode":
+            return [self.MODES[self.choice["mode"]][2]]
+        if step == "confirm":
+            import sponsors as sp
+            lines = characters.describe(race, background)
+            lines += ["", f"Sponsor: {sp.SPONSORS[self.selected('sponsor')].name}",
+                      f"Mode: {self.MODES[self.choice['mode']][1]}", "", "ENTER: begin   ESC: back"]
+            return lines
+        return []
+
+    def build(self) -> Unit:
+        import characters
+        return characters.create_character(self.player.name, self.selected("race"), self.selected("background"),
+                                           sponsor=self.selected("sponsor"))
+
     def on_render(self, canvas: Canvas) -> None:
-        from utilities import generate_name
-
-        width = len(self.TITLE) + 4
-        x = canvas.width // 2 - width // 2
-        y = canvas.height // 2 - 4
-
-        canvas.draw_frame(
-            x,
-            y,
-            width=width,
-            height=5,
-            title=self.TITLE,
-            clear=True,
-            fg=(255, 255, 255),
-            bg=(0, 0, 0),
-        )
-
-        canvas.print(
-            x=x  + 2, y=y + 2, text=f"{self.player.name}"
-        )
-        if len(self.player.name) < self.MAX_CHARS - 1:
-            canvas.print(
-                x=x + len(self.player.name) + 2, y=y + 2, text=f"_"
-            )
+        import textwrap
+        step = self.STEPS[self.step]
+        if step == "name":
+            width = len(self.TITLE) + 4
+            x = canvas.width // 2 - width // 2
+            y = canvas.height // 2 - 4
+            canvas.draw_frame(x, y, width=width, height=5, title=self.TITLE, clear=True, fg=(255, 255, 255), bg=(0, 0, 0))
+            canvas.print(x=x + 2, y=y + 2, text=f"{self.player.name}")
+            if len(self.player.name) < self.MAX_CHARS - 1:
+                canvas.print(x=x + len(self.player.name) + 2, y=y + 2, text="_")
+            return
+        x, y, width, height = 4, 2, canvas.width - 8, canvas.height - 6
+        title = {"race": "Choose your people", "background": "Choose your background", "sponsor": "Choose your sponsor",
+                 "mode": "Choose your mode", "confirm": f"{self.player.name}: ready?"}[step]
+        canvas.draw_frame(x=x, y=y, width=width, height=height, title=title, clear=True, fg=color.menu_text, bg=color.nigh_black)
+        options = self.options(step)
+        for i, (_, label) in enumerate(options):
+            selected = i == self.choice.get(step, -1)
+            canvas.print(x + 2, y + 2 + i, f"{label:<26}", fg=color.black if selected else color.menu_text,
+                         bg=color.white if selected else color.nigh_black)
+        left = x + 32 if options else x + 2
+        line = y + 2
+        for paragraph in self.details(step):
+            for text in (textwrap.wrap(paragraph, width - (left - x) - 2) or [""]):
+                canvas.print(left, line, text, fg=color.menu_text)
+                line += 1
+        if step != "confirm":
+            canvas.print(x + 2, y + height - 2, "UP/DOWN choose, ENTER next, ESC back", fg=color.impossible)
 
     def ev_textinput(self, event: events.TextInput) -> Optional[input_handlers.BaseEventHandler]:
+        if self.STEPS[self.step] != "name":
+            return None
         name = self.player.name
         name += event.text
         if len(name) < self.MAX_CHARS:
             self.player.set_name(name)
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym == Key.RETURN:
-            self.session.stop_text_input()
-            game_handler = input_handlers.MainGameEventHandler(new_game(self.player, self.session))
-            self.session.reset(game_handler)
-            return game_handler
-        elif event.sym == Key.BACKSPACE:
-            name = self.player.name[:-1]
-            self.player.set_name(name)
+        step = self.STEPS[self.step]
+        if event.sym in input_handlers.CONFIRM_KEYS or event.sym == Key.RETURN:
+            if step == "confirm":
+                self.session.stop_text_input()
+                game_handler = input_handlers.MainGameEventHandler(
+                    new_game(self.build(), self.session, mode=self.selected("mode")))
+                self.session.reset(game_handler)
+                return game_handler
+            if step == "name" and not self.player.name.strip():
+                return None
+            self.step += 1
+            if self.STEPS[self.step] != "name":
+                self.session.stop_text_input()
         elif event.sym == Key.ESCAPE:  # (not Q: it is a letter in a name)
-            self.session.stop_text_input()
-            return MainMenu(self.session)
-            
+            if self.step == 0:
+                self.session.stop_text_input()
+                return MainMenu(self.session)
+            self.step -= 1
+            if self.STEPS[self.step] == "name":
+                self.session.start_text_input()
+        elif step == "name":
+            if event.sym == Key.BACKSPACE:
+                self.player.set_name(self.player.name[:-1])
+        elif step in self.choice:
+            count = len(self.options(step))
+            if event.sym == Key.UP:
+                self.choice[step] = (self.choice[step] - 1) % count
+            elif event.sym == Key.DOWN:
+                self.choice[step] = (self.choice[step] + 1) % count
+        return None
