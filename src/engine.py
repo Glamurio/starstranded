@@ -16,6 +16,7 @@ from config import DEFAULT_CONFIG, GameConfig
 from message_log import MessageLog
 import render_functions
 import color
+import lighting
 import math
 
 if TYPE_CHECKING:
@@ -148,42 +149,16 @@ class Engine:
         return True
 
     def update_fov(self) -> None:
-        """Recompute the visible area from the player's point of view on the stitched view window,
-        extended by any lit campfires whose light reaches into the player's vision; then mark it explored."""
-        from crafting import Campfire
-
+        """Recompute what the player sees (ambient light by time of day plus light sources, see `lighting`)
+        on the stitched view window; then mark it explored."""
         world = self.game_map
         window = world.window.ensure()
-        ox, oy = window.origin
-        transparent = window.transparent & window.in_bounds
 
-        # Step 1: Compute base player FOV
-        visible = tcod.map.compute_fov(
-            transparent,
-            (self.player.x - ox, self.player.y - oy),
-            radius=self.config.fov_radius,
-            algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST,
-        )
-        visible &= window.in_bounds
-
-        # Step 2: campfires inside the window whose light overlaps what the player sees
-        for chunk in world.chunks_in_rect(window.rect):
-            for entity in chunk.by_category[EntityCategory.ITEM]:
-                if not isinstance(entity, Campfire) or not entity.is_lit or not entity.is_placed:
-                    continue
-                campfire_fov = tcod.map.compute_fov(
-                    transparent,
-                    (entity.x - ox, entity.y - oy),
-                    radius=entity.light_radius,
-                    algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST,
-                )
-                # The campfire's own FOV already respects walls; merge it when the player sees any part of it.
-                if np.logical_and(visible, campfire_fov).any():
-                    visible |= campfire_fov & window.in_bounds
-
+        visible, lit = lighting.compute_visibility(self)
         window.visible[:] = visible
+        window.lit[:] = lit
 
-        # Step 3: Explored tracking
+        # what was seen stays explored
         world.mark_explored()
 
     @property
@@ -211,5 +186,6 @@ class Engine:
         self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
 
         render_functions.render_dungeon_level(canvas, self.game_world.current_floor, (71, 1))
+        canvas.print(71, 2, lighting.clock_text(self.game_world.current_time, self.config).replace(", ", " ")[:9])
         canvas.print(71, 3, f"X {player.x}")
         canvas.print(71, 4, f"Y {player.y}")

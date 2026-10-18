@@ -62,8 +62,8 @@ class Campfire(Constructable):
         self.shade = self.kind.color
 
     @property
-    def light_radius(self) -> int:
-        return self.kind.light_radius
+    def emits_light(self) -> bool:
+        return self.is_lit and self.is_placed
 
     def toggle(self) -> str:
         """Toggle the campfire on/off. Returns a message string."""

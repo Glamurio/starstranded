@@ -38,6 +38,7 @@ class ViewWindow:
         self.walkable = np.zeros((0, 0), dtype=bool, order="F")
         self.in_bounds = np.zeros((0, 0), dtype=bool, order="F")
         self.visible = np.zeros((0, 0), dtype=bool, order="F")
+        self.lit = np.zeros((0, 0), dtype=bool, order="F")
         self.rebuilds = 0
 
     # ── cache ──────────────────────────────────────────────────────────────────────
@@ -76,10 +77,13 @@ class ViewWindow:
             in_bounds[sx, sy] = world.chunk_mask(chunk_key)
         # keep the FOV result for the part that is still inside the window
         visible = np.zeros((width, height), dtype=bool, order="F")
+        lit = np.zeros((width, height), dtype=bool, order="F")
         if self.visible.size:
             self._copy_overlap(self.visible, self.origin, visible, (ox, oy))
+            self._copy_overlap(self.lit, self.origin, lit, (ox, oy))
         self.origin, self.size = (ox, oy), (width, height)
         self.transparent, self.walkable, self.in_bounds, self.visible = transparent, walkable, in_bounds, visible
+        self.lit = lit
         self._key = key
         self.rebuilds += 1
 
@@ -115,6 +119,12 @@ class ViewWindow:
         """`visible` for a world rectangle (False outside the window)."""
         out = np.zeros((rect[2], rect[3]), dtype=bool, order="F")
         self._copy_overlap(self.visible, self.origin, out, rect[:2])
+        return out
+
+    def lit_region(self, rect: Rect) -> np.ndarray:
+        """`lit` (seen and lit by a light source) for a world rectangle."""
+        out = np.zeros((rect[2], rect[3]), dtype=bool, order="F")
+        self._copy_overlap(self.lit, self.origin, out, rect[:2])
         return out
 
 

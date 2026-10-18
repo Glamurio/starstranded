@@ -115,6 +115,17 @@ class Entity:
         """Draw the sprite mirrored? Mirroring is a render-time flag: only living, mirrorable kinds face left/right."""
         return self.mirrored and not self.is_corpse and getattr(self.kind, "mirror", False)
 
+    # ── light ─────────────────────────────────────────────────────────────────────
+    @property
+    def light_radius(self) -> int:
+        """How far this entity can light the world (0 = it gives no light); comes from its kind."""
+        return getattr(self.kind, "light_radius", 0)
+
+    @property
+    def emits_light(self) -> bool:
+        """Is it giving light right now? (A campfire can be put out, a glowing creature cannot.)"""
+        return self.light_radius > 0
+
     # ── indexed properties ────────────────────────────────────────────────────────
     @property
     def x(self) -> int:

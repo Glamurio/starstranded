@@ -440,3 +440,16 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Open:** Selenites spawn at weight 8 (~8 %); they are hostile and mostly chase the player, so they rarely hunt rabbits. A
   proper ecology (reproduction, herds, territories) is a design item of its own.
 - **Perf note:** with 200 creatures a turn costs 15-35 ms in the full tier (path planning dominates); NEAR is ~5 ms.
+
+## Lighting and visible map size
+- **What:** visibility = ambient FOV (radius follows `daylight`: 4 at night, 41 at noon) OR (tiles lit by light sources AND in the
+  player's FOV up to `fov_radius` 42). Light sources are any entity with `light_radius > 0` and `emits_light` (new `Entity` API,
+  indexed per chunk in `Chunk.lights`; a campfire emits only when lit and placed). `World.has_sky` (floor <= 1) decides whether
+  the sun counts. Night is drawn as a dark tint over seen-but-unlit tiles.
+- **Why:** the old code special-cased `Campfire` inside `Engine.update_fov`; lighting is now a generic mechanism in `lighting.py`
+  that torches, glowing creatures or lava can reuse, and it keeps the FOV cost at one shadowcast per source in the window.
+- **Alternative:** a per-tile light-level map with falloff (smoother, but costs a float array per window and needs recomputing
+  when anything moves); deferred until there is more than one light colour or strength.
+- **Visible map size:** fixed at one 70x40 view (like Caves of Qud's single 80x25 zone screen: the world is bigger than what is
+  shown, the window only scales it). Chosen so the sprite grid stays crisp and gameplay does not depend on monitor size; the
+  alternative, a window-dependent view, would make the visible area (and so difficulty) vary per player.

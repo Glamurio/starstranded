@@ -6,9 +6,21 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class GameConfig:
-    fov_radius: int = 41
-    """Player FOV radius in tiles: 41 = half-diagonal of the 70x40 viewport (+1), so everything the camera shows can be
-    seen and nothing far off-screen is. (Phase 0-4: 80, which made the whole single 70x40 map visible.)"""
+    fov_radius: int = 42
+    """Farthest anyone can see in a straight line, in tiles: just past the half-width (35) of the 70x40 viewport, so
+    whatever the camera shows can be seen and nothing off-screen is."""
+
+    day_view_radius: int = 41
+    """Ambient vision at noon (see `lighting`): nearly the whole screen."""
+
+    night_view_radius: int = 4
+    """Ambient vision in the dead of night, and always underground (no sky)."""
+
+    day_length: int = 480
+    """Turns in one day (a full hunger bar lasts 400)."""
+
+    start_phase: float = 0.35
+    """Where in the day the game starts (0.25 dawn, 0.5 noon): 0.35 is the morning."""
 
     clutter_safeguard: bool = True
     """Limit the ground objects (corpses, items) drawn on one tile to `render_order.MAX_GROUND_OBJECTS_PER_TILE`, topmost

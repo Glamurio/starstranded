@@ -64,6 +64,7 @@ class Chunk:
         self.entities: Dict[Entity, None] = {}
         self.by_category: Dict[EntityCategory, Dict[Entity, None]] = {c: {} for c in EntityCategory}
         self.actors: Dict[Entity, None] = {}
+        self.lights: Dict[Entity, None] = {}  # entities that can emit light (see `Entity.emits_light`)
         self.buckets: Dict[RenderOrder, Dict[Entity, None]] = {r: {} for r in LAYERS}
 
     def __repr__(self) -> str:
@@ -79,6 +80,8 @@ class Chunk:
         self.buckets[entity.render_order][entity] = None
         if entity.ai:
             self.actors[entity] = None
+        if entity.light_radius > 0:
+            self.lights[entity] = None
         if entity.blocks_movement:
             self.blocked[entity.x - self.x0, entity.y - self.y0] += 1
 
@@ -87,6 +90,7 @@ class Chunk:
         self.by_category[entity.category].pop(entity, None)
         self.buckets[entity.render_order].pop(entity, None)
         self.actors.pop(entity, None)
+        self.lights.pop(entity, None)
         if entity.blocks_movement:
             self.blocked[entity.x - self.x0, entity.y - self.y0] -= 1
 

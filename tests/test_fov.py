@@ -12,6 +12,7 @@ def test_default_radius_covers_the_viewport_half_diagonal():
 
 def test_default_fov_from_the_centre_sees_every_corner_of_an_open_70x40_map(small_world):
     e = small_world(width=70, height=40)
+    e.game_world.current_time = 72  # noon
     e.player.place(35, 20)
     e.update_fov()
     v = e.game_map.visible

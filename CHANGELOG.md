@@ -2,6 +2,13 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Day and night, light sources
+- A day lasts 480 turns (you start in the morning). By day you see the whole screen (radius 41); at night only a small circle
+  around you (radius 4), and the map is shaded dark. Underground (floor 2+) it is always night-dark.
+- Anything that emits light lights the tiles it has a clear line to, and lit tiles in your line of sight are seen from far away
+  (up to `fov_radius` 42): a lit campfire is a beacon at night. Walls block firelight.
+- The side panel shows the day and time. Old saves still load; the clock is derived from game time.
+
 ## Creature behaviour: hunger-driven hunting
 - Every creature now runs the same routine: flee from what hunts it, (hostile ones) chase the player, otherwise when hungry or
   thirsty eat what it carries, else find food, walk to it, eat it or attack it.

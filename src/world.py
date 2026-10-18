@@ -6,12 +6,14 @@ import random
 from typing import Dict, Iterable, Iterator, KeysView, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np  # type: ignore
+import pygame
 
 from atlas import TILE
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chebyshev, chunk_key, keys_around
 from config import DEFAULT_CONFIG, GameConfig
 from entity import EntityCategory, Item, SpatialContainer
 from render_order import GROUND_LAYERS, LAYERS, MAX_GROUND_OBJECTS_PER_TILE, RenderOrder
+import lighting
 import tile_types
 from simulation import PlantQueue
 from view import Camera, Rect, ViewWindow
@@ -100,6 +102,10 @@ class _LoadedView:
         return any(self._getter(chunk) for chunk in self._world.chunks.values())
 
 
+NIGHT_TINT = (6, 8, 30, 255)
+NIGHT_ALPHA = 150  # opacity of the night shade at midnight (0-255)
+
+
 class World(SpatialContainer):
     """One floor: the loaded chunks, the entities on them (world coordinates) and the view window.
 
@@ -126,6 +132,7 @@ class World(SpatialContainer):
         self._by_pos: Dict[Tuple[int, int], List[Entity]] = {}
         self.window = ViewWindow(self)
         self.downstairs_location: Optional[Tuple[int, int]] = None
+        self.has_sky = floor <= 1  # open to the sun (and the dark): deeper floors only have the night radius
         self.loads = 0
         self.unloads = 0
 
@@ -541,6 +548,21 @@ class World(SpatialContainer):
         surface.blits(entity_blits, doreturn=False)
         for x, y in hidden:
             canvas.badge(x - x0, y - y0)
+        self._render_night(canvas, rect, visible, window.lit_region(rect))
+
+    def _render_night(self, canvas: Canvas, rect: Rect, visible: np.ndarray, lit: np.ndarray) -> None:
+        """Dim what is seen but not lit by a light source, more the darker it is (nothing by day)."""
+        dark = lighting.darkness(self, self.engine.game_world.current_time, self.config)
+        if dark < 0.05:
+            return
+        alpha = np.where(visible & ~lit, int(NIGHT_ALPHA * dark), 0).astype(np.uint8)
+        if not alpha.any():
+            return
+        width, height = alpha.shape
+        cells = pygame.Surface((width, height), pygame.SRCALPHA, 32)
+        cells.fill(NIGHT_TINT)
+        pygame.surfarray.pixels_alpha(cells)[:] = alpha
+        canvas.surface.blit(pygame.transform.scale(cells, (width * TILE, height * TILE)), (0, 0))
 
 
 class GameMap(World):
