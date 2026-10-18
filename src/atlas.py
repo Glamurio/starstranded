@@ -1,9 +1,8 @@
 """Sprite atlas: the Urizen tilesheet loaded once, with cached tinted / mirrored variants.
 
-The sheet is a 50x50 grid of 24x24 px sprites (``urizen_nogrid_white.png``). It is stored as an 8-bit
-palettised image where near-white pixels are the sprite and near-black pixels are the background, so
-loading converts it into a white RGBA surface (background transparent). Tinting is then a single
-multiply, which is how every sprite gets its colour.
+The sheet is a 125x50 grid of 24x24 px sprites (``urizen_white.png``, made by ``scripts/build_tileset.py`` from the official
+Urizen sheet plus the project's own sprites). It is a white RGBA image whose alpha is the sprite, so loading just keeps the
+alpha. Tinting is then a single multiply, which is how every sprite gets its colour.
 
 Sprites are addressed by *sprite id* = ``row * COLUMNS + column`` (see ``sprite_id``); definitions
 keep their ``(column, row)`` pairs and convert once at import time.
@@ -17,7 +16,7 @@ import pygame
 
 RGB = Tuple[int, int, int]
 
-COLUMNS = 50
+COLUMNS = 125
 ROWS = 50
 TILE = 24
 """Pixel size of one sprite (and of one cell of the game's grid)."""
@@ -89,7 +88,7 @@ class SpriteAtlas:
 
     @classmethod
     def load(cls, path: str) -> "SpriteAtlas":
-        return cls(load_mask_sheet(path))
+        return cls(load_alpha_sheet(path))
 
     def rect(self, sprite: int) -> pygame.Rect:
         column, row = sprite % COLUMNS, sprite // COLUMNS
@@ -141,7 +140,7 @@ def get_atlas() -> SpriteAtlas:
     """The process-wide atlas, loaded on first use (relative to the working directory, like all assets)."""
     global _atlas
     if _atlas is None:
-        _atlas = SpriteAtlas.load("urizen_nogrid_white.png")
+        _atlas = SpriteAtlas.load("urizen_white.png")
     return _atlas
 
 

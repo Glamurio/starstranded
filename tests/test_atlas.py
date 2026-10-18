@@ -9,28 +9,28 @@ import atlas
 def sheet_atlas():
     pygame.display.init()
     pygame.display.set_mode((64, 64))
-    return atlas.SpriteAtlas.load("urizen_nogrid_white.png")
+    return atlas.SpriteAtlas.load("urizen_white.png")
 
 
 def test_sheet_geometry(sheet_atlas):
-    assert (sheet_atlas.columns, sheet_atlas.rows) == (atlas.COLUMNS, atlas.ROWS) == (50, 50)
-    assert sheet_atlas.sheet.get_size() == (1200, 1200)
+    assert (sheet_atlas.columns, sheet_atlas.rows) == (atlas.COLUMNS, atlas.ROWS) == (125, 50)
+    assert sheet_atlas.sheet.get_size() == (3000, 1200)
 
 
 def test_sprite_id_roundtrip():
     assert atlas.sprite_id(0, 0) == 0
-    assert atlas.sprite_id(3, 15) == 15 * 50 + 3
-    assert atlas.sprite_position(atlas.sprite_id(44, 21)) == (44, 21)
+    assert atlas.sprite_id(3, 15) == 15 * 125 + 3
+    assert atlas.sprite_position(atlas.sprite_id(44, 26)) == (44, 26)
     with pytest.raises(AssertionError):
-        atlas.sprite_id(50, 0)
+        atlas.sprite_id(125, 0)
 
 
 def test_background_is_transparent_and_sprite_opaque(sheet_atlas):
-    human = sheet_atlas.get(atlas.sprite_id(0, 9))
+    human = sheet_atlas.get(atlas.sprite_id(117, 0))
     alpha = pygame.surfarray.array_alpha(human)
     assert alpha.max() == 255 and alpha.min() == 0
     assert 20 < (alpha > 0).sum() < human.get_width() * human.get_height()
-    blank = pygame.surfarray.array_alpha(sheet_atlas.get(atlas.sprite_id(49, 49)))
+    blank = pygame.surfarray.array_alpha(sheet_atlas.get(atlas.sprite_id(124, 49)))
     assert blank.max() in (0, 255)
 
 

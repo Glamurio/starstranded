@@ -513,3 +513,14 @@ The plan above was implemented as written, with these specifics and deviations:
 - **What:** shallow `(92,150,186)` and deep `(58,104,148)` for every liquid tile; depths 2 and 3 share the deep colour.
 - **Why:** per-lake hue noise plus three brightness steps produced a gradient and harsh bright/dark edges; the brief was two colours.
 - **Alternative:** a per-lake hue — dropped: a pure per-chunk generator cannot tell where a lake ends, so hues seamed.
+
+## Merged sprite sheet
+- **What:** `scripts/build_tileset.py` builds `src/urizen_white.png` (125x50 cells of 24 px, white on alpha) from the official sheet
+  (columns in official order) plus 48 legacy sprites that are not in it, copied at full resolution into columns 100-124. Sprite
+  coordinates in `species.py`, `tile_types.py`, `names.py` were rewritten to the new positions (`tilesets/legacy_map.json`).
+- **Why:** a real merge keeps the sheet in the official layout so a future Urizen update drops in; an old sprite is only copied
+  when it is not pixel-identical to an official one, so nothing changes in game. `tests/test_tileset_migration.py` hashes 92
+  sprite references against hashes recorded on the old sheet.
+- **Alternatives:** keep the old 50x50 layout and append the new sheet (no coordinate changes, but two copies of everything);
+  a runtime legacy-to-new coordinate table (hidden indirection); a slot picker that reads the gridded sheet directly (the build
+  step makes the grid disappear instead). Official art that is 1-2 pixels different from your version was not adopted.

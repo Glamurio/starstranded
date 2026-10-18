@@ -6,7 +6,7 @@ from components.consumable import Fruit
 from crafting import Branch
 from species import ItemKind, PlantCategory, make_plant_species
 
-RED_APPLE = ItemKind(None, "Consumable", species="Redapple", sprite=(3, 16), color=(200, 0, 0), shade_sigma=10,
+RED_APPLE = ItemKind(None, "Consumable", species="Redapple", sprite=(3, 21), color=(200, 0, 0), shade_sigma=10,
                      hunger_amount=10, thirst_amount=10)
 
 

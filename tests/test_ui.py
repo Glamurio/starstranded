@@ -10,7 +10,7 @@ def canvas():
     pygame.display.init()
     pygame.display.set_mode((64, 64))
     surface = pygame.Surface((80 * 24, 45 * 24))
-    return ui.Canvas(surface, ui.Font.load(), atlas.SpriteAtlas.load("urizen_nogrid_white.png"))
+    return ui.Canvas(surface, ui.Font.load(), atlas.SpriteAtlas.load("urizen_white.png"))
 
 
 def lit(canvas, x, y, w=1, h=1):

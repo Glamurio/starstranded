@@ -2,6 +2,11 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## New Urizen sheet
+- The game now draws from `src/urizen_white.png`: the updated official Urizen sprites (grid and separators removed, white for tinting)
+  plus the project's own sprites. Every sprite the game uses looks exactly as before (a pixel-hash test guards this); only their
+  position on the sheet changed. The sheet is 125 columns wide (see `tilesets/README.md`, `scripts/build_tileset.py`).
+
 ## Creature movement: hunting, stairs
 - Hostile creatures hunt you from up to 45 tiles away (about a chunk), seen or not, across chunk borders, in the full and the
   NEAR tier alike. Closer than 15 tiles (or in view) they come before eating; farther away a hungry hostile feeds first.

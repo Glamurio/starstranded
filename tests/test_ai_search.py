@@ -41,7 +41,7 @@ def test_hungry_rabbit_forages_adjacent_fruiting_plant(small_world):
     from components.consumable import Fruit
     from species import ItemKind, PlantCategory, make_plant_species
     e = small_world()
-    fruit_kind = ItemKind(None, "Consumable", species="Testberry", sprite=(18, 16), hunger_amount=10, thirst_amount=10)
+    fruit_kind = ItemKind(None, "Consumable", species="Testberry", sprite=(18, 21), hunger_amount=10, thirst_amount=10)
     tree = Tree(dataclasses.replace(make_plant_species(PlantCategory.TREE), fruit=fruit_kind))
     tree.place(6, 5, e.game_map)
     berry = Fruit(tree.inventory, fruit_kind); tree.inventory.add(berry)

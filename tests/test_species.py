@@ -1,4 +1,5 @@
 """Immutable shared definitions and their pickling identity."""
+import atlas
 import dataclasses
 import pickle
 import random
@@ -58,12 +59,12 @@ def test_plant_species_generation_is_reproducible_from_an_rng():
 
 
 def test_sprite_ids_index_the_sheet_row_major():
-    assert species.RABBIT.sprite == (3, 15) and species.RABBIT.sprite_id == 15 * 50 + 3
-    assert species.RABBIT.corpse_sprite_id == species.RABBIT.corpse_sprite[1] * 50 + species.RABBIT.corpse_sprite[0]
+    assert species.RABBIT.sprite_id == species.RABBIT.sprite[1] * atlas.COLUMNS + species.RABBIT.sprite[0]
+    assert species.RABBIT.corpse_sprite_id == species.RABBIT.corpse_sprite[1] * atlas.COLUMNS + species.RABBIT.corpse_sprite[0]
     assert species.RABBIT.sprite_id != species.RABBIT.corpse_sprite_id
     assert species.MEAT.corpse_sprite_id is None
 
 
 def test_every_definition_has_a_sprite_on_the_sheet():
     for definition in list(UNIT_SPECIES.values()) + list(ITEM_KINDS.values()):
-        assert 0 <= definition.sprite_id < 50 * 50
+        assert 0 <= definition.sprite_id < atlas.COLUMNS * atlas.ROWS

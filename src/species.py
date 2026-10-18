@@ -152,38 +152,38 @@ def register(definition):
 
 # ── Units ────────────────────────────────────────────────────────────────────────
 HUMAN = register(UnitSpecies(
-    "human", "Human", sprite=(0, 9), corpse_sprite=(24, 11), color=(255, 255, 255), shade_sigma=None,
+    "human", "Human", sprite=(117, 0), corpse_sprite=(24, 16), color=(255, 255, 255), shade_sigma=None,
     max_hp=30, power=2, defense=1, level_up_base=100, xp_given=50, ai=AIKind.HOSTILE, default_name="Ardan",
 ))
 SELENITE = register(UnitSpecies(
-    "selenite", "Selenite", sprite=(2, 37), corpse_sprite=(44, 11), color=color.light_blue,
+    "selenite", "Selenite", sprite=(115, 1), corpse_sprite=(44, 16), color=color.light_blue,
     max_hp=10, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.HOSTILE, name_origin="selenite",
     damage_type=DamageType.SHARP, diet=Diet.CARNIVORE,
 ))
 RABBIT = register(UnitSpecies(
-    "rabbit", "Rabbit", sprite=(3, 15), corpse_sprite=(44, 11), color=None,
+    "rabbit", "Rabbit", sprite=(3, 20), corpse_sprite=(44, 16), color=None,
     max_hp=1, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.PASSIVE, diet=Diet.HERBIVORE,
     leather=True,
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
-MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10, thirst_amount=5))
-LEATHER = register(ItemKind("leather", "Leather", sprite=(2, 19), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))
-FLASK = register(ItemKind("flask", "Flask", sprite=(3, 17), color=(0xB0, 0x78, 0x40), material="Leather"))
-BRANCH = register(ItemKind("branch", "Branch", sprite=(15, 5), shade_sigma=10))
-DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 21), color=(0, 191, 255), material="Bronze",
+MEAT = register(ItemKind("meat", "Meat", sprite=(1, 21), color=color.red, hunger_amount=10, thirst_amount=5))
+LEATHER = register(ItemKind("leather", "Leather", sprite=(2, 25), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))
+FLASK = register(ItemKind("flask", "Flask", sprite=(3, 23), color=(0xB0, 0x78, 0x40), material="Leather"))
+BRANCH = register(ItemKind("branch", "Branch", sprite=(108, 0), shade_sigma=10))
+DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 26), color=(0, 191, 255), material="Bronze",
                            equipment_type=EquipmentType.WEAPON, power_bonus=2, damage_type=DamageType.SHARP))
-AXE = register(ItemKind("axe", "Axe", sprite=(41, 21), color=(0x8B, 0x6B, 0x3D), material="Wooden",
+AXE = register(ItemKind("axe", "Axe", sprite=(26, 28), color=(0x8B, 0x6B, 0x3D), material="Wooden",
                         equipment_type=EquipmentType.WEAPON, power_bonus=4, damage_type=DamageType.SHARP))
-LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(31, 23), color=color.brown, material="Leather",
+LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(25, 30), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
-WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(45, 21), color=(0x8B, 0x6B, 0x3D), material="Wooden",
+WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(42, 27), color=(0x8B, 0x6B, 0x3D), material="Wooden",
                                  equipment_type=EquipmentType.WEAPON, power_bonus=3, damage_type=DamageType.PIERCE))
-CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(7, 29), color=color.white,
+CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(1, 38), color=color.white,
                              lit_color=color.orange, light_radius=8))
-STUMP = register(ItemKind("stump", "Stump", sprite=(13, 5), color=color.brown, render_order=RenderOrder.CORPSE))
-WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(3, 2), color=(150, 105, 60)))
-WOODEN_STAIRS = register(ItemKind("wooden_stairs", "Wooden stairs", sprite=(12, 0), color=(150, 105, 60)))
+STUMP = register(ItemKind("stump", "Stump", sprite=(4, 10), color=color.brown, render_order=RenderOrder.CORPSE))
+WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(3, 5), color=(150, 105, 60)))
+WOODEN_STAIRS = register(ItemKind("wooden_stairs", "Wooden stairs", sprite=(24, 1), color=(150, 105, 60)))
 
 
 # ── Procedural definitions ───────────────────────────────────────────────────────
@@ -219,10 +219,10 @@ def make_plant_species(category: PlantCategory, rng: random.Random = random) -> 
     else:
         name = f"{rng.choice(group)} {rng.choice(shape_names)}"
     if category is PlantCategory.TREE:
-        return PlantSpecies(f"proc:tree:{name}", name, category, sprite=sprite, corpse_sprite=(13, 5), color=plant_color,
+        return PlantSpecies(f"proc:tree:{name}", name, category, sprite=sprite, corpse_sprite=(4, 10), color=plant_color,
                             fruit=fruit, max_hp=30, growth_cycle=10, blocks_movement=True, blocks_sight=True,
                             render_order=RenderOrder.TREE, resistances=TREE_RESISTANCES)
-    return PlantSpecies(f"proc:shrub:{name}", name, category, sprite=sprite, corpse_sprite=(14, 4), color=plant_color,
+    return PlantSpecies(f"proc:shrub:{name}", name, category, sprite=sprite, corpse_sprite=(3, 9), color=plant_color,
                         fruit=fruit, max_hp=8, growth_cycle=5, blocks_movement=False, blocks_sight=False,
                         render_order=RenderOrder.SHRUB, resistances=SHRUB_RESISTANCES)
 
@@ -233,5 +233,5 @@ def _random_color(rng: random.Random, threshold: int = 30) -> RGB:
             int(max(255 * rng.random(), threshold)))
 
 
-STUMP_SPRITES = frozenset({(0, 4), (1, 4), (2, 4), (3, 4), (4, 4), (11, 4)})
-"""Tree sprites (deciduous, evergreen, palm) that leave a stump when felled. Fungi (5, 4) and cacti (9, 4), (10, 4) do not."""
+STUMP_SPRITES = frozenset({(0, 8), (1, 8), (2, 8), (3, 8), (4, 8), (5, 8)})
+"""Tree sprites (deciduous, evergreen, palm) that leave a stump when felled. Fungi and cacti do not."""
