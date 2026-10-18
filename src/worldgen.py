@@ -58,7 +58,7 @@ class TerrainNoise:
     def __init__(self, floor_seed: int):
         self.noises = [
             tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(floor_seed, i) % 2**31)
-            for i in range(6)
+            for i in range(8)
         ]
 
     def sample(self, index: int, scale: float, x0: int, y0: int, width: int, height: int) -> np.ndarray:
@@ -75,6 +75,18 @@ class TerrainNoise:
     def liquid_kind_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Slowly varying noise that decides what a lake is made of (a lake is mostly one kind)."""
         return self.sample(4, 0.006, x0, y0, width, height)
+
+    def temperature(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Climate temperature, about -1 (frozen) .. 1 (scorching), varying over a few hundred tiles."""
+        return np.clip(1.7 * self.sample(2, 0.006, x0, y0, width, height), -1.3, 1.3)
+
+    def moisture(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Climate moisture, about -1 (arid) .. 1 (soaked)."""
+        return np.clip(1.7 * self.sample(5, 0.007, x0, y0, width, height), -1.3, 1.3)
+
+    def region(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Special-region noise (volcanic / crystalline above 0.5, fungal below -0.5; see `biomes.classify`)."""
+        return self.sample(6, 0.012, x0, y0, width, height)
 
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
@@ -93,6 +105,39 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
         kinds[(heights > low) & (heights <= high)] = kind
     kinds[dilate(kinds == 0)] = 0
     return kinds
+
+
+WATER_PROXIMITY = (1.0, 1.0, 0.7, 0.4)
+"""Water availability by distance (tiles) from liquid: 0 = in it, 1, 2, 3; beyond that 0."""
+
+
+def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: int, kinds: np.ndarray) -> dict:
+    """Environment arrays (see `ecology`) for a world rectangle whose base terrain kinds (0 water) are `kinds`:
+    temperature, moisture, elevation, fertility, light, water and the biome index. All pure functions of the seed."""
+    from procgen import dilate
+    import biomes
+    temperature = noise.temperature(x0, y0, width, height)
+    moisture = noise.moisture(x0, y0, width, height)
+    elevation = noise.heights(x0, y0, width, height)
+    biome = biomes.classify(temperature, moisture, elevation, noise.region(x0, y0, width, height))
+    water = np.zeros((width, height), dtype=float)
+    reach = kinds == 0
+    water[reach] = WATER_PROXIMITY[0]
+    for distance in range(1, len(WATER_PROXIMITY)):
+        reach = dilate(reach)
+        water[reach & (water == 0)] = WATER_PROXIMITY[distance]
+    fertility = np.clip(np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[biome] / 1.6, 0.0, 1.0)
+    return dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
+                light=np.ones((width, height)), water=water, biome=biome)
+
+
+def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_W, height: int = CHUNK_H) -> dict:
+    """The environment arrays of one chunk (interior only), computed the same way `generate_terrain` sees them."""
+    m = MARGIN
+    kinds = base_terrain(noise, x0 - m, y0 - m, width + 2 * m, height + 2 * m)
+    env = environment_for(noise, x0 - m, y0 - m, width + 2 * m, height + 2 * m, kinds)
+    interior = (slice(m, m + width), slice(m, m + height))
+    return {k: np.ascontiguousarray(v[interior]) for k, v in env.items()}
 
 
 def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int) -> None:
@@ -129,9 +174,21 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     landscape = replace_variations(tile_types.wall, landscape, pw, ph)
     _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
 
-    # Vegetation: roots wherever the vegetation noise beats a random threshold (not in lakes), as before.
+    # Climate: the biome tints the open ground and decides how thickly it is vegetated.
+    import biomes
+    env = environment_for(noise, x0 - m, y0 - m, pw, ph, kinds)
+    ground = biomes.ground_colors(env["biome"])
+    open_ground = kinds == 1
+    landscape["light"]["fg"][open_ground] = (ground[open_ground] * 0.8).astype(np.uint8)
+    landscape["light"]["bg"][open_ground] = (ground[open_ground] * 0.10).astype(np.uint8)
+    landscape["dark"]["fg"][open_ground] = (ground[open_ground] * 0.4).astype(np.uint8)
+    density = np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[env["biome"]]
+
+    # Vegetation: roots wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
+    # the biome (barren desert ... dense jungle).
     random_map = np.random.rand(pw, ph)
-    tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + 0.1) & (kinds != 0)
+    threshold = 0.1 + (1.0 - density) * 0.45
+    tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     landscape[tree_map] = tile_types.roots.get_array()
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
@@ -143,14 +200,21 @@ class NoiseWorldSource:
 
     bounds = None
 
-    def __init__(self, floor_seed: int, floor: int = 1, species: Optional[Tuple[PlantSpecies, PlantSpecies]] = None):
+    def __init__(self, floor_seed: int, floor: int = 1, species: Optional[Tuple[PlantSpecies, PlantSpecies]] = None,
+                 planet=None, culture: str = "human"):
+        """`planet` (a `planet.Planet`) supplies the ecosystem; by default one is generated from the seed for `culture`.
+        Passing `species` (a tree and a shrub) selects the old single-species mode, kept for tests of the generator."""
         self.floor_seed = floor_seed
         self.floor = floor
         self.noise = TerrainNoise(floor_seed)
-        if species is None:
-            with seeded_rng(mix_seed(floor_seed, 1000)):
-                species = (make_plant_species(PlantCategory.TREE), make_plant_species(PlantCategory.SHRUB))
-        self.tree_species, self.shrub_species = species
+        self.legacy = species is not None
+        if species is not None:
+            self.tree_species, self.shrub_species = species
+            self.planet = None
+        else:
+            from planet import generate_planet
+            self.planet = planet or generate_planet(floor_seed, culture)
+            self.tree_species = self.shrub_species = None
 
     @property
     def spawn_point(self) -> Tuple[int, int]:
@@ -173,6 +237,8 @@ class NoiseWorldSource:
 
     def definitions(self) -> List:
         """Procedural definitions shared by this floor's entities (saved once, referenced from chunk files)."""
+        if self.planet is not None:
+            return self.planet.definitions()
         found = [self.tree_species, self.shrub_species]
         found += [s.fruit for s in (self.tree_species, self.shrub_species) if s.fruit is not None]
         return found
@@ -206,18 +272,69 @@ class NoiseWorldSource:
         now = world.engine.game_world.current_time if getattr(world.engine, "game_world", None) else 0
         before = set(chunk.entities)
         with seeded_rng(mix_seed(self.chunk_seed(chunk.key), 1)):
-            for lx, ly in np.argwhere(tree_map).tolist():
-                if random.random() > 0.2:
-                    plant = components.plant.Tree(self.tree_species)
-                else:
-                    plant = components.plant.Shrub(self.shrub_species)
-                plant.growth = random.randrange(int(plant.avg_cycle) + 1)  # staggered, so the forest does not fruit in unison
-                world.add_entity(plant, chunk.x0 + lx, chunk.y0 + ly)
             reserved = {self.spawn_point} if chunk.key == (0, 0) else set()
-            place_entities(world, self.floor, area=(chunk.x0, chunk.y0, CHUNK_W, CHUNK_H), reserved=reserved)
+            if self.legacy:
+                for lx, ly in np.argwhere(tree_map).tolist():
+                    if random.random() > 0.2:
+                        plant = components.plant.Tree(self.tree_species)
+                    else:
+                        plant = components.plant.Shrub(self.shrub_species)
+                    plant.growth = random.randrange(int(plant.avg_cycle) + 1)  # staggered, so the forest does not fruit in unison
+                    world.add_entity(plant, chunk.x0 + lx, chunk.y0 + ly)
+                place_entities(world, self.floor, area=(chunk.x0, chunk.y0, CHUNK_W, CHUNK_H), reserved=reserved)
+            else:
+                env = shafts.environment(self.floor_seed, chunk.key)
+                self._grow_flora(world, chunk, tree_map, env)
+                self._spawn_fauna(world, chunk, env, reserved)
         for entity in chunk.entities:
             if entity not in before:
                 entity.last_upkeep = now
+
+
+def _grow_flora(self, world: "World", chunk: Chunk, tree_map: np.ndarray, env: dict) -> None:
+    """Plant each root tile with a species whose habitat suits the tile (weighted by suitability and rarity)."""
+    import components.plant
+    pool, weights = self.planet.species_weights(env)
+    if not pool:
+        return
+    for lx, ly in np.argwhere(tree_map).tolist():
+        column = weights[:, lx, ly]
+        if column.sum() <= 0:
+            continue
+        species = random.choices(pool, weights=column.tolist())[0]
+        plant = components.plant.Tree(species) if species.category is PlantCategory.TREE else components.plant.Shrub(species)
+        plant.growth = random.randrange(int(plant.avg_cycle) + 1)  # staggered, so the forest does not fruit in unison
+        world.add_entity(plant, chunk.x0 + lx, chunk.y0 + ly)
+
+
+FAUNA_PER_CHUNK = 9
+SELENITE_EXILE_CHANCE = 0.04
+"""Chance per animal spawn that an exiled Selenite stands there instead (the old demo enemy, kept as a rare hostile)."""
+
+
+def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> None:
+    """Place up to `FAUNA_PER_CHUNK` animals at random tiles, each a species that can live at that tile."""
+    import components.unit as units
+    from components.unit import Unit
+    pool, _ = self.planet.fauna_weights({k: v[0:1, 0:1] for k, v in env.items()})
+    for _ in range(random.randint(0, FAUNA_PER_CHUNK)):
+        lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
+        x, y = chunk.x0 + lx, chunk.y0 + ly
+        if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
+            continue
+        if random.random() < SELENITE_EXILE_CHANCE:
+            world.add_entity(units.Selenite(), x, y)
+            continue
+        point = {k: v[lx:lx + 1, ly:ly + 1] for k, v in env.items()}
+        _, weights = self.planet.fauna_weights(point)
+        column = weights[:, 0, 0]
+        if column.sum() <= 0:
+            continue
+        world.add_entity(Unit(random.choices(pool, weights=column.tolist())[0]), x, y)
+
+
+NoiseWorldSource._grow_flora = _grow_flora
+NoiseWorldSource._spawn_fauna = _spawn_fauna
 
 
 class FlatWorldSource:

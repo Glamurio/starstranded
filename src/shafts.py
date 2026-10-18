@@ -91,6 +91,17 @@ def raw_surface(master: int, key: ChunkKey) -> Tuple[np.ndarray, np.ndarray]:
     return tiles, tree_map
 
 
+@lru_cache(maxsize=_CACHE * 2)
+def environment(master: int, key: ChunkKey) -> dict:
+    """Environment arrays (temperature, moisture, elevation, fertility, light, water, biome) of a surface chunk (read-only)."""
+    from worldgen import chunk_environment
+    x0, y0 = chunk_origin(key)
+    env = chunk_environment(terrain_noise(master), x0, y0)
+    for array in env.values():
+        array.setflags(write=False)
+    return env
+
+
 @lru_cache(maxsize=_CACHE)
 def start_point(master: int) -> Tuple[Tuple[int, int], bool]:
     """The spawn point (the free tile closest to the centre of chunk (0, 0)) and whether the centre had to be carved open."""
@@ -271,5 +282,5 @@ def cave_layer(master: int, z: int, key: ChunkKey) -> np.ndarray:
 
 
 def clear_caches() -> None:
-    for function in (terrain_noise, raw_surface, start_point, structure, sky_layer, cave_noise, cave_layer):
+    for function in (terrain_noise, raw_surface, environment, start_point, structure, sky_layer, cave_noise, cave_layer):
         function.cache_clear()

@@ -93,7 +93,7 @@ def test_random_walk_soak_keeps_index_consistent(small_world):
 def test_identity_is_preserved_on_move_and_save_roundtrip(new_engine, tmp_path):
     import setup_game
     e = new_engine
-    rabbit = next(u for u in e.game_map.units if isinstance(u, Animal))
+    rabbit = next(u for u in e.game_map.units if u is not e.player)
     uid = rabbit.uid
     rabbit.hunger = 42
     rabbit.place(*next((x, y) for x in range(70) for y in range(40) if e.can_move(x, y)))

@@ -699,12 +699,14 @@ class GameWorld:
         current_z: int = 0,
         current_floor: Optional[int] = None,  # old spelling: the depth, 1 = surface
         current_time: int = 0,
+        culture: str = "human",
         **_legacy,  # map_width/map_height/max_rooms/room_*: accepted for old callers, unused (worlds are unbounded)
     ):
         self.engine = engine
         self.seed = seed if seed is not None else random.getrandbits(62)  # from `random`: seeding it reproduces a game
         self.current_z = current_z if current_floor is None else 1 - current_floor
         self.current_time = current_time
+        self.culture = culture  # naming culture of the planet's catalogue (the player's people)
         self.layers: Dict[int, World] = {}
         self.arrivals: List[tuple] = []  # (due time, unit, z, x, y): followers still on the stairs
 
@@ -725,7 +727,7 @@ class GameWorld:
     def make_world(self, z: int) -> World:
         from worldgen import CaveSource, NoiseWorldSource, SkySource
         if z == 0:
-            source = NoiseWorldSource(self.master_seed, 1)
+            source = NoiseWorldSource(self.master_seed, 1, culture=self.culture)
         elif z < 0:
             source = CaveSource(self.master_seed, z)
         else:

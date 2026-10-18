@@ -90,7 +90,11 @@ def test_static_species_identity_survives_load(new_engine, tmp_path):
     assert loaded.player.kind is species.HUMAN
     plants = list(loaded.game_map.plants)
     trees = [p for p in plants if p.kind.category is species.PlantCategory.TREE]
-    assert len({id(t.kind) for t in trees}) <= 1  # still one shared tree species per floor
+    flora = {id(k) for k in loaded.game_world.layers[0].source.planet.flora}
+    assert trees and all(id(t.kind) in flora for t in trees)  # every tree is one of the planet's species
+    by_name = {}
+    for t in trees:
+        assert by_name.setdefault(t.kind.name, t.kind) is t.kind  # one shared object per species
 
 
 def test_main_menu_reports_incompatible_save(tmp_path, monkeypatch):
