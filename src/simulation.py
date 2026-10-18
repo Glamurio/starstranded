@@ -59,9 +59,11 @@ def _unit_upkeep(unit, last: int, now: int, elapsed: int) -> None:
             unit.handle_hunger(-1)
         if thirst_steps:
             unit.handle_thirst(-1)
+        unit.tick_poison(1)
         return
     if not unit.is_alive:
         return
+    unit.tick_poison(elapsed)
     # A long absence: assume the unit kept itself fed if its chunk has food (the full simulation lets animals forage;
     # without this every animal left behind for ~400 turns would starve).
     world = unit.game_map

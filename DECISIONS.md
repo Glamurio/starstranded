@@ -487,3 +487,12 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Alternative:** simulate stored chunks abstractly (population dynamics) — rejected: the catch-up in `upkeep` already
   covers hunger/growth, and a second ecology model would need to agree with the real one. Layers you are not on stay frozen
   and catch up (same approximation as far chunks).
+
+## Flask, boiling and poison
+- **What:** `Flask` item (sips, liquid kind, boiled flag), `UseFlaskAction` (boil if next to a lit campfire, else drink, else fill),
+  `Unit.poison` (turns of 1 damage, capped at 60, ticks in `pass_time` and in the catch-up `upkeep`), creatures drink impure liquid
+  when thirst is the lowest need (`behavior._drink`).
+- **Why:** the brief: drinkable only after boiling, toxic stays toxic, acid eats the flask, kind is learned by risk. The flask never
+  names its contents so tests (science gear) can come later without changing the item.
+- **Alternative:** a boolean "safe" flag on tiles — rejected: three kinds are needed for the later science gear. Making animals
+  immune to impure liquid vs. sickening them — chose immune/avoiding toxic, so ecology stays stable.

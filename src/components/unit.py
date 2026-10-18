@@ -51,6 +51,7 @@ class Unit(Entity):
         self.level = Level(self, level_up_base=species.level_up_base, xp_given=species.xp_given)
 
         self.is_alive: bool = True
+        self.poison: int = 0  # turns of poison left: 1 damage each
         self.last_upkeep: Optional[int] = None  # game time of the last hunger/thirst update (simulation.upkeep)
         self.blocks_movement = True
         ai_class = _AI_FOR_KIND.get(species.ai)
@@ -131,6 +132,9 @@ class Unit(Entity):
 
         self.inventory.add(Meat(self.species, self.inventory))
         self.inventory.add(Meat(self.species, self.inventory))
+        if self.kind.leather:
+            from crafting import Leather
+            self.inventory.add(Leather(self.species, self.inventory))
 
 
         seen = self is self.engine.player or self.game_map is None or self.game_map.is_visible(self.x, self.y)
@@ -159,6 +163,20 @@ class Unit(Entity):
         self.hp = clamp((self.hp + amount), 0, self.max_hp)
         if self.hp == 0 and self.is_alive:
             self.die(entity)
+
+    def apply_poison(self, turns: int) -> None:
+        """Poison for `turns` more turns (they add up, to at most `MAX_POISON`)."""
+        self.poison = min(self.MAX_POISON, self.poison + turns)
+
+    def tick_poison(self, turns: int = 1) -> None:
+        """Let `turns` turns of poison act: 1 damage per turn."""
+        if self.poison <= 0 or not self.is_alive:
+            return
+        hurt = min(self.poison, turns)
+        self.poison -= hurt
+        self.handle_health(-hurt, None)
+
+    MAX_POISON = 60
 
     def handle_hunger(self, amount: int) -> None:
         """Change hunger by `amount`. At 0 hunger *any* unit loses 1 HP per call (starvation).

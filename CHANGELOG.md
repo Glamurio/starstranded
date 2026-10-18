@@ -2,6 +2,13 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Leather, flask, drinking, poison
+- Rabbits drop **Leather**. Craft a **Flask** from 1 leather. Use a flask next to a liquid tile to fill it (3 sips); use a full
+  flask to drink (+40 thirst). Use it next to a *lit campfire* first to boil its contents.
+- Raw impure liquid poisons you (6 turns of 1 damage); toxic liquid poisons hard (25) even when boiled; boiled impure liquid is
+  safe. Filling from acidic liquid destroys the flask. Flasks never tell you what is inside; the HUD shows "Poisoned".
+- Thirsty creatures walk to impure liquid and drink it (they avoid toxic and acidic lakes). Meat now only restores 5 thirst (was 15).
+
 ## Liquids (lakes have depth and a hidden kind)
 - Lakes are now called "liquid" and have depths shown as darker shades of the same colour: shallow (can be waded), deep and very
   deep (cannot). Deeper liquid is always ringed by shallower liquid. Lake colours vary from lake to lake.

@@ -72,7 +72,7 @@ def test_melee_kill_makes_corpse_with_meat_and_awards_xp(small_world):
     assert target.hp == 0 and not target.is_alive
     assert not target.blocks_movement
     assert target.ai is None  # die() clears the AI
-    assert [type(i) for i in target.inventory.items] == [Meat, Meat]
+    assert sorted(type(i).__name__ for i in target.inventory.items) == ["Leather", "Meat", "Meat"]
     assert e.player.level.current_xp == xp0 + target.level.xp_given
 
 

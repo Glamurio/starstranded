@@ -112,6 +112,10 @@ def act(unit: Unit, ai: BaseAI, cheap: bool = False) -> None:
     if ai.is_hostile and _hunt_player(unit, ai, cheap):
         return
 
+    thirsty = unit.thirst <= SEEK_THRESHOLD and unit.thirst <= unit.hunger
+    if thirsty and _drink(unit, ai, cheap):
+        return
+
     if is_hungry(unit) and _feed(unit, ai, cheap):
         return
 
@@ -197,6 +201,48 @@ def _feed(unit, ai, cheap) -> bool:
         return False
     end = ai.path[-1] if ai.path else None
     if end is None or max(abs(end[0] - destination[0]), abs(end[1] - destination[1])) > (1 if kind == "prey" else 0):
+        ai.path = ai.get_path(*destination)
+    if not ai.path:
+        return False
+    _walk(unit, ai)
+    return True
+
+
+def find_liquid(unit: Unit, radius: int) -> Optional[Tuple[int, int]]:
+    """The closest drinkable (impure, never toxic or acidic) liquid tile within `radius`, or None."""
+    import liquids
+    world = unit.game_map
+    best = None
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            tile = world.tile_at(unit.x + dx, unit.y + dy)
+            if tile is None or int(tile["liquid"]) != int(liquids.LiquidKind.IMPURE):
+                continue
+            d = max(abs(dx), abs(dy))
+            if best is None or d < best[0]:
+                best = (d, unit.x + dx, unit.y + dy)
+    return None if best is None else best[1:]
+
+
+def _drink(unit, ai, cheap) -> bool:
+    """Go to the nearest drinkable liquid and drink. False if there is none in reach."""
+    import liquids
+    found = find_liquid(unit, min(unit.radius, 24))
+    if found is None:
+        return False
+    lx, ly = found
+    if max(abs(lx - unit.x), abs(ly - unit.y)) <= 1:
+        unit.handle_thirst(liquids.SIP_THIRST)
+        return True
+    if cheap:
+        step_towards(ai.engine, unit, lx, ly)
+        return True
+    engine = ai.engine
+    options = [t for t in engine.get_adjacent_tiles(lx, ly) if engine.can_move(*t)]
+    if not options:
+        return False
+    destination = engine.get_closest_tile(options, unit.x, unit.y)
+    if not ai.path or ai.path[-1] != destination:
         ai.path = ai.get_path(*destination)
     if not ai.path:
         return False

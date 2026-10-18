@@ -290,6 +290,60 @@ class CraftAction(Action):
         self.engine.game_world.pass_time(unit=self.entity, time=1)
 
 
+class UseFlaskAction(Action):
+    """Use a flask: boil its liquid at a lit campfire, else drink from it, else fill it from a liquid next to you."""
+
+    def __init__(self, entity: Unit, flask):
+        super().__init__(entity)
+        self.flask = flask
+
+    def _lit_campfire_near(self) -> bool:
+        from crafting import Campfire
+        world, e = self.engine.game_map, self.entity
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for thing in world.get_entities_at_location(e.x + dx, e.y + dy):
+                    if isinstance(thing, Campfire) and thing.emits_light:
+                        return True
+        return False
+
+    def perform(self) -> None:
+        import liquids
+        flask, user, log = self.flask, self.entity, self.engine.message_log
+        world = self.engine.game_map
+        if flask.sips and not flask.boiled and self._lit_campfire_near():
+            flask.boiled = True
+            log.add_message("You hold the flask over the fire until the liquid boils.", color.menu_text)
+            self.engine.game_world.pass_time(unit=user, time=3)
+        elif flask.sips:
+            flask.sips -= 1
+            user.handle_thirst(liquids.SIP_THIRST)
+            kind = liquids.LiquidKind(flask.liquid)
+            if kind is liquids.LiquidKind.TOXIC:
+                user.apply_poison(liquids.POISON_TOXIC)
+                log.add_message("You feel terribly sick.", color.enemy_atk)
+            elif kind is liquids.LiquidKind.IMPURE and not flask.boiled:
+                user.apply_poison(liquids.POISON_RAW)
+                log.add_message("You feel sick.", color.enemy_atk)
+            else:
+                log.add_message("You drink. It is refreshing.", color.health_recovered)
+            if not flask.sips:
+                flask.liquid, flask.boiled = 0, False
+            self.engine.game_world.pass_time(unit=user, time=1)
+        else:
+            found = liquids.nearest_liquid(world, user.x, user.y)
+            if found is None:
+                raise exceptions.Impossible("The flask is empty, and there is no liquid next to you to fill it from.")
+            _, _, kind = found
+            if kind is liquids.LiquidKind.ACIDIC:
+                user.inventory.remove(flask)
+                log.add_message("The liquid hisses and eats through the flask!", color.enemy_atk)
+            else:
+                flask.liquid, flask.sips, flask.boiled = int(kind), liquids.FLASK_SIPS, False
+                log.add_message("You fill the flask with liquid.", color.menu_text)
+            self.engine.game_world.pass_time(unit=user, time=1)
+
+
 class InteractAction(Action):
     """Interact with an entity at the player's location."""
 

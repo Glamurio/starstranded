@@ -6,7 +6,7 @@ from components.inventory import Inventory
 from components.consumable import Consumable
 from components.equippable import Axe, Equippable
 from equipment_types import EquipmentType
-from entity import Constructable
+from entity import Constructable, Item
 import species as defs
 import tile_types
 
@@ -40,6 +40,37 @@ class Branch(CraftingConsumable):
         self.material = source.species.split()[0]
         self.color = get_shade(source.color)
         self.shade = get_gaussian_shade(self.color, self.kind.shade_sigma)
+
+
+class Leather(CraftingConsumable):
+    def __init__(self, source_species: str = "", parent=None):
+        """A piece of leather from the creature `source_species`."""
+        CraftingConsumable.__init__(self, defs.LEATHER)
+        self.material = source_species or None
+        self.parent = parent
+
+
+# ─── Crafted: Flask (carries liquid) ─────────────────────────────────
+
+class Flask(Item):
+    """A leather flask: three sips of one liquid. What the liquid really is stays unknown until it is drunk."""
+
+    def __init__(self, parent=None):
+        Item.__init__(self, defs.FLASK)
+        self.parent = parent
+        self.liquid: int = 0  # liquids.LiquidKind of the contents (0 = empty)
+        self.sips: int = 0
+        self.boiled: bool = False
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        if not self.sips:
+            return "Leather flask (empty)"
+        what = "boiled liquid" if self.boiled else "liquid"
+        return f"Leather flask ({what}, {self.sips} sip{'s' if self.sips != 1 else ''})"
+
+    def activate(self, user):
+        from actions import UseFlaskAction
+        return UseFlaskAction(user, self)
 
 
 # ─── Crafted: Wooden Spear (Equippable weapon) ──────────────────────
@@ -208,6 +239,13 @@ RECIPES: List[Recipe] = [
         description="A sharpened branch. Better than fists.",
         ingredients={"Branch": 2},
         result_class=WoodenSpear,
+        is_placeable=False,
+    ),
+    Recipe(
+        name="Flask",
+        description="A leather flask. Use it next to a liquid to fill it, next to a lit campfire to boil it, else to drink.",
+        ingredients={"Leather": 1},
+        result_class=Flask,
         is_placeable=False,
     ),
     Recipe(

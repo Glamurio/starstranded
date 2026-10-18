@@ -193,3 +193,5 @@ class Engine:
         canvas.print(71, 3, time)
         canvas.print(71, 4, f"X {player.x}")
         canvas.print(71, 5, f"Y {player.y}")
+        if player.poison > 0:
+            canvas.print(71, 6, "Poisoned", fg=color.enemy_atk)

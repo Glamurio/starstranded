@@ -109,6 +109,7 @@ class UnitSpecies(_Definition):
     xp_given: int = 0
     ai: AIKind = AIKind.NONE
     diet: Diet = Diet.OMNIVORE
+    leather: bool = False  # leaves a piece of leather when it dies
     damage_type: DamageType = DamageType.BLUNT  # natural attack
     resistances: Resistances = ()
     name_origin: Optional[str] = None  # namegen set for auto-generated names
@@ -162,10 +163,13 @@ SELENITE = register(UnitSpecies(
 RABBIT = register(UnitSpecies(
     "rabbit", "Rabbit", sprite=(3, 15), corpse_sprite=(44, 11), color=None,
     max_hp=1, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.PASSIVE, diet=Diet.HERBIVORE,
+    leather=True,
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
-MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10, thirst_amount=15))
+MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10, thirst_amount=5))
+LEATHER = register(ItemKind("leather", "Leather", sprite=(2, 19), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))
+FLASK = register(ItemKind("flask", "Flask", sprite=(3, 17), color=(0xB0, 0x78, 0x40), material="Leather"))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(15, 5), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 21), color=(0, 191, 255), material="Bronze",
                            equipment_type=EquipmentType.WEAPON, power_bonus=2, damage_type=DamageType.SHARP))

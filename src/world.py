@@ -805,6 +805,7 @@ class GameWorld:
                 unit.handle_hunger(-1)
             if not self.current_time % 2:
                 unit.handle_thirst(-1)
+            unit.tick_poison(1)
             unit.last_upkeep = self.current_time
 
             from simulation import run_turn
