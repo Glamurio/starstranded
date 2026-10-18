@@ -29,6 +29,10 @@ if TYPE_CHECKING:
 from savegame import SAVE_VERSION  # noqa: E402,F401  (re-exported; the save format lives in savegame.py)
 
 
+PATH_MARGIN = 8
+"""Extra tiles around a trip that the path search may use (see `Engine.get_path_to`)."""
+
+
 class Engine:
     game_map: GameMap
     game_world: GameWorld
@@ -69,7 +73,10 @@ class Engine:
         window = world.window.ensure()
         if not window.contains(origin.x, origin.y):
             return []
-        radius = self.config.path_radius
+        # Search only as far as the trip needs: a short trip crops to a small square (the search cost grows with its
+        # area), a long one is capped at `path_radius`. The margin leaves room to walk around obstacles.
+        trip = max(abs(dest_x - origin.x), abs(dest_y - origin.y))
+        radius = min(self.config.path_radius, 2 * trip + PATH_MARGIN)
         wx0, wy0, ww, wh = window.rect
         x0, y0 = max(wx0, origin.x - radius), max(wy0, origin.y - radius)
         x1, y1 = min(wx0 + ww, origin.x + radius + 1), min(wy0 + wh, origin.y + radius + 1)

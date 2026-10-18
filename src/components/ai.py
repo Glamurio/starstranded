@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from actions import Action, BumpAction, MeleeAction, MovementAction, WaitAction
 from entity import EntityCategory
+import exceptions
 
 if TYPE_CHECKING:
     from entity import Unit, Entity, Item
@@ -34,9 +35,15 @@ class BaseAI(Action):
 
     def wander(self) -> None:
         """Choose a random tile to wander to if no relevant entities are within range."""
-        dest_x, dest_y = self.get_random_tile(walkable=True)
-        self.path = self.get_path(dest_x, dest_y)
-        return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
+        if not self.path:  # keep walking to the chosen spot; only pick a new one when there is none
+            dest_x, dest_y = self.get_random_tile(walkable=True)
+            self.path = self.get_path(dest_x, dest_y)
+        dest_x, dest_y = self.path[-1] if self.path else (self.entity.x, self.entity.y)
+        try:
+            return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
+        except exceptions.Impossible:
+            self.path = []  # blocked or no path: choose again next turn
+            raise
 
     def flee(self, entity: Entity, distance: int = 10) -> None:
         """Move towards a random walkable tile at least `distance` tiles away from `entity`.
@@ -233,8 +240,11 @@ class HostileAI(BaseAI):
                 # Attack at the player's ABSOLUTE position
                 return MeleeAction(self.entity, target.x, target.y).perform()
 
-            # Path toward the player's ABSOLUTE position
-            self.path = self.get_path(target.x, target.y)
+            # Path toward the player's ABSOLUTE position; an existing path is reused while the player has not
+            # moved far from where it ends (re-planning every turn for every chaser dominated the turn cost).
+            end = self.path[-1] if self.path else None
+            if end is None or max(abs(end[0] - target.x), abs(end[1] - target.y)) > 2:
+                self.path = self.get_path(target.x, target.y)
 
         if self.path:
             # Let MovementAction pop the next step from the path
