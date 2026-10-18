@@ -211,3 +211,10 @@ def test_killing_natives_moves_reputation_by_each_boards_leaning():
         sponsors.native_killed(run, engine)
     for faction in factions.FACTIONS:
         assert run.reputation.get(faction, 0) == before.get(faction, 0) + factions.reaction_to_harming_natives(faction)
+
+
+def test_a_cold_start_is_announced(monkeypatch):
+    import resources
+    monkeypatch.setattr(resources, "ambient_temperature", lambda *a, **k: -20.0)
+    engine = new_game()
+    assert any("cold" in str(m.plain_text).lower() for m in engine.message_log.messages)
