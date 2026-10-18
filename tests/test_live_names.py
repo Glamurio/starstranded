@@ -72,3 +72,21 @@ def test_using_a_survey_kit_opens_the_scanner_instead_of_an_error():
     from items import DEFAULT_WOOD
     kit = Made(species.SURVEY_KIT, {"body": DEFAULT_WOOD}, 1.0, "survey_kit", parent=engine.player.inventory)
     assert isinstance(kit.activate(engine.player), ih.SingleRangedAttackHandler)
+
+
+def test_crafting_lists_only_what_you_can_do_here_and_discovers_by_standing_near_things():
+    import crafting
+    from components.consumable import Meat
+    engine = new_game()
+    p, run = engine.player, engine.game_world.run
+    run.recipes_seen.clear()
+    p.inventory.items[:] = []
+    assert crafting.available(p, run) == []                       # nothing carried, nothing doable
+    from items import DEFAULT_WOOD
+    for _ in range(3):
+        p.inventory.add(crafting.Branch(substance=DEFAULT_WOOD, parent=p.inventory))
+    p.inventory.add(crafting.make_piece(__import__("species").PIECE_STONE, next(m for _, m in engine.game_world.planet.materials if m.hardness >= 6.5), p.inventory))
+    keys = {r.key for r in crafting.available(p, run)}
+    assert "campfire" in keys and "campfire" in run.recipes_seen
+    assert "furnace" not in keys and keys <= run.recipes_seen
+    assert {r.key for r in crafting.available(p, run, everything=True)} == run.recipes_seen

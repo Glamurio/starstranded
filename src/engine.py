@@ -154,6 +154,18 @@ class Engine:
 
         return True
 
+    def discover_recipes(self) -> None:
+        """Standing next to things teaches what you could make from them (never lets a failure interrupt the turn)."""
+        try:
+            import crafting
+            run = self.game_world.run
+            found = crafting.discover(self.player, run)
+            if found:
+                names = ", ".join(r.name.lower() for r in found[:3]) + (f" and {len(found) - 3} more" if len(found) > 3 else "")
+                self.message_log.add_message(f"You work out what you could make from this: {names} ('R').", color.menu_text)
+        except Exception:
+            pass
+
     def update_fov(self) -> None:
         """Recompute what the player sees (ambient light by time of day plus light sources, see `lighting`)
         on the stitched view window; then mark it explored."""
@@ -166,6 +178,7 @@ class Engine:
 
         # what was seen stays explored
         world.mark_explored()
+        self.discover_recipes()
 
     @property
     def camera(self):

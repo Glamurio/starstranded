@@ -672,3 +672,67 @@ def options(recipe: Recipe, unit, role: str) -> List[Material]:
     usable = [g for g in groups.values() if len(g) >= count]
     usable.sort(key=lambda g: -need.margin(material_of(g[0])))
     return [material_of(g[0]) for g in usable]
+
+
+# ─── Contextual crafting: what is within reach, which recipes you have worked out, which you can do right here ──────────
+
+def nearby_forms(unit) -> set:
+    """The forms of piece you could get from what you carry and what is next to you: branches from a tree, fibre from a
+    shrub, hide from a carcass, stone from a rock face, sand or clay from the ground under your feet, anything lying near."""
+    forms = {item.object_type for item in unit.inventory.items}
+    world = unit.game_map
+    if world is None:
+        return forms
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            x, y = unit.x + dx, unit.y + dy
+            for thing in world.get_entities_at_location(x, y):
+                if thing is unit:
+                    continue
+                kind = getattr(thing, "kind", None)
+                if getattr(thing, "category", None) is not None and thing.category.name == "PLANT":
+                    if getattr(kind, "fiber", None) is not None:
+                        forms.add("Fibre")
+                    forms.add("Branch")
+                elif getattr(thing, "category", None) is not None and thing.category.name == "UNIT" and not thing.is_alive:
+                    if getattr(kind, "hide", None) is not None or getattr(kind, "leather", False):
+                        forms.add("Hide")
+                elif hasattr(thing, "object_type") and getattr(thing, "parent", None) is world:
+                    forms.add(thing.object_type)
+            tile = world.tile_at(x, y)
+            if tile is not None and not tile["walkable"] and not tile["liquid"] and not tile["stairs"]:
+                forms.update(("Stone", "Ore", "Coal"))
+    forms.update(("Sand", "Clay"))  # the ground can be dug nearly anywhere (the dig itself says if there is anything)
+    return forms
+
+
+def discover(unit, run) -> List[Recipe]:
+    """Work out every recipe whose pieces are all within reach right now. Returns the newly discovered ones."""
+    if run is None:
+        return []
+    seen = getattr(run, "recipes_seen", None)
+    if seen is None:
+        seen = run.recipes_seen = set()
+    forms = nearby_forms(unit)
+    found = []
+    for recipe in get_recipes():
+        if recipe.key in seen:
+            continue
+        if all(any(f in forms for f in need.forms) for need in recipe.needs):
+            seen.add(recipe.key)
+            found.append(recipe)
+    return found
+
+
+def available(unit, run, everything: bool = False) -> List[Recipe]:
+    """The recipes the crafting screen lists: those you can do right here, right now (or, with `everything`, every one
+    you have discovered)."""
+    discover(unit, run)
+    seen = getattr(run, "recipes_seen", set()) if run is not None else set()
+    out = []
+    for recipe in get_recipes():
+        if recipe.key not in seen and run is not None:
+            continue
+        if everything or check(recipe, unit).ok:
+            out.append(recipe)
+    return out

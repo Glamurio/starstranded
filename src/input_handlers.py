@@ -695,12 +695,16 @@ class CraftingMenuHandler(AskUserEventHandler):
 
     def __init__(self, engine: Engine):
         super().__init__(engine)
-        from crafting import get_recipes
-        self.recipes = get_recipes()
+        self.show_all: bool = False  # A: also list the recipes you have worked out but cannot do right here
+        self.recipes = self._listed()
         self.menu_i: int = 0
         self.button_highlight: int = 0
         self.role_i: int = 0
         self.choices: dict = {}  # recipe key -> {role: material id}
+
+    def _listed(self):
+        import crafting
+        return crafting.available(self.engine.player, self.engine.game_world.run, everything=self.show_all)
 
     @property
     def recipe(self):
@@ -724,6 +728,12 @@ class CraftingMenuHandler(AskUserEventHandler):
             fg = color.black if selected else (color.menu_text if ok else color.impossible)
             bg = color.white if selected else color.nigh_black
             canvas.print(x + 2, y + 2 + row, f"{recipe.stage} {recipe.name:<20}"[:24], fg=fg, bg=bg)
+        if not self.recipes:
+            canvas.print(x + 2, y + 2, "Nothing you can make here and now.", fg=color.yellow)
+            canvas.print(x + 2, y + 4, "Gather pieces and stand next to things to work out", fg=color.menu_text)
+            canvas.print(x + 2, y + 5, "what you could make. A: list recipes you know.", fg=color.menu_text)
+            canvas.print(x + 2, y + height - 2, "A: all known   ESC: close", fg=color.impossible)
+            return
         recipe = self.recipe
         plan = self.plan()
         dx = x + 28
@@ -752,7 +762,7 @@ class CraftingMenuHandler(AskUserEventHandler):
             props = self._preview(recipe, plan)
             if props:
                 canvas.print(dx, y + height - 4, props, fg=color.menu_text)
-        canvas.print(x + 2, y + height - 2, "ENTER: make   UP/DOWN: recipe   ESC: close", fg=color.impossible)
+        canvas.print(x + 2, y + height - 2, "ENTER: make  UP/DOWN: recipe  A: " + ("only doable" if self.show_all else "all known") + "  ESC: close", fg=color.impossible)
 
     @staticmethod
     def _wrap(text: str, width: int):
@@ -778,6 +788,13 @@ class CraftingMenuHandler(AskUserEventHandler):
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         key = event.sym
         count = len(self.recipes)
+        if key == Key.A:
+            self.show_all = not self.show_all
+            self.recipes = self._listed()
+            self.button_highlight = self.role_i = 0
+            return None
+        if not count:
+            return super().ev_keydown(event)
         if key == Key.UP:
             self.button_highlight = (self.button_highlight - 1) % count
             self.role_i = 0
