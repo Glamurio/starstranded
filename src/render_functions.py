@@ -8,6 +8,23 @@ if TYPE_CHECKING:
     from world import GameMap
 
 
+def rock_face_at(engine, x: int, y: int):
+    """The material of the solid rock face at (x, y), or None if that tile is not one. Rock is mined, so it is a thing to look at."""
+    import actions
+    import resources
+    game_map = engine.game_map
+    game_world = engine.game_world
+    if game_world.planet is None or not actions.is_rock_face(game_map, x, y):
+        return None
+    biome = resources.biome_key_at(game_world, game_map.z, x, y)
+    return resources.wall_material(game_world.planet, game_world.master_seed, game_map.z, x, y, biome)
+
+
+def rock_face_title(engine, rock) -> str:
+    import lore
+    return f"{lore.material_name(engine.game_world.run, rock)} wall"
+
+
 def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
     if not game_map.is_visible(x, y):
         return ""
@@ -17,6 +34,10 @@ def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
     description = liquids.describe(game_map.tile_at(x, y))
     if description:
         names = f"{names}, {description}" if names else description
+    if not names and getattr(game_map, "engine", None) is not None:
+        rock = rock_face_at(game_map.engine, x, y)
+        if rock is not None:
+            names = rock_face_title(game_map.engine, rock)
 
     return names
 
@@ -93,13 +114,24 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     things = [e for e in game_map.stack_at(x, y) if e is not engine.player]
     import liquids
     liquid = liquids.describe(game_map.tile_at(x, y))
-    if not things and not liquid:
+    rock = None if (things or liquid) else rock_face_at(engine, x, y)
+    if not things and not liquid and rock is None:
         return
     camera = engine.camera
     sx, sy = camera.to_screen(x, y)
     if not camera.on_screen(sx, sy):
         return
     width = 26
+    if rock is not None:
+        tile = game_map.tile_at(x, y)["light"]
+        bx = sx + 2 if sx + 2 + width <= 70 else sx - width - 1
+        by = max(0, min(sy - 2, 40 - 11))
+        canvas.draw_frame(bx, by, width, 11)
+        widgets.sprite_slot(canvas, bx + (width - 4) // 2, by + 1, int(tile["sprite"]), tuple(int(c) for c in tile["fg"]))
+        canvas.print(bx + width // 2, by + 5, rock_face_title(engine, rock)[: canvas.chars(width) - 4], fg=Theme.TITLE, alignment=CENTER)
+        for k, text in enumerate(("Solid rock.", "Break it with a pickaxe.")):
+            canvas.print(bx + width // 2, by + 6 + k, text, fg=Theme.DIM if k == 0 else Theme.TEXT, alignment=CENTER)
+        return
     top = things[0] if things else None
     lines = []
     if top is not None:

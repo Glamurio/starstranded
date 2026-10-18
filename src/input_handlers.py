@@ -76,12 +76,12 @@ def screen_to_world(engine: Engine, position) -> Optional[Tuple[int, int]]:
     return camera.to_world(sx, sy)
 
 
-def highlight_world(engine: Engine, canvas: Canvas, x: int, y: int, wash=color.white) -> None:
+def highlight_world(engine: Engine, canvas: Canvas, x: int, y: int, wash=color.white, alpha: int = 110) -> None:
     """Highlight world tile (x, y) if it is in the map viewport."""
     camera = engine.camera
     sx, sy = camera.to_screen(x, y)
     if camera.on_screen(sx, sy):
-        canvas.highlight(sx, sy, wash)
+        canvas.highlight(sx, sy, wash, alpha)
 
 
 def draw_entity_icon(canvas: Canvas, x: int, y: int, entity: Entity) -> None:
@@ -1120,15 +1120,28 @@ class MainGameEventHandler(EventHandler):
         self.mouse_motion = False
 
     def on_render(self, canvas: Canvas) -> None:
-        """Highlight the tile under the cursor."""
-        super().on_render(canvas)
-
+        """The map; with the mouse over open ground, the way there (faint) and the target cell."""
         player = self.engine.player
         if self.mouse_motion and player.is_alive:
-            mouse_x, mouse_y = self.engine.mouse_location
-            path: List[Tuple] = self.engine.get_path_to(player, mouse_x, mouse_y)
-            for x, y in path:
-                highlight_world(self.engine, canvas, x, y, color.white)
+            self.engine.hover_overlay = lambda: self._draw_path(canvas)
+        super().on_render(canvas)
+
+    def _draw_path(self, canvas: Canvas) -> None:
+        import render_functions
+        engine, player = self.engine, self.engine.player
+        x, y = engine.mouse_location
+        game_map = engine.game_map
+        if not game_map.in_bounds(x, y) or not game_map.is_visible(x, y):
+            return
+        if any(e is not player for e in game_map.stack_at(x, y)):
+            return   # pointing at something: the tooltip is about that, not about walking
+        if render_functions.rock_face_at(engine, x, y) is not None:
+            return
+        path: List[Tuple] = engine.get_path_to(player, x, y)
+        for step in path:
+            highlight_world(engine, canvas, step[0], step[1], (140, 220, 230), alpha=45)
+        if path:
+            highlight_world(engine, canvas, path[-1][0], path[-1][1], (140, 220, 230), alpha=90)
 
     def ev_mousemotion(self, event: events.MouseMotion) -> None:
         super().ev_mousemotion(event)
