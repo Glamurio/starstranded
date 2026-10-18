@@ -69,6 +69,26 @@ def _mask_to_surface(mask: np.ndarray) -> pygame.Surface:
     return surface
 
 
+BONE = (228, 220, 196, 255)
+BONE_SHADE = (150, 142, 124, 255)
+
+
+def draw_bones(surface: pygame.Surface) -> None:
+    """A little skull and two crossed bones (24x24 tile), drawn pixel by pixel over `surface`."""
+    skull = ["..XXXX..", ".XXXXXX.", "XXXXXXXX", "X.XXXX.X", "XXXXXXXX", ".XXXXXX.", "..X..X.."]
+    for dy, row in enumerate(skull):
+        for dx, ch in enumerate(row):
+            if ch == "X":
+                eye = (dy, dx) in ((3, 1), (3, 6))
+                surface.set_at((3 + dx, 14 + dy), BONE_SHADE if eye else BONE)
+    for i in range(9):                                  # two crossed long bones
+        for x, y in ((12 + i, 6 + i), (12 + i, 14 - i)):
+            if 0 <= x < 24 and 0 <= y < 24:
+                surface.set_at((x, y), BONE)
+    for x, y in ((11, 5), (11, 15), (21, 15), (21, 5)):
+        surface.set_at((x, y), BONE)
+
+
 class SpriteAtlas:
     """Holds the sheet once and hands out cached sprite surfaces.
 
@@ -107,6 +127,18 @@ class SpriteAtlas:
             surface.fill((*tint, 255), special_flags=pygame.BLEND_RGBA_MULT)
         self._cache[key] = surface
         return surface
+
+    def get_remains(self, sprite: int, flipped: bool = False, tint: RGB = WHITE) -> pygame.Surface:
+        """What is left of a creature: its own sprite lying on its side (rotated a quarter turn, darkened) with bones on top."""
+        key = (sprite, bool(flipped), tuple(tint), "remains")
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        body = pygame.transform.rotate(self.get(sprite, flipped, tuple(int(c * 0.7) for c in tint)), 90)
+        draw_bones(body)
+        self._cache[key] = body
+        return body
 
     def get_on(self, sprite: int, flipped: bool, tint: RGB, bg: RGB) -> pygame.Surface:
         """The sprite over an opaque background; `sprite == NO_SPRITE` gives just the background."""

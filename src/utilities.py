@@ -148,10 +148,16 @@ def get_shade(color: tuple[float, float, float], factor: float = -0.5):
     return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))
 
 
-def get_gaussian_shade(color: tuple[float, float, float], sigma: float = 20):
-    """Get gaussian average of `color` as a shade, with a deviation of `sigma`"""
-    shade = (int(random.gauss(color[0], sigma)), int(random.gauss(color[1], sigma)), int(random.gauss(color[2], sigma)))
-    return (clamp(shade[0], 0, 255), clamp(shade[1], 0, 255), clamp(shade[2], 0, 255))
+def get_gaussian_shade(color: tuple[float, float, float], sigma: float = 20, rng=random):
+    """A gaussian variation of `color` (deviation `sigma` per channel) that never leaves the colour's group: a red animal
+    stays red (`naming.same_color_group`); a draw that drifts too far is thrown away. Falls back to `color` itself."""
+    from naming import same_color_group
+    base = tuple(int(c) for c in color)
+    for _ in range(24):
+        shade = tuple(clamp(int(rng.gauss(c, sigma)), 0, 255) for c in base)
+        if same_color_group(base, shade):
+            return shade
+    return base
 
 
 def is_mouse_in_rectangle(mouse, point, width: int, height: int) -> bool:

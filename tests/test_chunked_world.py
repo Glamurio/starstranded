@@ -109,7 +109,7 @@ def test_units_cannot_step_into_unloaded_chunks():
 @pytest.mark.parametrize("neighbour", [(1, 0), (0, 1), (-1, 0), (0, -1)])
 def test_terrain_is_continuous_across_chunk_borders(seed, neighbour, monkeypatch):
     """Two chunks generated separately agree with one generation of their union wherever the result does not depend
-    on the chunk's RNG (roots/trees and the random 'center' water variation). (Buildings and cave entrances are
+    on the chunk's RNG (trees and the random 'center' water variation). (Buildings and cave entrances are
     structures laid over the natural terrain and are switched off here.)"""
     import shafts
     from world import World
@@ -131,7 +131,6 @@ def test_terrain_is_continuous_across_chunk_borders(seed, neighbour, monkeypatch
         trees[sx, sy] = chunk.__dict__.get("pending_trees", np.zeros((CHUNK_W, CHUNK_H), bool))
     from procgen import neighbour_masks
     from worldgen import base_terrain
-    roots = tile_types.roots.light[0]
     kinds = base_terrain(source.noise, x0 - 2, y0 - 2, width + 4, height + 4)
     surrounded = np.zeros(kinds.shape, dtype=bool)
     for kind in (0, 2):  # water and walls pick their 'center' sprite at random when surrounded
@@ -140,7 +139,6 @@ def test_terrain_is_continuous_across_chunk_borders(seed, neighbour, monkeypatch
     surrounded = surrounded[2:-2, 2:-2]
     random_cells = (
         surrounded
-        | (stitched["light"]["sprite"] == roots) | (big["light"]["sprite"] == roots)
         | (stitched["light"]["sprite"] == tile_types.down_stairs.sprite)
     )
     same = ~random_cells

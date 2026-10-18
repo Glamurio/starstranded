@@ -168,6 +168,28 @@ def hue_name(color: RGB) -> str:
     return "red"
 
 
+HUE_TOLERANCE = 9.0         # degrees a shade may drift from its base colour's hue
+SATURATION_TOLERANCE = 0.18
+VALUE_TOLERANCE = 0.2
+
+
+def same_color_group(base: RGB, shifted: RGB) -> bool:
+    """Is `shifted` still recognisably `base`? Strict: it must have the same colour word (`hue_name`), and for a saturated base
+    the hue may drift only a few degrees and neither saturation nor brightness may jump. Used for every random shade."""
+    if hue_name(base) != hue_name(shifted):
+        return False
+    bh, bs, bv = colorsys.rgb_to_hsv(*(c / 255 for c in base))
+    sh, ss, sv = colorsys.rgb_to_hsv(*(c / 255 for c in shifted))
+    if abs(bs - ss) > SATURATION_TOLERANCE or abs(bv - sv) > VALUE_TOLERANCE:
+        return False
+    if bs >= 0.25 and bv >= 0.25:
+        drift = abs(bh - sh) * 360
+        drift = min(drift, 360 - drift)
+        if drift > HUE_TOLERANCE:
+            return False
+    return True
+
+
 def salient_traits(props: Mapping[str, float], limit: int = 2, family: Optional[str] = None) -> List[Tuple[str, str, float]]:
     """The most remarkable properties as (property, "high"/"low", salience), strongest first, measured against what is
     ordinary for the family. Only traits that have a word."""

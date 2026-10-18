@@ -599,7 +599,11 @@ class World(SpatialContainer):
                     if ground and skip.get((entity.x, entity.y)):
                         skip[(entity.x, entity.y)] -= 1
                         continue
-                    entity_blits.append((get(entity.sprite_id, entity.flipped, entity.shade), (sx * TILE, sy * TILE)))
+                    if entity.is_corpse and entity.category is EntityCategory.UNIT:
+                        picture = atlas.get_remains(entity.sprite_id, entity.mirrored and getattr(entity.kind, "mirror", False), entity.shade)
+                    else:
+                        picture = get(entity.sprite_id, entity.flipped, entity.shade)
+                    entity_blits.append((picture, (sx * TILE, sy * TILE)))
         surface.blits(entity_blits, doreturn=False)
         for x, y in hidden:
             canvas.badge(x - x0, y - y0)

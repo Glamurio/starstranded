@@ -13,7 +13,6 @@ from items import Stuff
 import species as defs
 from species import ItemKind, PlantCategory, PlantSpecies, STUMP, STUMP_SPRITES, make_plant_species
 
-from tile_types import roots
 
 from utilities import clamp, get_gaussian_shade
 

@@ -66,7 +66,11 @@ def test_corpse_uses_the_corpse_sprite_unmirrored(small_world):
     animal = Animal(); animal.place(4, 4, e.game_map); animal.mirrored = True
     live_sprite = animal.sprite_id
     animal.hp = 0; animal.die(None)
-    assert animal.sprite_id != live_sprite and animal.flipped is False and animal.render_order is RenderOrder.CORPSE
+    assert animal.sprite_id == live_sprite       # the corpse is the creature itself, lying on its side with bones
+    assert animal.flipped is False and animal.render_order is RenderOrder.CORPSE
+    atlas = SESSION.canvas.sprites
+    remains = atlas.get_remains(live_sprite, False, animal.shade)
+    assert remains.get_size() == atlas.get(live_sprite).get_size() and remains is not atlas.get(live_sprite)
 
 
 def test_entities_on_tiles_out_of_sight_are_not_drawn(small_world):

@@ -110,7 +110,7 @@ class Entity:
     def sprite_id(self) -> int:
         """Atlas id of the sprite to draw: the corpse sprite once dead, the live sprite otherwise."""
         kind = self.kind
-        if self.is_corpse:
+        if self.is_corpse and self.category is not EntityCategory.UNIT:   # creatures lie on their side (`atlas.get_remains`)
             corpse = kind.corpse_sprite_id
             if corpse is not None:
                 return corpse

@@ -184,12 +184,12 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     landscape["dark"]["fg"][open_ground] = (ground[open_ground] * 0.4).astype(np.uint8)
     density = np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[env["biome"]]
 
-    # Vegetation: roots wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
+    # Vegetation: wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
     # the biome (barren desert ... dense jungle).
     random_map = np.random.rand(pw, ph)
     threshold = 0.1 + (1.0 - density) * 0.45
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
-    landscape[tree_map] = tile_types.roots.get_array()
+    # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
 

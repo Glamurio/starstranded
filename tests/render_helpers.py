@@ -35,7 +35,10 @@ def expected_tile(entities, tile=None):
     sprites = SESSION.canvas.sprites
     surface = sprites.get_on(tile.sprite, False, tuple(tile.light_fg), tuple(tile.light_bg)).copy()
     for entity in entities:
-        surface.blit(sprites.get(entity.sprite_id, entity.flipped, entity.shade), (0, 0))
+        if entity.is_corpse and entity.category.name == "UNIT":
+            surface.blit(sprites.get_remains(entity.sprite_id, False, entity.shade), (0, 0))
+        else:
+            surface.blit(sprites.get(entity.sprite_id, entity.flipped, entity.shade), (0, 0))
     return pygame.surfarray.array3d(surface)
 
 

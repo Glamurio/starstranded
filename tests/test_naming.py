@@ -81,3 +81,35 @@ def test_gloss_explains_the_name():
 def test_provisional_description_hides_the_name():
     assert provisional("tree", (30, 60, 200)) == "blue tree"
     assert provisional("animal", (230, 120, 20), furred=True) == "orange furred animal"
+
+
+def test_shades_never_leave_their_colour_group():
+    import random
+    from utilities import get_gaussian_shade
+    rng = random.Random(3)
+    for _ in range(3000):
+        base = tuple(rng.randint(40, 240) for _ in range(3))
+        for sigma in (6, 12, 20):
+            shade = get_gaussian_shade(base, sigma, rng)
+            assert naming.same_color_group(base, shade), (base, shade)
+            assert naming.hue_name(shade) == naming.hue_name(base)
+
+
+def test_same_color_group_is_strict():
+    assert naming.same_color_group((200, 60, 60), (210, 70, 55))
+    assert not naming.same_color_group((200, 60, 60), (60, 200, 60))      # red -> green
+    assert not naming.same_color_group((200, 60, 60), (220, 150, 60))     # red -> orange
+    assert not naming.same_color_group((200, 60, 60), (100, 30, 30))      # much darker
+
+
+def test_every_planet_creature_and_plant_keeps_its_colour_word():
+    import random
+    from components.unit import Unit
+    import planet as planet_module
+    for seed in range(1, 6):
+        p = planet_module.generate_planet(seed) if hasattr(planet_module, "generate_planet") else None
+        if p is None:
+            return
+        for kind in p.fauna:
+            for _ in range(40):
+                assert naming.hue_name(Unit(kind).shade) == naming.hue_name(kind.color)

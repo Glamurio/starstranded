@@ -139,17 +139,6 @@ water = Tile(
     dark_bg=color.black,
     dtype=tile_dt
 )
-roots = Tile(
-    object_type="Roots",
-    walkable=True,
-    transparent=True,
-    sprite=(9, 5),
-    dark_bg=color.black,
-    light_bg=color.nigh_black,
-    dark_fg=color.dark_brown,
-    light_fg=color.brown,
-    dtype=tile_dt
-)
 wall_color = get_random_color(rng=_palette_rng)
 wall_variations = [
     (109, 0, "north_west"),

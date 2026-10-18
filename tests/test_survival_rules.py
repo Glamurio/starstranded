@@ -114,6 +114,7 @@ def test_sleep_needs_a_bed_and_heals(monkeypatch):
     e = new_game()
     p = e.player
     freeze(monkeypatch, 15.0)
+    monkeypatch.setattr(actions.SleepAction, "_enemy_in_view", lambda self: False)  # the world is random: no wanderers
     with pytest.raises(exceptions.Impossible):
         actions.SleepAction(p).perform()
     place_bed(e)
