@@ -496,7 +496,8 @@ def check(recipe: Recipe, unit, choices: Optional[Mapping[str, str]] = None) -> 
             material = material_of(chosen[0])
             if material is not None:
                 plan.parts[need.role] = material
-            name = material.name if material else chosen[0].get_title()
+            import lore
+            name = lore.material_name(lore.run_of(unit), material) if material else chosen[0].get_title()
             plan.add(True, f"{need.requirement(count)} -> {name}")
         else:
             have = max((len(v) for v in groups.values()), default=0)
@@ -551,6 +552,8 @@ def craft(recipe: Recipe, unit, choices: Optional[Mapping[str, str]] = None) -> 
     inventory = unit.inventory
     consumed = {role: (items[0].kind.key, len(items)) for role, items in plan.picks.items()}
     results = _build(recipe, plan, unit, consumed)
+    import lore
+    lore.learn_names(lore.run_of(unit), plan.parts.values())  # handling a material teaches its name
     gone = [i for items in plan.picks.values() for i in items] + list(plan.fuel)
     room = inventory.capacity - (len(inventory.contents) - len(gone))
     if len(results) > room:

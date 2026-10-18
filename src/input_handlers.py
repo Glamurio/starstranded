@@ -694,7 +694,9 @@ class CraftingMenuHandler(AskUserEventHandler):
             role = roles[self.role_i % len(roles)]
             mats = __import__("crafting").options(recipe, self.engine.player, role)
             chosen = (self.choices.get(recipe.key) or {}).get(role)
-            names = ", ".join((f"<{m.name}>" if m.id == chosen else m.name) for m in mats) or "none"
+            import lore
+            run = self.engine.game_world.run
+            names = ", ".join((f"<{lore.material_name(run, m)}>" if m.id == chosen else lore.material_name(run, m)) for m in mats) or "none"
             canvas.print(dx, row, f"Material for {role} (TAB, LEFT/RIGHT):", fg=color.impossible)
             for k, text in enumerate(self._wrap(names, width - 30)):
                 canvas.print(dx, row + 1 + k, text, fg=color.menu_text)
@@ -719,7 +721,11 @@ class CraftingMenuHandler(AskUserEventHandler):
             props = materials.derive_properties(plan.parts, rules, plan.quality, keys=keys)
         except Exception:
             return ""
-        return "Result: " + ", ".join(f"{k} {v:.1f}" for k, v in props.items()) + f"  quality {plan.quality:.1f}"
+        import lore
+        run = self.engine.game_world.run
+        shown = ", ".join(f"{k} {v:.1f}" if all(lore.property_known(run, m, k) for m in plan.parts.values()) else f"{k} ?"
+                          for k, v in props.items())
+        return "Result: " + shown + f"  quality {plan.quality:.1f}"
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         key = event.sym

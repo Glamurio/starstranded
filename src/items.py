@@ -72,7 +72,8 @@ class Stuff(Item):
         raise exceptions.Impossible(f"{self.get_title()} is a crafting material: build something with it ('R').")
 
     def get_title(self, exclude_attributes: bool = False) -> str:
-        return noun_title(self.substance.name, self.form)
+        import lore
+        return noun_title(lore.material_name(lore.run_of(self), self.substance), self.form)
 
 
 class Composite:

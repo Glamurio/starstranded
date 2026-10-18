@@ -94,7 +94,13 @@ class Entity:
     # ── static data, read from the definition ─────────────────────────────────────────
     @property
     def species(self) -> Optional[str]:
-        return getattr(self.kind, "name", None)
+        """The kind's name, or what it looks like while the player has not identified it (see `lore`)."""
+        name = getattr(self.kind, "name", None)
+        key = getattr(self.kind, "key", None)
+        if isinstance(key, str) and key.startswith("planet:"):
+            import lore
+            return lore.species_name(lore.run_of(self), self.kind)
+        return name
 
     @property
     def is_corpse(self) -> bool:
