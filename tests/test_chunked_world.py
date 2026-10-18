@@ -88,12 +88,28 @@ def test_camera_follows_and_mouse_maps_to_world_tiles():
     for _ in range(100):
         step(e, 1, 0)
     camera = e.camera
-    assert camera.to_screen(e.player.x, e.player.y) == (35, 20)
+    # the camera shows one whole page (a chunk-sized, grid-aligned screenful) and stays put while you walk inside it
+    assert camera.x0 % CHUNK_W == 0 and camera.y0 % CHUNK_H == 0 and camera.contains(e.player.x, e.player.y)
     handler = ih.MainGameEventHandler(e)
     handler.handle_events(MouseMotion(Point(10, 5)))
-    assert tuple(e.mouse_location) == camera.to_world(10, 5) == (e.player.x - 25, e.player.y - 15)
+    assert tuple(e.mouse_location) == camera.to_world(10, 5) == (camera.x0 + 10, camera.y0 + 5)
     handler.handle_events(MouseMotion(Point(75, 5)))  # side panel: not a map tile
-    assert tuple(e.mouse_location) == (e.player.x - 25, e.player.y - 15)
+    assert tuple(e.mouse_location) == (camera.x0 + 10, camera.y0 + 5)
+
+
+def test_page_camera_flips_at_the_edge_and_not_before():
+    e = flat_engine()
+    first = e.camera
+    start_x = e.player.x
+    seen = {(first.x0, first.y0)}
+    for _ in range(3 * CHUNK_W):
+        step(e, 1, 0)
+        cam = e.camera
+        assert cam.contains(e.player.x, e.player.y)
+        if cam.x0 == first.x0:
+            assert e.player.x < first.x0 + CHUNK_W   # it only changes page when the player leaves it
+        seen.add((cam.x0, cam.y0))
+    assert len(seen) >= 3 and e.player.x > start_x
 
 
 def test_units_cannot_step_into_unloaded_chunks():

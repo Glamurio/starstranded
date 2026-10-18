@@ -137,9 +137,13 @@ class Camera:
 
     @classmethod
     def follow(cls, world: World, x: int, y: int, width: int = VIEW_W, height: int = VIEW_H) -> Camera:
-        """Centred on (x, y); clamped to the map bounds for bounded maps."""
-        x0, y0 = x - width // 2, y - height // 2
+        """The page (one screenful, aligned to the chunk grid) that holds (x, y): the picture stays still while you walk
+        and the next page appears when you step over the edge. For bounded maps the pages start at the map's corner and the
+        last one is pulled back so it never shows beyond the map."""
         bounds = world.bounds
+        ox, oy = (bounds[0], bounds[1]) if bounds is not None else (0, 0)
+        x0 = (x - ox) // width * width + ox
+        y0 = (y - oy) // height * height + oy
         if bounds is not None:
             bx, by, bw, bh = bounds
             x0 = bx if bw <= width else max(bx, min(x0, bx + bw - width))
