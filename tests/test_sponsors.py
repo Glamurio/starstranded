@@ -148,7 +148,7 @@ def test_run_state_and_character_survive_save_and_load(tmp_path):
     e.save_as(path)
     loaded = setup_game.load_game(path)
     lr = loaded.game_world.run
-    assert lr.reputation == run.reputation and lr.flags == {"beacon": True} and lr.sponsor == "government_agency"
+    assert lr.reputation == run.reputation and lr.flags["beacon"] is True and lr.sponsor == "government_agency"
     assert lr.contracts == run.contracts and lr.knowledge.level("species:x", "diet") == 2
     p = loaded.player
     assert p.kind.key == "selenite_people" and p.background == "biologist"

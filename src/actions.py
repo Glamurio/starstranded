@@ -549,10 +549,26 @@ class InteractAction(Action):
                     return thing
         return None
 
-    def perform(self) -> None:
+    def _site(self):
+        from structures import Structure
+        world, e = self.engine.game_map, self.entity
+        best = None
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                for thing in world.get_entities_at_location(e.x + dx, e.y + dy):
+                    if isinstance(thing, Structure):
+                        d = max(abs(dx), abs(dy))
+                        if best is None or d < best[0]:
+                            best = (d, thing)
+        return None if best is None else best[1]
+
+    def perform(self):
         import crafting
         import materials
         from items import Stuff
+        site = self._site()
+        if site is not None:
+            return self.engine.session.push(handler) if (handler := site.interact(self.entity, self.engine)) else None
         fire = self._fire()
         if fire is None:
             raise exceptions.Impossible("There's nothing to interact with here.")

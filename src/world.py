@@ -901,6 +901,8 @@ class GameWorld:
             self.release_arrivals()
             from simulation import run_turn
             run_turn(self.engine)
+            import endings
+            endings.tick(self.engine)
             self.engine.update_fov()
 
         return self.current_time

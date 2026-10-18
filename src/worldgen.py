@@ -287,6 +287,7 @@ class NoiseWorldSource:
                 self._grow_flora(world, chunk, tree_map, env)
                 self._scatter_stones(world, chunk, env, reserved)
                 self._spawn_fauna(world, chunk, env, reserved)
+                self._place_sites(world, chunk)
         for entity in chunk.entities:
             if entity not in before:
                 entity.last_upkeep = now
@@ -354,6 +355,25 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         world.add_entity(Stuff(defs.PIECE_STONE, material), x, y)
 
 
+def _place_sites(self, world: "World", chunk: Chunk) -> None:
+    """The crash site around the spawn (chunk (0, 0)) and the precursor ruins and gate in their chunks (surface only)."""
+    import structures
+    game_world = getattr(world.engine, "game_world", None)
+    run = getattr(game_world, "run", None)
+    if self.floor != 1:
+        return
+    if chunk.key == (0, 0):
+        placed = structures.place_crash_site(world, self.spawn_point, self.floor_seed)
+        if run is not None:
+            run.wreck, run.pod = placed.get("ship"), placed.get("pod")
+    site = structures.ruin_chunks(self.floor_seed).get(chunk.key)
+    if site is not None:
+        at = structures.place_ruin(world, chunk, self.floor_seed, site)
+        if run is not None:
+            run.flags.setdefault("sites", {})[site] = at
+
+
+NoiseWorldSource._place_sites = _place_sites
 NoiseWorldSource._scatter_stones = _scatter_stones
 NoiseWorldSource._grow_flora = _grow_flora
 NoiseWorldSource._spawn_fauna = _spawn_fauna

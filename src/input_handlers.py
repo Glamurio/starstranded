@@ -184,6 +184,9 @@ class EventHandler(BaseEventHandler):
 
         if isinstance(action_or_state, actions.Action) and self.handle_action(action_or_state):
             # A valid action was performed.
+            if self.engine.game_world.run.ending is not None:
+                import screens
+                return screens.EndingHandler(self.engine)
             if not self.engine.player.is_alive:
                 # The player was killed sometime during or after the action.
                 return GameOverEventHandler(self.engine)
@@ -1133,3 +1136,11 @@ class PlaceConstructableHandler(SelectIndexHandler):
 
     def on_index_selected(self, x: int, y: int) -> Optional[ActionOrHandler]:
         return actions.PlaceConstructableAction(self.engine.player, self.item, x, y)
+
+
+def __getattr__(name):
+    """`input_handlers.PodHandler` and `EndingHandler` live in `screens` (they import this module)."""
+    if name in ("PodHandler", "EndingHandler"):
+        import screens
+        return getattr(screens, name)
+    raise AttributeError(name)

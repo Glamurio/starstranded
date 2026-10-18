@@ -277,7 +277,14 @@ HULL_PLATE = register(ItemKind("hull_plate", "Hull plate", sprite=(0, 25), color
 LENS = register(ItemKind("lens", "Lens", sprite=(2, 23), color=(200, 230, 255)))
 MEDKIT = register(ItemKind("medkit", "Medkit", sprite=(2, 24), color=(240, 100, 100)))
 SURVEY_KIT = register(ItemKind("survey_kit", "Survey kit", sprite=(3, 21), color=(120, 180, 240), tool_tags=("surveying",)))
-ARTIFACT = register(ItemKind("artifact", "Relic", sprite=(30, 21), color=(120, 230, 200), light_radius=0))
+ARTIFACT = register(ItemKind("artifact", "Relic", sprite=(1, 24), color=(120, 230, 200)))
+BEACON = register(ItemKind("beacon", "Distress beacon", sprite=(52, 19), color=(255, 120, 80)))
+# ── places: the crash site and the precursor ruins (see structures.py) ──
+SHIP = register(ItemKind("ship", "Crashed ship", sprite=(48, 22), color=(190, 190, 205), blocks_movement=True))
+WRECKAGE = register(ItemKind("wreckage", "Wreckage", sprite=(47, 21), color=(150, 150, 165), blocks_movement=True))
+CARGO_POD = register(ItemKind("cargo_pod", "Cargo pod", sprite=(38, 31), color=(230, 170, 70), blocks_movement=True))
+RUIN = register(ItemKind("ruin", "Ruin", sprite=(34, 22), color=(170, 200, 190), blocks_movement=True))
+GATE = register(ItemKind("gate", "Precursor gate", sprite=(30, 23), color=(120, 230, 200), blocks_movement=True))
 NAV_UNIT = register(ItemKind("nav_unit", "Navigation unit", sprite=(51, 22), color=(120, 160, 240)))
 
 

@@ -143,6 +143,11 @@ RECIPES: List[Recipe] = [
            (Need("lens", "Lens", ("Lens",), 1), Need("circuit", "Circuit", ("Circuit board",), 1),
             handle(3.0, role="frame")), "made", defs.SURVEY_KIT, tools=("workbench",), skill=(Skill.ENGINEERING, 2),
            designation="circuit", time=6),
+    Recipe("beacon", "Distress beacon", "A circuit, a power cell and a wire antenna: calls your sponsor's rescue ship once "
+           "they trust you enough to send one.", 5,
+           (Need("circuit", "Circuit", ("Circuit board",), 1), Need("cell", "Cell", ("Power cell",), 1),
+            Need("antenna", "Antenna", ("Wire",), 1, (("electrical_conductivity", 5.0),))), "made", defs.BEACON,
+           tools=("workbench",), skill=(Skill.ENGINEERING, 2), designation="circuit", time=6, efficiency=False),
     # ── 6. spacefaring ───────────────────────────────────────────────────────────────────────────────────────────────
     Recipe("nav_unit", "Navigation unit", "The brain of a ship: two circuits, a lens and a power cell.", 6,
            (Need("circuits", "Circuits", ("Circuit board",), 2), Need("lens", "Lens", ("Lens",), 1),

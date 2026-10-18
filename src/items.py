@@ -119,6 +119,9 @@ class Made(Composite, Item):
         if self.kind is defs.MEDKIT:
             from actions import UseMedkitAction
             return UseMedkitAction(user, self)
+        if self.kind is defs.BEACON:
+            import endings
+            return endings.activate_beacon(user, self)
         raise exceptions.Impossible(f"{self.get_title()} is a component; it is used by what it is built into.")
 
 
