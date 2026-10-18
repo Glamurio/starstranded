@@ -553,3 +553,36 @@ The plan above was implemented as written, with these specifics and deviations:
   (plants' wood, built walls); creatures use their plain numbers.
 - **Limitations:** sprites for new items reuse the nearest existing art (stone, ore, pieces share icons, furnace/workbench are
   placeholders) - tinted by material colour; held torches do not light the carrier (torches are placed).
+
+## Survival-game layer: people, sponsors, crash site, escape, survival, lore (branch `gameplay-core`)
+- **Capabilities, not flags.** Races, backgrounds and sponsor perks are `Grant`s of tagged capabilities (`capabilities.py`: capability,
+  modifier, restriction, trait; stats such as `breath_turns`, `scan_depth`). Gameplay asks `caps.has(tag)` / `caps.stat(name)`. Tool and
+  station tags are derived from what is carried or nearby. Alternative (per-race `if` branches) rejected: three races x nine backgrounds.
+- **Races** (`species.py`, lore in `characters.py`): Human (less crafting waste, omnivore, slowed in the dark), Selenite (crops, breath x3,
+  herbivore, brittle shell: blunt x1.5), Mau (agility 2.0, darkvision, claws, carnivore, will not wade into liquid). Diet and liquid
+  rules apply to the player as well as creatures (review defect #2).
+- **Backgrounds**: the six asked for plus Survivalist, Pilot and Archaeologist, each justified by an escape route (fire/shelter, ship
+  repair needs a pilot, ruins need linguistics/digging). Kits are built from standard-issue materials with the same item classes crafting
+  produces, so a corporate knife is just a knife made of better stuff.
+- **Sponsors** (`sponsors.py`, `factions.py`): value = base x sponsor premium x quality x saturation (0.9^n, floor 0.3). Factions carry
+  stance, trade link and a hawk/dove division; earning reputation spills over to allies/rivals, and every fifth native kill moves each
+  board by its leaning. Reputation is clamped to +-100. A kill pays at most one bounty (`run.hunt_claimed`).
+- **Run state** (`run.py`) is plain data inside the save (SAVE_VERSION 8): mode, seed, sponsor, credits, reputation, contracts, knowledge,
+  flags. No live objects. Old saves are refused, as before.
+- **Escape routes** (`structures.py`, `endings.py`): repair (4 hull plates, nav unit, power cell, a pilot), corporate rescue (reputation
+  >= 40 and >= 2 finished contracts, build a beacon, survive 60 turns), ancient gate (3 keys + 3 inscriptions read in full). Eight
+  endings. Keys are not for sale; each ruin also yields a sellable curio. Glyph study teaches once per 60 turns (no grinding at the stone).
+- **Survival** (`survival.py`): effective temperature = ambient + insulation x 1.5 + fire + shelter + bed; cold counter costs HP, heat
+  drains thirst; gas pockets below z=-2 use `breath_turns`. Costs 0.02 ms/turn (measured); the ~20-35 ms/turn is the pre-existing creature
+  simulation (`find_liquid`), not touched.
+- **Modes**: Roguelike = permadeath; the active save is deleted on death only if this run was loaded from it, and a finished run is never
+  written by the exit save. Casual = sleeping in a bed writes `savegame_bed`; death offers `R` to wake there; Continue falls back to the
+  bed save; a new run clears any stale bed save. One save slot: starting New Game and quitting overwrites it (documented, not warned).
+- **Lore** (`lore.py`, `knowledge.py`): facts have a difficulty and a skill domain; scanning reveals none/partial/full from scanner tier 1 +
+  skill + capability. Materials and creatures keep provisional names until learned (scan or craft). Scanning costs a turn, range 8, line of sight.
+- **UI**: main menu New Game / Continue / Settings / Exit; settings (3 volumes, fullscreen) persisted to `settings.json`; stepped character
+  creation (name, people, background, sponsor, mode, confirm) with lore and strengths/weaknesses; side panel shows temperature, breath,
+  rescue countdown, credits; screens for pod, codex (O), navigation (M), help (H).
+- **Audio**: the game has no sound assets, so volumes are saved and applied to pygame's mixer when it is running; nothing audible yet.
+- **Review**: an independent reviewer agent scored the first pass 5-9 per category and found 11 defects (H/M crash, player diet, save leaks,
+  sleeping death, key sale, hunt double pay, study grind, pod value, ...); all were fixed with regression tests in `tests/test_review_fixes.py`.

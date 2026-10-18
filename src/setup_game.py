@@ -70,13 +70,13 @@ def new_game(player: Unit, session=None, mode: str = "roguelike") -> Engine:
     engine.game_world.start()  # the surface: a chunked world around the start in chunk (0, 0)
     
     engine.message_log.add_message(
-        f"Hello and welcome, {player.name}, to yet another dungeon!", color.welcome_text
+        f"Hello and welcome, {player.name}, to a planet that wants you dead. Find a way off.", color.welcome_text
     )
 
     import survival
     if survival.effective_temperature(engine, player) < survival.COMFORT:
         engine.message_log.add_message(
-            "It is bitterly cold here. Get warm: build a campfire or a shelter, and wear what you can (H for help).",
+            "It is cold here. Get warm: build a campfire or a shelter, and wear what you can (H for help).",
             color.yellow)
     return engine
 

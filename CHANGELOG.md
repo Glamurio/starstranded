@@ -2,6 +2,16 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+
+## Survival game (branch `gameplay-core`, save version 8)
+- New: races Human / Selenite / Mau, nine backgrounds, five sponsors with contracts, reputation, supplies and a cargo pod.
+- New: a crash site next to the start (ship wreck, sponsor pod), precursor ruins and a gate elsewhere; three ways off the planet
+  (repair the ship, corporate rescue with a beacon, ancient gate) and eight endings.
+- New: cold, heat and bad air; fire, shelter and beds; sleeping (`Z`); pistol (`P`), bounty tracker (`K`), scanner (`S`), codex (`O`),
+  navigation (`M`), help (`H`). Materials and creatures have provisional names until you learn them.
+- New: Roguelike (permadeath) and Casual (bed saves) modes; main menu with Settings and Exit; stepped character creation.
+- Changed: the player obeys diet and liquid rules; inventory capacity 20; the welcome text.
+
 ## New Urizen sheet
 - Fix: lake edges drew as human figures. The terrain renderer packed sprite ids into 12 bits (max 4095) and the wider sheet
   goes past that; it now has 14 bits, a guard that fails at import if the sheet outgrows them, and a test over every sprite id.
