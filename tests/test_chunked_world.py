@@ -362,7 +362,7 @@ def test_save_and_load_in_the_middle_of_the_world(tmp_path):
 
     # saving again only rewrites what changed and removes files that are no longer referenced
     loaded.save_as(path)
-    files = list((tmp_path / "save").rglob("chunk_*.lzma"))
+    files = list((tmp_path / "save").rglob("chunk_*.zlib"))
     keys = {f.name.split(".")[0] for f in files}
     assert len(files) == len(keys)  # one file per chunk, old generations deleted
 

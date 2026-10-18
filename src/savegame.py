@@ -1,7 +1,8 @@
-"""Saving and loading: a directory with a manifest plus one file per chunk, all lzma-compressed pickles.
+"""Saving and loading: a directory with a manifest plus one file per chunk, pickles (the manifest lzma-compressed, chunks zlib-compressed: they are
+re-compressed on every unload, so speed matters more than size).
 
-    <save dir>/manifest.lzma                          {"version": 4, "body": <pickle>}
-    <save dir>/floor<N>/chunk_<cx>_<cy>.<gen>.lzma    one chunk: terrain, explored, its entities
+    <save dir>/manifest.lzma                          {"version": 5, "body": <pickle>}
+    <save dir>/floor<N>/chunk_<cx>_<cy>.<gen>.zlib    one chunk: terrain, explored, its entities
 
 The manifest body holds the floor (number, seed, chunk source with the floor's procedural species), the clock, the
 player (with inventory and equipment), the message log, the config, the loaded chunk set, the chunk file table
@@ -25,6 +26,7 @@ import glob
 import hashlib
 import io
 import lzma
+import zlib
 import os
 import pickle
 from typing import Dict, Optional, Tuple, TYPE_CHECKING
@@ -37,10 +39,11 @@ if TYPE_CHECKING:
     from engine import Engine
     from world import World
 
-SAVE_VERSION = 4
+SAVE_VERSION = 5
 """1 = pre-Phase-2 raw Engine pickle; 2 = species/instance split; 3 = sprite-id tiles; 4 = chunked world directory."""
 
 MANIFEST = "manifest.lzma"
+COMPRESSION_LEVEL = 3
 
 
 # ── pickling with references ──────────────────────────────────────────────────────
@@ -104,11 +107,11 @@ def _members(chunk: Chunk, player) -> set:
 def _dumps(obj, refs: Dict[int, tuple], members: Optional[set]) -> bytes:
     buffer = io.BytesIO()
     _Pickler(buffer, refs, members).dump(obj)
-    return lzma.compress(buffer.getvalue())
+    return zlib.compress(buffer.getvalue(), COMPRESSION_LEVEL)
 
 
 def _loads(blob: bytes, bindings: Dict[tuple, object], world: Optional[World]):
-    return _Unpickler(io.BytesIO(lzma.decompress(blob)), bindings, world).load()
+    return _Unpickler(io.BytesIO(zlib.decompress(blob)), bindings, world).load()
 
 
 # ── chunks ─────────────────────────────────────────────────────────────────────────
@@ -189,7 +192,7 @@ def save_game(engine: Engine, directory: str) -> None:
         if old and old[1] == digest and os.path.exists(os.path.join(directory, old[0])):
             files[key] = old
             continue
-        name = f"floor{world.floor}/chunk_{key[0]}_{key[1]}.{generation}.lzma"
+        name = f"floor{world.floor}/chunk_{key[0]}_{key[1]}.{generation}.zlib"
         _atomic_write(os.path.join(directory, name), blob)
         files[key] = (name, digest)
 
@@ -215,7 +218,7 @@ def save_game(engine: Engine, directory: str) -> None:
     _atomic_write(os.path.join(directory, MANIFEST), manifest)  # commit point
 
     referenced = {os.path.normpath(os.path.join(directory, name)) for name, _ in files.values()}
-    for path in glob.glob(os.path.join(directory, "floor*", "chunk_*.lzma*")):
+    for path in glob.glob(os.path.join(directory, "floor*", "chunk_*.zlib*")):
         if os.path.normpath(path) not in referenced:
             os.remove(path)
 
