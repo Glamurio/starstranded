@@ -2,6 +2,13 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Performance pass 1
+- Animals walk to their chosen wander spot instead of picking a new one every turn (hungry rabbits used to jitter).
+- Plants grow and drop fruit in every loaded chunk (not just the nearby ones), and at the same pace as before; trees no longer
+  all fruit on the same turn (staggered start). A full plant whose neighbours are all blocked no longer loses its harvest.
+- Chunk files are zlib-compressed; the save format is version 5, so earlier saves do not load (fresh start, as agreed).
+- Startup: `main.py` works from any directory and says to install pygame-ce when `pygame` is missing.
+
 ## Phase 5 — chunked world
 - **The world is endless:** each floor is made of 70x40 chunks generated as you walk; the view follows the player and
   scrolls across chunk borders seamlessly. The side panel shows your position.

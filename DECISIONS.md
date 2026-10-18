@@ -363,3 +363,21 @@ The plan above was implemented as written, with these specifics and deviations:
 | Saves | As planned (directory, generation-numbered chunk files, manifest as commit point, persistent ids). In-memory unloaded chunks are the same lzma bytes that are written. Default location `src/savegame/`; game over deletes it. | – |
 | Stairs | Placed in chunk (0, 0) 8–20 tiles from the start and made walkable; the previous floor is dropped. | Default from the brief; the old stairs were unreachable. |
 | Not done | Smooth pixel scrolling (`GameConfig.smooth_scroll` is reserved, the camera moves per tile); no performance pass (owner postponed it): border crossings cost ~40 ms (serialising leaving chunks), saving a large explored area ~100 ms; `g.py` was not reduced further (it only holds the handler stack, display and canvas, nothing was added). | Scope / owner instruction. |
+
+
+## Performance pass 1
+
+- **Persistent wander paths.** `BaseAI.wander` keeps `self.path` until it is walked or blocked (a blocked step clears it).
+  Alternative: cache paths per (origin, destination); rejected, the stale-path risk is the same and the AI owns its path anyway.
+- **Trip-sized path search.** `get_path_to` crops to `min(path_radius, 2*trip + PATH_MARGIN)`; a detour longer than that margin
+  finds no path (the caller re-plans or wanders). Long trips are unchanged.
+- **Hostile path reuse.** A chaser re-plans when its path is empty or the player is more than 2 tiles from where it ends.
+- **zlib for chunks.** Unloading serialised chunks that are re-read within seconds; lzma cost 6 ms per chunk for a size nobody
+  needs. Manifest stays lzma (tiny). Level 3 over 1: ~15% smaller for ~10% more time. `SAVE_VERSION = 5`.
+- **Event-driven plants.** A plant does nothing between harvests, so `World.plant_queue` (heap of `(due, n, plant)`, lazily
+  validated) wakes only the plants whose cycle completes. `upkeep` now also *is* the catch-up for plants, and replays every
+  missed cycle through `Plant.complete_cycle` (including dropping surplus fruit on neighbours), so long absences are no longer
+  an approximation for plants. Plants have no `ai` any more (`PlantAI` removed). They tick in all loaded chunks: the cost is
+  proportional to harvests, not to plants.
+- **Not done:** render caching (already 5 ms, drawn on change only), pre-generating chunks ahead of the player (border crossing
+  is ~20 ms, below one frame at 60 FPS plus a turn).

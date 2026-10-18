@@ -166,3 +166,19 @@ comparable 1:1 (tcod GPU console vs pygame CPU blits, see Phase 3); the scenario
 
 Reproduce: `git archive d3f5361 src | tar -x -C /tmp/p0 && python scripts/benchmark.py --src /tmp/p0/src --json base.json`,
 then `python scripts/benchmark.py --json final.json`. (The original code needs `matplotlib` installed to import.)
+
+
+## Performance pass 1 (post-modernization)
+
+Same script and machine within one session (`--quick` before, full run after); noisy rows omitted.
+
+| benchmark | before ms | after ms | what changed |
+|---|---:|---:|---|
+| `turn_hungry_200` | 52.8 | 18.0 | wandering keeps its destination/path instead of re-planning every turn; short trips search a small square |
+| `turn_hostile_200` | 47.9 | 2.9 | chasers re-plan only when the player has moved >2 tiles from the path's end (the benchmark player stands still, so this overstates the gain; real chases re-plan every few steps) |
+| `chunked.chunk_unload` | 9.2 | 1.7 | chunks are parked in memory as zlib (level 3) instead of lzma |
+| `chunked.border_crossing` | 47.3 | 19.8 | the above; the rest is generating 3 new chunks (~4 ms each) |
+| `chunked.save` (18 chunks) | 121.5 | 23.3 | zlib; the files are ~1.5x larger (234 KiB vs 95 KiB for the same save, now 27 chunks in the full run) |
+| plants per turn | ~3 ms (polling every plant) | ~0 | event-driven growth (`simulation.PlantQueue`) |
+
+Rendering (2.5 ms to draw, ~5 ms with present, only on change) was left alone: it is far inside the 16.7 ms budget.

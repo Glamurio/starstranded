@@ -3,7 +3,7 @@
 > Fresh session? Read this, then ARCHITECTURE_NOTES.md (final architecture) and the bottom of DECISIONS.md ("Phase 5 outcome").
 
 ## Current state
-- **All phases (0–5) DONE.** 321 tests pass (`python -m pytest -q`, ~10 s). Branch `modernize` (forked from `crafting` @ e01d7a4).
+- **All phases (0–5) DONE.** 327 tests pass (`python -m pytest -q`, ~10 s). Branch `modernize` (forked from `crafting` @ e01d7a4).
 - Working tree clean at hand-off. Deliverables: ARCHITECTURE_NOTES.md (final), DECISIONS.md, CHANGELOG.md, BENCHMARKS.md
   (baseline vs final), README dev section, screenshots in `docs/phase3`, `docs/phase4`, `docs/phase5` (Phase 0 tcod ones in `docs/baseline`).
 - Owner instruction: the performance overhaul is **postponed**; owner decisions were delegated (see "Needs owner decision" in the final report).
@@ -39,7 +39,7 @@ uv pip install "tcod>=21" numpy pytest "pygame-ce>=2.5"   # (+ matplotlib only f
   `worldgen.FlatWorldSource` gives an empty endless world for tests.
 - Tool calls are limited to ~175 s; split long runs.
 
-## Ideas for the postponed performance pass
-Border crossing (~40 ms: serialising leaving chunks; could be deferred/incremental), save of large explored areas (~100 ms for 27
-chunks), CPU rendering (~2.5 ms/frame; a cached terrain layer with dirty rects), per-turn plant upkeep in the ACTIVE chunk, the
-remaining O(n) loops over `world.units` (player auto-walk check, lightning target).
+## Performance pass 1 — done
+Path planning, chunk (de)compression, saves and plant growth were fixed (see BENCHMARKS.md, DECISIONS.md "Performance pass 1").
+Left: generating chunks ahead of the player (crossing ≈ 20 ms), animal AI cost (200 hungry animals ≈ 18 ms/turn; the AI rework
+should make it goal-driven), `Entity`/`Item` construction (gaussian tint per item).
