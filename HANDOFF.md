@@ -49,14 +49,14 @@ should make it goal-driven), `Entity`/`Item` construction (gaussian tint per ite
   DECISIONS for what and why; 375 tests.
 
 ## Known issues / next candidates
-- No water or drinking yet: `Meat` quenches thirst as a stopgap. Needs a liquid flag in `tile_dt` (like `open`/`stairs`) and a
-  drink action/behaviour step.
-- Felled trees leave no stump; saplings never regrow after being cut (plants are only removed).
+- Liquids exist (depth, hidden kind, flask, boiling, poison) but there are no science tools yet to identify toxic/acidic
+  liquid; a flask has no detail beyond sips/boiled. Fungi and cacti leave no remains when felled (own sprites planned).
+- Saplings never regrow after being cut (plants are only removed; a stump is left for most trees).
 - `open` tiles are not walkable and nothing falls; creatures and items on a layer you are not on are frozen, then caught up
   (only hunger/thirst/growth are replayed, not movement or hunts).
 - Looking down shows terrain only, not creatures or items on the lower layer.
-- Creatures never change layers (stairs are for the player); Selenites are hostile to the player, so they rarely hunt rabbits
-  when you are in view.
+- Creatures use stairs only when idle on one (4 %/turn) or as hostile followers (within 8 tiles of the player); none path to
+  stairs on purpose. Selenites are hostile to the player, so they rarely hunt rabbits when you are in view.
 - Wall edge sprites next to carved cave rooms are not recomputed for the carved tiles' neighbours beyond the chunk's padded
   region (cosmetic).
 - Visible map is fixed at one 70x40 view, the window only scales (DECISIONS.md, "Lighting and visible map size").

@@ -121,3 +121,10 @@ previous floor is dropped (no way back up).
   by `GameWorld.tile_on_layer/edit_tile`). Tile flags `open` and `stairs` live in `tile_types.tile_dt`.
 - Chunk blobs are `{key, tiles, explored, entities: <inner pickle>}` so terrain can be read without unpickling entities.
 
+
+## Liquids, flask, creature stairs
+- `liquids.py`: kinds, wading effects, `nearest_liquid`; `UseFlaskAction` (actions.py) fills/boils/drinks; `Unit.poison` ticks in
+  `GameWorld.pass_time` and `simulation._unit_upkeep`. Creatures drink via `behavior._drink` (impure only).
+- `Stump` (components/plant.py) is spawned by `Plant.die` for sprites in `species.STUMP_SPRITES`.
+- `GameWorld.send / arrivals / release_arrivals / place_on_layer` move creatures between layers; followers are queued in
+  `take_stairs` and flushed on layer change and in `save_game`.
