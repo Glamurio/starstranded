@@ -41,43 +41,46 @@ class PodHandler(AskUserEventHandler):
         return list(sponsors.SPONSORS.values())
 
     def on_render(self, canvas: Canvas) -> None:
+        import pygame
+        import widgets
+        from ui import Theme
         super().on_render(canvas)
-        x, y, width, height = layout.SIDE_PANEL_WIDTH, 2, 70, 28
-        canvas.draw_frame(x=x, y=y, width=width, height=height, title=self.TITLE, clear=True, fg=color.menu_text, bg=color.nigh_black)
         run = self.run
-        tabs = "   ".join((f"[{name}]" if i == self.tab else f" {name} ") for i, name in enumerate(TABS))
-        canvas.print(x + 2, y + 1, tabs, fg=color.yellow)
-        canvas.print(x + 2, y + 2, f"Credits: {run.credits}", fg=color.menu_text)
+        hints = {0: [("Enter", "hand in what you carry")], 1: [("Enter", "buy")], 2: []}[self.tab] + [("Tab", "next page"), ("Esc", "close")]
+        ix, iy, iw, ih = canvas.window(5, 4, 70, 30, title=self.TITLE, hints=hints, tabs=[("", name) for name in TABS], active=self.tab)
+        canvas.print(ix + iw - 1, iy - 1, f"credits: {run.credits}", fg=Theme.TITLE, alignment=__import__("ui").RIGHT)
         rows = self.rows()
         self.row = max(0, min(self.row, len(rows) - 1))
-        line = y + 4
-        if self.tab == 0:
-            if not rows:
-                canvas.print(x + 2, line, "No open contracts.", fg=color.impossible)
-            for i, c in enumerate(rows):
-                carry, worth = sponsors.offer_value(self.engine.player, run, c)
-                text = f"{c.title}  {c.filled}/{c.count}  (ready {carry}: {worth} cr now)  +{c.reputation} rep"
-                fg, bg = (color.black, color.white) if i == self.row else (color.menu_text, color.nigh_black)
-                canvas.print(x + 2, line + i, text[:width - 4], fg=fg, bg=bg)
-            canvas.print(x + 2, y + height - 3, "ENTER: hand in what you carry   TAB: next page   ESC: close", fg=color.impossible)
-        elif self.tab == 1:
-            for i, (key, (price, name)) in enumerate(rows):
-                fg, bg = (color.black, color.white) if i == self.row else (color.menu_text, color.nigh_black)
-                canvas.print(x + 2, line + i, f"{name:<24}{price:>4} cr", fg=fg, bg=bg)
-            canvas.print(x + 2, y + height - 3, "ENTER: buy   TAB: next page   ESC: close", fg=color.impossible)
+        list_w = 40
+        out = []
+        for item in rows:
+            if self.tab == 0:
+                out.append(widgets.Row(item.title, right=f"{item.filled}/{item.count}", data=item))
+            elif self.tab == 1:
+                out.append(widgets.Row(item[1][1], right=f"{item[1][0]} cr", data=item))
+            else:
+                out.append(widgets.Row(item.name, right=f"rep {run.reputation.get(item.key, 0)}" + ("  yours" if item.key == run.sponsor else ""), data=item))
+        self.list = widgets.ListView(out)
+        if rows:
+            self.list.selected = self.row
         else:
-            for i, spec in enumerate(rows):
-                rep = run.reputation.get(spec.key, 0)
-                mark = " <- your sponsor" if spec.key == run.sponsor else ""
-                fg, bg = (color.black, color.white) if i == self.row else (color.menu_text, color.nigh_black)
-                canvas.print(x + 2, line + i * 2, f"{spec.name:<24}reputation {rep:>4}{mark}", fg=fg, bg=bg)
+            canvas.print(ix, iy + 1, "No open contracts." if self.tab == 0 else "Nothing here.", fg=Theme.DIM)
+        self.list.draw(canvas, ix, iy, list_w, ih - 3)
+        dx = ix + list_w + 1
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (dx * 24 - 12, iy * 24), (dx * 24 - 12, (iy + ih) * 24), 1)
+        dw = iw - list_w - 1
+        if rows and self.tab == 0:
+            c = rows[self.row]
+            carry, worth = sponsors.offer_value(self.engine.player, run, c)
+            widgets.text_block(canvas, dx, iy, dw, ih, [(c.title, Theme.TITLE), f"filled {c.filled} of {c.count}",
+                                                           f"you carry {carry}, worth {worth} credits now", f"reputation +{c.reputation}"])
+        elif rows and self.tab == 2:
             spec = rows[self.row]
-            for k, text in enumerate(textwrap.wrap(spec.blurb + " Wants: " + ", ".join(spec.wants) + ".", width - 4)):
-                canvas.print(x + 2, line + 11 + k, text, fg=color.menu_text)
+            widgets.text_block(canvas, dx, iy, dw, ih, [(spec.name, Theme.TITLE), spec.blurb, "", "Wants: " + ", ".join(spec.wants) + "."])
+        if self.tab == 2:
             ready = sponsors.rescue_ready(run, run.sponsor)
-            canvas.print(x + 2, y + height - 4,
-                         f"Rescue: reputation {run.reputation.get(run.sponsor, 0)}/{sponsors.RESCUE_REPUTATION}, "
-                         f"{'ready - build a beacon' if ready else 'not yet'}", fg=color.green if ready else color.impossible)
+            canvas.print(ix, iy + ih - 1, f"Rescue: reputation {run.reputation.get(run.sponsor, 0)}/{sponsors.RESCUE_REPUTATION}, "
+                         f"{'ready - build a beacon' if ready else 'not yet'}", fg=Theme.GOOD if ready else Theme.DIM)
 
     def ev_keydown(self, event: events.KeyDown):
         key = event.sym
@@ -119,16 +122,14 @@ class EndingHandler(EventHandler):
 
     def on_render(self, canvas: Canvas) -> None:
         import endings
-        canvas.draw_frame(x=2, y=2, width=canvas.width - 4, height=canvas.height - 4, title="The End", clear=True,
-                          fg=color.white, bg=color.black)
-        row = 5
+        from ui import Theme, CENTER
+        ix, iy, iw, ih = canvas.window(6, 3, canvas.width - 12, canvas.height - 6, title="The End", hints=[("any key", "leave")])
+        row = iy + 2
         for i, text in enumerate(endings.epilogue(self.engine)):
-            for part in (textwrap.wrap(text, canvas.width - 12) or [""]):
-                canvas.print(canvas.width // 2, row, part, fg=color.yellow if i == 0 else color.menu_text, bg=color.black,
-                             alignment=__import__("ui").CENTER)
+            for part in canvas.wrap(text, iw - 8):
+                canvas.print(ix + iw // 2, row, part, fg=Theme.TITLE if i == 0 else Theme.TEXT, alignment=CENTER)
                 row += 1
-        canvas.print(canvas.width // 2, canvas.height - 5, "Press any key", fg=color.impossible, bg=color.black,
-                     alignment=__import__("ui").CENTER)
+            row += 1 if i == 0 else 0
 
     def ev_keydown(self, event: events.KeyDown):
         if event.sym in (Key.LSHIFT, Key.RSHIFT, Key.LCTRL, Key.RCTRL, Key.LALT, Key.RALT):
@@ -177,12 +178,12 @@ class NavigationHandler(AskUserEventHandler):
     """The navigation screen (M): your position and the way to the places you know."""
 
     def on_render(self, canvas: Canvas) -> None:
+        from ui import Theme
         super().on_render(canvas)
         lines = navigation_lines(self.engine)
-        canvas.draw_frame(x=layout.SIDE_PANEL_WIDTH, y=2, width=60, height=len(lines) + 4, title="Navigation", clear=True,
-                          fg=color.menu_text, bg=color.nigh_black)
+        ix, iy, iw, ih = canvas.window(8, 5, 54, len(lines) + 8, title="Navigation", hints=[("Esc", "close")])
         for i, line in enumerate(lines):
-            canvas.print(layout.SIDE_PANEL_WIDTH + 2, 4 + i, line, fg=color.menu_text)
+            canvas.print(ix, iy + i, line, fg=Theme.TEXT if i else Theme.TITLE)
 
 
 CONTROLS = (
@@ -205,8 +206,15 @@ class HelpHandler(AskUserEventHandler):
     """The key list (H)."""
 
     def on_render(self, canvas: Canvas) -> None:
+        from ui import Theme
         super().on_render(canvas)
-        canvas.draw_frame(x=2, y=2, width=76, height=len(CONTROLS) + 6, title="Controls", clear=True, fg=color.menu_text,
-                          bg=color.nigh_black)
-        for i, (keys, what) in enumerate(CONTROLS):
-            canvas.print(4, 4 + i, f"{keys:<16}{what}"[:72], fg=color.menu_text)
+        rows = [(keys, canvas.wrap(what, 40)) for keys, what in CONTROLS]
+        height = sum(len(lines) for _, lines in rows) + len(rows) + 5
+        ix, iy, iw, ih = canvas.window(4, 3, 62, height, title="Controls", hints=[("Esc", "close")])
+        row = iy
+        for keys, lines in rows:
+            canvas.print(ix, row, keys, fg=Theme.KEY)
+            for part in lines:
+                canvas.print(ix + 17, row, part, fg=Theme.TEXT)
+                row += 1
+            row += 1

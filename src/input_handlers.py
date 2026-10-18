@@ -6,6 +6,8 @@ from typing import Callable, List, Optional, Tuple, TYPE_CHECKING, Union
 
 import layout
 import events
+import pygame
+
 from events import Key, Mod, MouseButton, Point
 from ui import CENTER
 
@@ -135,18 +137,16 @@ class PopupMessage(BaseEventHandler):
         self.text = text
 
     def on_render(self, canvas: Canvas) -> None:
-        """Render the parent and dim the result, then print the message on top."""
+        """Render the parent and dim the result, then a small window with the message on top."""
+        from ui import Theme
         self.parent.on_render(canvas)
         canvas.dim()
-
-        canvas.print(
-            canvas.width // 2,
-            canvas.height // 2,
-            text=self.text,
-            fg=color.white,
-            bg=color.black,
-            alignment=CENTER,
-        )
+        lines = canvas.wrap(self.text, 36)
+        height = len(lines) + 6
+        x, y = (canvas.width - 40) // 2, (canvas.height - height) // 2
+        ix, iy, iw, ih = canvas.window(x, y, 40, height, hints=[("any key", "continue")])
+        for k, line in enumerate(lines):
+            canvas.print(ix + iw // 2, iy + 1 + k, line, fg=Theme.TEXT, alignment=CENTER)
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[BaseEventHandler]:
         """Any key returns to the parent handler."""
@@ -269,14 +269,49 @@ class AskUserEventHandler(EventHandler):
         self.resolve_handler()
         
 
-class CodexHandler(AskUserEventHandler):
-    """The codex: everything the scanner and your work have taught you, by category. Left/right changes page."""
+class Panel(AskUserEventHandler):
+    """Base of the windowed screens: draws the game behind, then a framed window (optionally with the shared tab row), and
+    switches to the next screen with TAB. Subclasses draw their content into the area `frame()` returns."""
+
+    TITLE = ""
+    WIDTH = 62
+    HEIGHT = 36
+    TABBED = False
+    HINTS: list = [("Esc", "close")]
+    X = 4
+    Y = 2
+
+    def frame(self, canvas: Canvas, hints=None, title: Optional[str] = None):
+        import widgets
+        prev = self.session.handlers.index(self) - 1 if self in self.session.handlers else -1
+        parent = self.session.handlers[prev] if prev >= 0 else None
+        (parent or super()).on_render(canvas)
+        tabs = widgets.tab_titles() if self.TABBED else None
+        hints = list(hints if hints is not None else self.HINTS)
+        if self.TABBED:
+            hints.insert(-1, ("Tab", "next screen"))
+        return canvas.window(self.X, self.Y, self.WIDTH, self.HEIGHT, title=title or self.TITLE, hints=hints, tabs=tabs,
+                             active=widgets.tab_index(self) if self.TABBED else 0)
+
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
+        if self.TABBED and event.sym == Key.TAB:
+            import widgets
+            return widgets.next_screen(self, -1 if event.mod & (Mod.LSHIFT | Mod.RSHIFT) else 1)
+        return super().ev_keydown(event)
+
+
+class CodexHandler(Panel):
+    """The codex (a journal): everything the scanner and your work have taught you, by category, with what is known on the
+    right. Up/down chooses an entry."""
 
     TITLE = "Codex"
+    TABBED = True
+    HINTS = [("a-z", "choose"), ("Up/Down", "browse"), ("Esc", "close")]
 
     def __init__(self, engine: Engine):
         super().__init__(engine)
         self.page = 0
+        self.list = None
 
     def pages(self):
         import lore
@@ -291,21 +326,56 @@ class CodexHandler(AskUserEventHandler):
             out.append((category, lines or ["Nothing learned yet."]))
         return out
 
+    def _rows(self):
+        import lore
+        import widgets
+        entries = lore.codex_entries(self.engine)
+        rows = []
+        for category, items in entries.items():
+            if not items:
+                continue
+            rows.append(widgets.Row(category, header=True))
+            for subject, title, facts in items:
+                rows.append(widgets.Row(title, data=(subject, title, facts)))
+        return rows
+
     def on_render(self, canvas: Canvas) -> None:
-        super().on_render(canvas)
-        pages = self.pages()
-        self.page %= len(pages)
-        category, lines = pages[self.page]
-        tabs = "  ".join(("[" + c + "]") if i == self.page else c for i, (c, _) in enumerate(pages))
-        height = min(len(lines) + 4, 40)
-        canvas.draw_frame(x=2, y=1, width=76, height=height, title=self.TITLE, clear=True, fg=(255, 255, 255), bg=(0, 0, 0))
-        canvas.print(x=3, y=2, text=tabs)
-        for i, line in enumerate(lines[:height - 4]):
-            canvas.print(x=3, y=4 + i, text=line[:72])
+        import lore
+        import widgets
+        from ui import Theme
+        ix, iy, iw, ih = self.frame(canvas)
+        rows = self._rows()
+        if not rows:
+            canvas.print(ix, iy + 1, "Nothing learned yet.", fg=Theme.TITLE)
+            widgets.text_block(canvas, ix, iy + 3, iw, 5, ["Scan things with S, or work with materials, to learn about them."])
+            return
+        if self.list is None:
+            self.list = widgets.ListView(rows)
+        else:
+            self.list.set_rows(rows)
+        list_w = 26
+        self.list.draw(canvas, ix, iy, list_w, ih)
+        dx = ix + list_w + 1
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (dx * 24 - 12, iy * 24), (dx * 24 - 12, (iy + ih) * 24), 1)
+        current = self.list.current
+        if current is not None:
+            subject, title, facts = current.data
+            canvas.print(dx, iy, title, fg=Theme.TITLE)
+            lines = [(l, Theme.DIM if "???" in l else Theme.TEXT) for l in lore.describe_lines(self.engine.game_world.run, subject, facts)]
+            widgets.text_block(canvas, dx, iy + 2, iw - list_w - 1, ih - 2, lines)
 
     def ev_keydown(self, event):
+        if self.list is not None:
+            if event.sym == Key.UP:
+                self.list.move(-1)
+                return None
+            if event.sym == Key.DOWN:
+                self.list.move(1)
+                return None
+            if Key.A <= event.sym <= Key.Z:
+                self.list.select_key(chr(event.sym - Key.A + ord("a")))
+                return None
         if event.sym in (Key.LEFT, Key.RIGHT):
-            self.page += 1 if event.sym == Key.RIGHT else -1
             return None
         return super().ev_keydown(event)
 
@@ -361,90 +431,85 @@ class PickupHandler(AskUserEventHandler):
         
 
 
-class CharacterScreenEventHandler(AskUserEventHandler):
-    TITLE = "Character Information"
+class CharacterScreenEventHandler(Panel):
+    """The character sheet: who you are, how you are doing, what you are trained in and what your people can do."""
+
+    TITLE = "Character"
+    TABBED = True
 
     def on_render(self, canvas: Canvas) -> None:
-        super().on_render(canvas)
+        import widgets
+        import capabilities
+        from ui import Theme
+        ix, iy, iw, ih = self.frame(canvas)
+        p = self.engine.player
+        run = self.engine.game_world.run
+        widgets.sprite_slot(canvas, ix, iy, p.sprite_id, p.color, getattr(p, "flipped", False))
+        canvas.print(ix + 5, iy, p.name or "Survivor", fg=Theme.TITLE)
+        canvas.print(ix + 5, iy + 1, str(p.species), fg=Theme.TEXT)
+        canvas.print(ix + 5, iy + 2, (getattr(p, "background", None) or "").replace("_", " "), fg=Theme.DIM)
+        sponsor = getattr(run, "sponsor", None)
+        if sponsor:
+            canvas.print(ix + 5, iy + 3, f"sponsor: {sponsor.replace('_', ' ')}", fg=Theme.DIM)
+        stats = [
+            ("Level", f"{p.level.current_level}"),
+            ("Experience", f"{p.level.current_xp} / {p.level.experience_to_next_level}"),
+            ("Hit points", f"{p.hp} / {p.max_hp}"),
+            ("Attack", f"{p.power}"),
+            ("Defence", f"{p.defense}"),
+            ("Hunger", f"{p.hunger} / 100"),
+            ("Thirst", f"{p.thirst} / 100"),
+            ("Credits", f"{run.credits}"),
+        ]
+        canvas.print(ix, iy + 5, "Statistics", fg=Theme.TITLE)
+        for k, (name, value) in enumerate(stats):
+            canvas.print(ix, iy + 6 + k, name, fg=Theme.TEXT)
+            canvas.print(ix + 24, iy + 6 + k, value, fg=Theme.HILITE_TEXT, alignment=ui_right())
+        dx = ix + 28
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (dx * 24 - 12, iy * 24), (dx * 24 - 12, (iy + ih) * 24), 1)
+        width = iw - 29
+        canvas.print(dx, iy, "Skills", fg=Theme.TITLE)
+        row = iy + 1
+        skills = list(p.skills.items())
+        if not skills:
+            canvas.print(dx, row, "untrained", fg=Theme.DIM)
+            row += 1
+        for skill, level in skills:
+            canvas.print(dx, row, skill.value, fg=Theme.TEXT)
+            canvas.print(dx + width - 1, row, str(level), fg=Theme.HILITE_TEXT, alignment=ui_right())
+            row += 1
+        row += 1
+        canvas.print(dx, row, "Traits and abilities", fg=Theme.TITLE)
+        row += 1
+        for tag in p.capabilities.tags:
+            row += widgets.text_block(canvas, dx, row, width, ih - (row - iy), [(f"{tag.replace('_', ' ')}: {capabilities.TAGS[tag].description}", Theme.TEXT)])
+            if row >= iy + ih:
+                break
 
-        if self.engine.camera.to_screen(self.engine.player.x, self.engine.player.y)[0] <= 30:
-            x = 40
-        else:
-            x = 0
 
-        y = 0
-
-        width = len(self.TITLE) + 4
-
-        canvas.draw_frame(
-            x=x,
-            y=y,
-            width=width,
-            height=7,
-            title=self.TITLE,
-            clear=True,
-            fg=(255, 255, 255),
-            bg=(0, 0, 0),
-        )
-
-        canvas.print(
-            x=x + 1, y=y + 1, text=f"Level: {self.engine.player.level.current_level}"
-        )
-        canvas.print(
-            x=x + 1, y=y + 2, text=f"XP: {self.engine.player.level.current_xp}"
-        )
-        canvas.print(
-            x=x + 1,
-            y=y + 3,
-            text=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
-        )
-
-        canvas.print(
-            x=x + 1, y=y + 4, text=f"Attack: {self.engine.player.power}"
-        )
-        canvas.print(
-            x=x + 1, y=y + 5, text=f"Defense: {self.engine.player.defense}"
-        )
+def ui_right() -> int:
+    import ui
+    return ui.RIGHT
 
 
-class LevelUpEventHandler(AskUserEventHandler):
-    TITLE = "Level Up"
+class LevelUpEventHandler(Panel):
+    TITLE = "Level up"
+    WIDTH = 44
+    HEIGHT = 14
+    X = 13
+    Y = 12
+    HINTS = [("a-c", "choose")]
 
     def on_render(self, canvas: Canvas) -> None:
-        super().on_render(canvas)
-
-        x = 0
-        y = 0
-
-        canvas.draw_frame(
-            x=x,
-            y=y,
-            width=35,
-            height=8,
-            title=self.TITLE,
-            clear=True,
-            fg=(255, 255, 255),
-            bg=(0, 0, 0),
-        )
-
-        canvas.print(x=x + 1, y=1, text="Congratulations! You level up!")
-        canvas.print(x=x + 1, y=2, text="Select an attribute to increase.")
-
-        canvas.print(
-            x=x + 1,
-            y=4,
-            text=f"a) Constitution (+20 HP, from {self.engine.player.max_hp})",
-        )
-        canvas.print(
-            x=x + 1,
-            y=5,
-            text=f"b) Strength (+1 attack, from {self.engine.player.power})",
-        )
-        canvas.print(
-            x=x + 1,
-            y=6,
-            text=f"c) Agility (+1 defense, from {self.engine.player.defense})",
-        )
+        import widgets
+        from ui import Theme
+        ix, iy, iw, ih = self.frame(canvas)
+        p = self.engine.player
+        canvas.print(ix, iy, "You grow stronger. Choose what to improve.", fg=Theme.TITLE)
+        for k, text in enumerate((f"Constitution  +20 hit points (now {p.max_hp})", f"Strength      +1 attack (now {p.power})",
+                                  f"Agility       +1 defence (now {p.defense})")):
+            canvas.print(ix, iy + 2 + k * 2, "abc"[k] + ")", fg=Theme.KEY)
+            canvas.print(ix + 2, iy + 2 + k * 2, text, fg=Theme.TEXT)
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         player = self.engine.player
@@ -512,114 +577,91 @@ class InventoryEventHandler(AskUserEventHandler):
         self.offset = offset
         self.canvas = canvas
 
-    def on_render(self, canvas: Canvas) -> None:
-        """
-        Render an inventory menu, which displays the items in the inventory.
-        """
-        is_player = False
-        prev_index = self.session.handlers.index(self) - 1
-        parent = self.session.handlers[prev_index] if prev_index >= 0 else None
+    WIDTH = 62
+    HEIGHT = 36
+    DETAIL = 24
+    RESERVED = ""        # hotkey letters an inventory screen keeps for itself
+    TABBED = False       # the main inventory shares the tab row with the other screens
 
-        if parent: 
+    def _source(self) -> list:
+        """The things listed, in the order they are shown (grouped under category headings)."""
+        import widgets
+        source = list(self.inventory.items) if self.inventory else list(self.entities or [])
+        order = {name: i for i, name in enumerate(widgets.CATEGORY_ORDER)}
+        return sorted(source, key=lambda item: order.get(widgets.item_category(item), len(order)))
+
+    def _parent_handler(self):
+        prev_index = self.session.handlers.index(self) - 1 if self in self.session.handlers else -1
+        return self.session.handlers[prev_index] if prev_index >= 0 else None
+
+    def on_render(self, canvas: Canvas) -> None:
+        """Draw the screen behind, then the window: a list with letter hotkeys on the left, the highlighted thing on the right."""
+        import widgets
+        from ui import Theme
+        parent = self._parent_handler()
+        if parent:
             parent.on_render(canvas)
         else:
             super().on_render(canvas)
-        
+
+        player = self.engine.player
+        is_player = bool(self.inventory) and self.inventory.parent == player
         if self.inventory:
-            self.TITLE = f"{self.inventory.parent.get_title()}"
-
-        if self.inventory and self.inventory.parent == self.engine.player:
-            is_player = True
-            self.TITLE = f"Inventory"
-
-        self.console_x = layout.SIDE_PANEL_WIDTH * (1 + self.offset)
-        self.console_y = 1 + self.offset
-
-        if self.inventory:
-            # Instantiate placeholders
             self.inventory.instantiate_placeholders()
-            self.inventory_entries = self.inventory.items
-        else:
-            self.inventory_entries = self.entities
+            self.TITLE = "Inventory" if is_player else f"{self.inventory.parent.get_title()}"
+        self.inventory_entries = self._source()
         self.entries_amount = len(self.inventory_entries)
-
         if not self.inventory and self.entries_amount:
             self.TITLE = f"Objects at {(self.inventory_entries[0].x, self.inventory_entries[0].y)}"
 
-        self.menu_height = self.height_per_item * self.entries_amount + 6
+        x0, y0 = 4 + 3 * self.offset, 2 + self.offset
+        self.console_x, self.console_y = x0, y0
+        self.menu_width, self.menu_height = self.WIDTH, self.HEIGHT
+        hints = [("a-z", "choose"), ("Enter", "select")]
+        if self.TABBED and is_player:
+            hints.append(("Tab", "next screen"))
+        if not is_player and self.entries_amount and hasattr(self, "on_items_selected"):
+            hints.append(("g", "grab all"))
+        hints.append(("Esc", "close"))
+        tabs = widgets.tab_titles() if self.TABBED and is_player else None
+        ix, iy, iw, ih = canvas.window(x0, y0, self.WIDTH, self.HEIGHT, title=self.TITLE, hints=hints, tabs=tabs, active=0)
 
-        if self.menu_height <= 4:
-            self.menu_height = 4
-
-        self.menu_width = 24
-
-        canvas.draw_frame(
-            x=self.console_x,
-            y=self.console_y,
-            width=self.menu_width,
-            height=self.menu_height,
-            title=self.TITLE,
-            clear=True,
-            fg=color.menu_text,
-            bg=color.nigh_black,
-        )
-
+        list_w = iw - self.DETAIL - 1
         if not self.entries_amount:
-            canvas.print(self.console_x + 1, self.console_y + 2, text="(Empty)")
+            canvas.print(ix, iy + 1, "(nothing here)", fg=Theme.DIM)
             return
+        equipped = lambda item: isinstance(item, Equippable) and item.equipped  # noqa: E731
+        self.list = widgets.ListView(widgets.item_rows(self.inventory_entries, equipped), reserved=self.RESERVED)
+        shown = self.menu_i if self.menu_i is not None and 0 <= self.menu_i < self.entries_amount else None
+        if shown is not None:
+            for index, row in enumerate(self.list.rows):
+                if row.data is self.inventory_entries[shown]:
+                    self.list.selected = index
+        self.list.draw(canvas, ix, iy, list_w, ih)
+        self.buttons = {}
+        for rect, index in self.list.hits:
+            data = self.list.rows[index].data
+            if data in self.inventory_entries:
+                self.buttons[self.inventory_entries.index(data)] = {"x": rect.x // 24, "y": rect.y // 24}
 
-        if self.entries_amount > 0:
-            for i, entity in enumerate(self.inventory_entries):
-
-                button_x = self.console_x + 2
-                button_y = self.console_y + (i*2) + 2
-                is_equipped = False
-                entity_title = f"{entity.get_title()}"
-                button_string = entity_title
-
-                if entity.has_inventory:
-                    button_string = f"{entity_title} >"
-                if isinstance(entity, Equippable):
-                    item: Equippable = entity
-                    is_equipped = item.equipped
-                    button_string = f"{entity_title} (E)" if is_equipped else button_string
-
-                self.buttons[i] = {
-                    'x': button_x + self.menu_width // 2 - 2,
-                    'y': button_y,
-                }
-
-                canvas.fill(button_x, button_y, 1, 1, color.nigh_black)
-                draw_entity_icon(canvas, button_x, button_y, entity)
-                canvas.print(
-                    button_x + 2,
-                    button_y,
-                    text=button_string,
-                    fg=color.menu_text_inverse if i == self.button_highlight else color.menu_text,
-                    bg=color.white if i == self.button_highlight else color.nigh_black,
-                )
-
-            if not is_player:
-                grab_i = self.entries_amount + 1
-                button_x = self.console_x + 2
-                button_y = self.console_y + (grab_i*2) + 2
-
-                self.buttons[grab_i] = {
-                    'x': button_x + self.menu_width // 2 - 2,
-                    'y': button_y,
-                }
-
-                canvas.print(
-                    button_x,
-                    button_y,
-                    text="g) Grab All",
-                    fg=color.menu_text_inverse if grab_i == self.button_highlight else color.menu_text,
-                    bg=color.white if grab_i == self.button_highlight else color.nigh_black,
-                )
+        # the highlighted item, in a framed slot with what you may read about it
+        dx = ix + list_w + 1
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (dx * 24 - 12, iy * 24), (dx * 24 - 12, (iy + ih) * 24), 1)
+        row = self.list.current
+        item = row.data if row is not None else None
+        if item is not None:
+            widgets.sprite_slot(canvas, dx + (self.DETAIL - 4) // 2, iy, item.sprite_id, item.color, getattr(item, "flipped", False))
+            widgets.text_block(canvas, dx, iy + 5, self.DETAIL, ih - 5, widgets.item_details(self.engine, item))
 
     def on_entity_selected(self, entity: Entity) -> Optional[ActionOrHandler]:
         if entity.has_inventory:
             return InventoryLootHandler(self.engine, self.engine.player, entity.inventory, canvas=self.canvas, offset=1)
+
+    def _activate(self, index: int) -> Optional[ActionOrHandler]:
+        item = self.inventory_entries[index]
+        if isinstance(item, Item):
+            return self.on_item_selected(item)
+        return self.on_entity_selected(item)
 
     def ev_keydown(
         self, event: events.KeyDown
@@ -627,63 +669,67 @@ class InventoryEventHandler(AskUserEventHandler):
 
         if event.sym == Key.UP:
             self.menu_i = 0 if self.menu_i is None else self.menu_i
-            self.menu_i = self.menu_i-1 if self.menu_i > 0 else self.entries_amount
+            self.menu_i = self.menu_i-1 if self.menu_i > 0 else self.entries_amount - 1
         elif event.sym == Key.DOWN:
             self.menu_i = -1 if self.menu_i is None else self.menu_i
-            self.menu_i = self.menu_i+1 if not self.menu_i == self.entries_amount else 0
+            self.menu_i = self.menu_i+1 if not self.menu_i >= self.entries_amount - 1 else 0
 
         self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
 
+        if self.TABBED and event.sym in (Key.TAB, Key.LEFT, Key.RIGHT) and self.inventory and self.inventory.parent == self.engine.player:
+            import widgets
+            return widgets.next_screen(self, -1 if event.sym == Key.LEFT or event.mod & (Mod.LSHIFT | Mod.RSHIFT) else 1)
+
         if event.sym == Key.G and hasattr(self, "on_items_selected"):
             return self.on_items_selected(self.inventory_entries)
-        
+
+        if Key.A <= event.sym <= Key.Z and self.entries_amount:   # a letter chooses the entry shown with it
+            import widgets
+            lv = getattr(self, "list", None)
+            if lv is not None:
+                index = lv.keys.get(chr(event.sym - Key.A + ord("a")))
+                if index is not None and lv.rows[index].data in self.inventory_entries:
+                    self.menu_i = self.button_highlight = self.inventory_entries.index(lv.rows[index].data)
+                    return self._activate(self.menu_i)
+
         if event.sym in CONFIRM_KEYS and (self.menu_i is None or not self.inventory_entries
                                           or not 0 <= self.menu_i < len(self.inventory_entries)):
             return None   # nothing selected (or nothing to select)
         if event.sym in CONFIRM_KEYS:
-            item: Item = self.inventory_entries[self.menu_i]
-            if isinstance(item, Item):
-                return self.on_item_selected(item)
+            return self._activate(self.menu_i)
 
-            entity: Entity = self.inventory_entries[self.menu_i]
-            return self.on_entity_selected(entity)
-
+        if event.sym in (Key.UP, Key.DOWN):
+            return None
         return super().ev_keydown(event)
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Called when the user selects a valid item."""
         raise NotImplementedError()
-                
 
     def ev_mousebuttondown(
         self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
-        """Left click confirms a selection."""
+        """Left click on an entry selects it; anywhere else (or another button) closes."""
         if not event.button == MouseButton.LEFT:
             return self.resolve_handler()
-
-        for i, item in enumerate(self.inventory_entries):
-            if not self.button_highlight == i:
-                continue
-
-            if isinstance(item, Item):
-                return self.on_item_selected(item)
-
-            entity: Entity = item
-            return self.on_entity_selected(entity)
+        lv = getattr(self, "list", None)
+        if lv is not None:
+            index = lv.row_at(event.position[0] * 24 + 1, event.position[1] * 24 + 1)
+            if index is not None and lv.rows[index].data in self.inventory_entries:
+                self.menu_i = self.button_highlight = self.inventory_entries.index(lv.rows[index].data)
+                return self._activate(self.menu_i)
         return self.resolve_handler()
 
     def ev_mousemotion(
         self, event: events.MouseMotion
     ) -> Optional[ActionOrHandler]:
         """Tracks mouse movement"""
-
-        for key in self.buttons:
-            button_pt = Point(self.buttons[key]['x'], self.buttons[key]['y'])
-            in_rect = is_mouse_in_rectangle(event, button_pt, self.menu_width, self.button_height)
-
-            if in_rect:
-                self.button_highlight = key
+        lv = getattr(self, "list", None)
+        if lv is None:
+            return None
+        index = lv.row_at(event.position[0] * 24 + 1, event.position[1] * 24 + 1)
+        if index is not None and lv.rows[index].data in self.inventory_entries:
+            self.menu_i = self.button_highlight = self.inventory_entries.index(lv.rows[index].data)
 
 
 class CraftingMenuHandler(AskUserEventHandler):
@@ -715,54 +761,82 @@ class CraftingMenuHandler(AskUserEventHandler):
         recipe = recipe or self.recipe
         return crafting.check(recipe, self.engine.player, self.choices.get(recipe.key))
 
+    WIDTH = 62
+    HEIGHT = 36
+    LIST_W = 28
+
     def on_render(self, canvas: Canvas) -> None:
-        super().on_render(canvas)
-        x, y = layout.SIDE_PANEL_WIDTH, 1
-        width, height = 68, self.LIST_ROWS + 6
-        canvas.draw_frame(x=x, y=y, width=width, height=height, title=self.TITLE, clear=True, fg=color.menu_text, bg=color.nigh_black)
-        top = max(0, min(self.button_highlight - self.LIST_ROWS // 2, len(self.recipes) - self.LIST_ROWS))
-        for row, i in enumerate(range(top, min(len(self.recipes), top + self.LIST_ROWS))):
-            recipe = self.recipes[i]
-            ok = self.plan(recipe).ok
-            selected = i == self.button_highlight
-            fg = color.black if selected else (color.menu_text if ok else color.impossible)
-            bg = color.white if selected else color.nigh_black
-            canvas.print(x + 2, y + 2 + row, f"{recipe.stage} {recipe.name:<20}"[:24], fg=fg, bg=bg)
+        import lore
+        import widgets
+        from ui import Theme
+        parent = self.session.handlers[self.session.handlers.index(self) - 1] if self in self.session.handlers and self.session.handlers.index(self) > 0 else None
+        (parent or super()).on_render(canvas)
+        hints = [("a-z", "choose"), ("Enter", "make"), ("Space", "all known" if not self.show_all else "only doable"),
+                 ("Left/Right", "material"), (",/.", "part"), ("Tab", "next screen"), ("Esc", "close")]
+        ix, iy, iw, ih = canvas.window(4, 2, self.WIDTH, self.HEIGHT, title="Recipes", hints=hints, tabs=widgets.tab_titles(), active=widgets.tab_index(self))
         if not self.recipes:
-            canvas.print(x + 2, y + 2, "Nothing you can make here and now.", fg=color.yellow)
-            canvas.print(x + 2, y + 4, "Gather pieces and stand next to things to work out", fg=color.menu_text)
-            canvas.print(x + 2, y + 5, "what you could make. A: list recipes you know.", fg=color.menu_text)
-            canvas.print(x + 2, y + height - 2, "A: all known   ESC: close", fg=color.impossible)
+            canvas.print(ix, iy + 1, "Nothing you can make here and now.", fg=Theme.TITLE)
+            widgets.text_block(canvas, ix, iy + 3, iw, 6, [
+                "Gather pieces and stand next to things to work out what you could make from them.",
+                "Space lists the recipes you already know.",
+            ])
             return
+        # the list: grouped by stage, only recipes that can be made here (or every known one)
+        rows, last = [], None
+        for recipe in self.recipes:
+            if recipe.stage != last:
+                rows.append(widgets.Row(f"Stage {recipe.stage}", header=True))
+                last = recipe.stage
+            result = recipe.result
+            icon = (result.sprite_id, result.color, False) if result is not None else None
+            ok = self.plan(recipe).ok
+            rows.append(widgets.Row(recipe.name, icon=icon, color=None if ok else Theme.DIM, data=recipe))
+        self.list = widgets.ListView(rows)
+        for index, row in enumerate(self.list.rows):
+            if row.data is self.recipe:
+                self.list.selected = index
+        self.list.draw(canvas, ix, iy, self.LIST_W, ih)
+        dx = ix + self.LIST_W + 1
+        dw = iw - self.LIST_W - 1
+        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (dx * 24 - 12, iy * 24), (dx * 24 - 12, (iy + ih) * 24), 1)
         recipe = self.recipe
         plan = self.plan()
-        dx = x + 28
-        canvas.print(dx, y + 2, recipe.name, fg=color.yellow)
-        canvas.print(dx, y + 3, f"Stage {recipe.stage}   Time {recipe.time}", fg=color.impossible)
-        for i, text in enumerate(self._wrap(recipe.description, width - 30)):
-            canvas.print(dx, y + 4 + i, text, fg=color.menu_text)
-        row = y + 8
-        roles = [n.role for n in recipe.needs]
-        for line in plan.lines:
-            for k, text in enumerate(self._wrap(("[+] " if line.ok else "[ ] ") + line.text, width - 30)):
-                canvas.print(dx, row, text if k == 0 else "    " + text, fg=color.green if line.ok else color.red)
-                row += 1
+        result = recipe.result
+        if result is not None:
+            widgets.sprite_slot(canvas, dx, iy, result.sprite_id, result.color)
+        canvas.print(dx + 5, iy, recipe.name, fg=Theme.TITLE)
+        canvas.print(dx + 5, iy + 1, f"stage {recipe.stage}   takes {recipe.time} turn{'s' if recipe.time != 1 else ''}", fg=Theme.DIM)
+        row = iy + 5
+        row += widgets.text_block(canvas, dx, row, dw, 4, [recipe.description])
         row += 1
-        if recipe.needs:
-            role = roles[self.role_i % len(roles)]
-            mats = __import__("crafting").options(recipe, self.engine.player, role)
-            chosen = (self.choices.get(recipe.key) or {}).get(role)
-            import lore
-            run = self.engine.game_world.run
-            names = ", ".join((f"<{lore.material_name(run, m)}>" if m.id == chosen else lore.material_name(run, m)) for m in mats) or "none"
-            canvas.print(dx, row, f"Material for {role} (TAB, LEFT/RIGHT):", fg=color.impossible)
-            for k, text in enumerate(self._wrap(names, width - 30)):
-                canvas.print(dx, row + 1 + k, text, fg=color.menu_text)
+        canvas.print(dx, row, "Needs", fg=Theme.TITLE)
+        row += 1
+        for line in plan.lines:
+            wrapped = canvas.wrap(("+ " if line.ok else "- ") + line.text, dw)
+            for k, text in enumerate(wrapped):
+                canvas.print(dx, row, text if k == 0 else "  " + text.lstrip(), fg=Theme.GOOD if line.ok else Theme.BAD)
+                row += 1
+        roles = [n.role for n in recipe.needs]
+        run = self.engine.game_world.run
+        if roles:
+            row += 1
+            canvas.print(dx, row, "Materials", fg=Theme.TITLE)
+            row += 1
+            for i, need in enumerate(recipe.needs):
+                mats = __import__("crafting").options(recipe, self.engine.player, need.role)
+                chosen = (self.choices.get(recipe.key) or {}).get(need.role)
+                if chosen is None and plan.parts.get(need.role) is not None:
+                    chosen = plan.parts[need.role].id
+                name = next((lore.material_name(run, m) for m in mats if m.id == chosen), "-")
+                current = i == self.role_i % len(roles)
+                text = f"{'>' if current else ' '} {need.label}: {name}" + (f"  ({len(mats)})" if len(mats) > 1 else "")
+                canvas.print(dx, row, text, fg=Theme.HILITE_TEXT if current else Theme.TEXT, bg=Theme.HILITE if current else None)
+                row += 1
         if plan.ok and recipe.needs:
             props = self._preview(recipe, plan)
             if props:
-                canvas.print(dx, y + height - 4, props, fg=color.menu_text)
-        canvas.print(x + 2, y + height - 2, "ENTER: make  UP/DOWN: recipe  A: " + ("only doable" if self.show_all else "all known") + "  ESC: close", fg=color.impossible)
+                row += 1
+                widgets.text_block(canvas, dx, row, dw, 3, [(props, Theme.TEXT)])
 
     @staticmethod
     def _wrap(text: str, width: int):
@@ -786,9 +860,12 @@ class CraftingMenuHandler(AskUserEventHandler):
         return "Result: " + shown + f"  quality {plan.quality:.1f}"
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
+        import widgets
         key = event.sym
         count = len(self.recipes)
-        if key == Key.A:
+        if key in (Key.TAB, Key.SPACE) and key == Key.TAB:
+            return widgets.next_screen(self, -1 if event.mod & (Mod.LSHIFT | Mod.RSHIFT) else 1)
+        if key == Key.SPACE:
             self.show_all = not self.show_all
             self.recipes = self._listed()
             self.button_highlight = self.role_i = 0
@@ -809,11 +886,17 @@ class CraftingMenuHandler(AskUserEventHandler):
         elif key == Key.PAGEDOWN:
             self.button_highlight = min(count - 1, self.button_highlight + 10)
             return None
-        elif key == Key.TAB:
-            self.role_i += 1
+        elif key in (Key.PERIOD, Key.COMMA):
+            self.role_i += 1 if key == Key.PERIOD else -1
             return None
         elif key in (Key.LEFT, Key.RIGHT):
             self._cycle(1 if key == Key.RIGHT else -1)
+            return None
+        elif Key.A <= key <= Key.Z and getattr(self, "list", None) is not None:
+            index = self.list.keys.get(chr(key - Key.A + ord("a")))
+            if index is not None:
+                self.button_highlight = self.recipes.index(self.list.rows[index].data)
+                self.role_i = 0
             return None
         elif key in CONFIRM_KEYS:
             recipe = self.recipe
@@ -844,6 +927,7 @@ class InventoryActivateHandler(InventoryEventHandler):
     """Handle using an inventory item."""
 
     TITLE = "Inventory"
+    TABBED = True
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         if isinstance(item, Equippable):
@@ -865,6 +949,8 @@ class InventoryDropHandler(InventoryEventHandler):
 class InventoryLootHandler(InventoryEventHandler):
     """Handle looting an item."""
 
+    RESERVED = "g"
+
     def __init__(self, engine: Engine, looter: Entity, inventory: Inventory = None, entities: Optional[List[Entity]] = None, canvas: Canvas = None, offset: int = 0):
         entities = [] if entities is None else entities
         super().__init__(engine, inventory, entities, canvas, offset)
@@ -880,16 +966,18 @@ class InventoryLootHandler(InventoryEventHandler):
         super().on_render(self.canvas)
     
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
-        if not self.inventory:
-            self.inventory_entries.remove(item)
+        if not self.inventory and item in self.entities:
+            self.entities.remove(item)
         return actions.PickupAction(self.looter, item)
 
     def on_items_selected(self, items: List[Item]) -> Optional[ActionOrHandler]:
         """Called when the user attempts to grab multiple items at once."""
         #TODO Fix bug when too many items are grabbed?
+        items = list(items)
         if not self.inventory:
-            for item in reversed(items):
-                self.inventory_entries.remove(item)
+            for item in items:
+                if item in self.entities:
+                    self.entities.remove(item)
         return actions.MassPickupAction(self.looter, items)
 
 class SelectIndexHandler(AskUserEventHandler):
@@ -998,14 +1086,7 @@ class AreaRangedAttackHandler(SelectIndexHandler):
 
         # Draw a rectangle around the targeted area, so the player can see the affected tiles.
         frame_x, frame_y, width, height = area_frame_rect(x, y, self.radius)
-        canvas.draw_frame(
-            x=frame_x,
-            y=frame_y,
-            width=width,
-            height=height,
-            fg=color.red,
-            clear=False,
-        )
+        canvas.draw_outline(frame_x, frame_y, width, height, color.red)
 
     def on_index_selected(self, x: int, y: int) -> Optional[actions.Action]:
         return self.callback((x, y))
@@ -1139,10 +1220,12 @@ class GameOverEventHandler(EventHandler):
         return self.engine.game_world.run.mode == "casual" and os.path.isdir(actions.BED_SAVE)
 
     def on_render(self, canvas: Canvas) -> None:
+        from ui import Theme
         super().on_render(canvas)
-        text = "R: wake at your last bed   ESC: give up" if self.casual_respawn() else "ESC: leave"
-        canvas.print(canvas.width // 2, canvas.height // 2, "You died.", fg=color.enemy_die, alignment=CENTER)
-        canvas.print(canvas.width // 2, canvas.height // 2 + 2, text, fg=color.menu_text, alignment=CENTER)
+        canvas.dim(3)
+        hints = [("R", "wake at your last bed"), ("Esc", "give up")] if self.casual_respawn() else [("Esc", "leave")]
+        ix, iy, iw, ih = canvas.window((canvas.width - 40) // 2, 16, 40, 10, title="The end of the road", hints=hints)
+        canvas.print(ix + iw // 2, iy + 2, "You died.", fg=Theme.BAD, alignment=CENTER)
 
     def on_quit(self) -> None:
         """Handle exiting out of a finished game."""
@@ -1173,8 +1256,12 @@ CURSOR_Y_KEYS = {
     Key.PAGEDOWN: 10,
 }
 
-class HistoryViewer(EventHandler):
-    """Print the history on a larger window which can be navigated."""
+class HistoryViewer(Panel):
+    """The message log in a window: scroll with Up/Down, Home/End jump."""
+
+    TITLE = "Log"
+    TABBED = True
+    HINTS = [("Up/Down", "scroll"), ("Home/End", "first/last"), ("Esc", "close")]
 
     def __init__(self, engine: Engine):
         super().__init__(engine)
@@ -1182,22 +1269,8 @@ class HistoryViewer(EventHandler):
         self.cursor = self.log_length - 1
 
     def on_render(self, canvas: Canvas) -> None:
-        super().on_render(canvas)  # Draw the main state as the background.
-
-        x, y, width, height = 3, 3, canvas.width - 6, canvas.height - 6
-
-        # Draw a frame with a custom banner title.
-        canvas.draw_frame(x, y, width, height, title="Message history", fg=color.white, bg=color.black)
-
-        # Render the message log using the cursor parameter.
-        self.engine.message_log.render_messages(
-            canvas,
-            x + 1,
-            y + 1,
-            width - 2,
-            height - 2,
-            self.engine.message_log.messages[: self.cursor + 1],
-        )
+        ix, iy, iw, ih = self.frame(canvas)
+        self.engine.message_log.render_messages(canvas, ix, iy, iw, ih, self.engine.message_log.messages[: self.cursor + 1])
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[MainGameEventHandler]:
         # Fancy conditional movement to make it feel right.
@@ -1216,10 +1289,12 @@ class HistoryViewer(EventHandler):
             self.cursor = 0  # Move directly to the top message.
         elif event.sym == Key.END:
             self.cursor = self.log_length - 1  # Move directly to the last message.
+        elif event.sym == Key.TAB:
+            return super().ev_keydown(event)
         else:  # Any other key moves back to the main game state.
             self.reset_to_handler(MainGameEventHandler(self.engine))
         return None
-    
+
 class PlaceConstructableHandler(SelectIndexHandler):
     """Lets the player pick a tile to place a constructable item."""
 

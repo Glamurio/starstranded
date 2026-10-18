@@ -4,6 +4,16 @@ import textwrap
 import color
 
 
+def legible(fg: Tuple[int, int, int], minimum: int = 150) -> Tuple[int, int, int]:
+    """Lift a dark text colour (blue, brown, grey) towards white until it can be read on the dark window background."""
+    r, g, b = fg
+    brightness = 0.299 * r + 0.587 * g + 0.114 * b
+    if brightness >= minimum:
+        return fg
+    t = min(1.0, (minimum - brightness) / max(1.0, 255 - brightness))
+    return (round(r + (255 - r) * t), round(g + (255 - g) * t), round(b + (255 - b) * t))
+
+
 class Message:
     def __init__(self, text: str, fg: Tuple[int, int, int]):
         self.plain_text = text
@@ -49,7 +59,7 @@ class MessageLog:
         """Return a wrapped text message."""
         for line in string.splitlines():  # Handle newlines in messages.
             yield from textwrap.wrap(
-                line, width, expand_tabs=True,
+                line, width * 2, expand_tabs=True,   # text is set two characters to a cell (see `ui`)
             )
 
     @classmethod
@@ -70,7 +80,7 @@ class MessageLog:
 
         for message in reversed(messages):
             for line in reversed(list(cls.wrap(message.full_text, width))):
-                canvas.print(x, y + y_offset, line, fg=message.fg)
+                canvas.print(x, y + y_offset, line, fg=legible(message.fg))
                 y_offset -= 1
                 if y_offset < 0:
                     return  # No more space to print messages.

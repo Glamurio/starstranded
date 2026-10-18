@@ -702,7 +702,14 @@ def nearby_forms(unit) -> set:
             tile = world.tile_at(x, y)
             if tile is not None and not tile["walkable"] and not tile["liquid"] and not tile["stairs"]:
                 forms.update(("Stone", "Ore", "Coal"))
-    forms.update(("Sand", "Clay"))  # the ground can be dug nearly anywhere (the dig itself says if there is anything)
+    try:   # the ground under your feet: sand on shores and in deserts, clay in wet country
+        import resources
+        engine = unit.engine
+        found = resources.ground_material(engine.game_world.planet, engine.game_world, world, unit.x, unit.y)
+        if found is not None:
+            forms.add(found[0].capitalize())
+    except Exception:
+        pass
     return forms
 
 

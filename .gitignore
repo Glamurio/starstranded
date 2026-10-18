@@ -4,3 +4,4 @@ __pycache__/
 *.sav.tmp
 docs/_scratch/
 settings.json
+shots/

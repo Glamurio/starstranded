@@ -226,7 +226,7 @@ class Ammo(Item):
         self.rounds = rounds
 
     def get_title(self, exclude_attributes: bool = False) -> str:
-        return f"{self.kind.object_type} ({self.rounds})"
+        return f"{self.kind.object_type.lower()} ({self.rounds})"
 
     def activate(self, user) -> None:
         raise exceptions.Impossible("Rounds are loaded by firing the pistol ('V').")

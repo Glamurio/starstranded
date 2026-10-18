@@ -28,6 +28,24 @@ RIGHT = 2
 WHITE: RGB = (255, 255, 255)
 BLACK: RGB = (0, 0, 0)
 
+class Theme:
+    """The window look (after Caves of Qud): dark teal glass, pale-teal double borders, warm gold for titles and keys."""
+    BG = (11, 36, 38)
+    PANEL = (17, 52, 54)
+    BORDER = (170, 205, 195)
+    BORDER_DIM = (70, 112, 108)
+    ORNAMENT = (232, 205, 120)
+    TEXT = (205, 222, 212)
+    DIM = (120, 150, 145)
+    TITLE = (245, 225, 150)
+    KEY = (255, 210, 100)
+    HILITE = (44, 112, 104)
+    HILITE_TEXT = (255, 255, 255)
+    GOOD = (110, 215, 120)
+    BAD = (235, 100, 90)
+    WARN = (240, 190, 80)
+
+
 _FRAME = {"tl": 0xDA, "tr": 0xBF, "bl": 0xC0, "br": 0xD9, "h": 0xC4, "v": 0xB3}
 
 
@@ -39,19 +57,47 @@ def cp437_index(character: str) -> int:
         return ord("?")
 
 
-class Font:
-    """CP437 bitmap font with tinted glyphs cached per (index, colour)."""
+TEXT_FONT = "data/fonts/DejaVuSansMono.ttf"
+TEXT_SIZE = 20
+CHAR_W = 12
+"""Text is set in DejaVu Sans Mono 20 px: 12 px per character, 24 px per line, so two characters fit in a 24 px cell."""
 
-    def __init__(self, sheet: pygame.Surface):
+
+class Font:
+    """Text: a monospaced TrueType font (clean, readable, two characters per cell) with rendered strings cached per
+    (text, colour). The old CP437 sheet is kept only for single glyphs (badges)."""
+
+    def __init__(self, sheet: pygame.Surface, ttf: Optional[pygame.font.Font] = None):
         if pygame.display.get_surface() is not None:
             sheet = sheet.convert_alpha()
         self.sheet = sheet
         self.cell = sheet.get_width() // FONT_COLUMNS
         self._cache: Dict[Tuple[int, RGB], pygame.Surface] = {}
+        self.ttf = ttf
+        self._text: Dict[Tuple[str, RGB], pygame.Surface] = {}
 
     @classmethod
     def load(cls, path: str = "Zesty_curses_24x24.png") -> "Font":
-        return cls(atlas_module.load_alpha_sheet(path))
+        pygame.font.init()
+        try:
+            ttf = pygame.font.Font(TEXT_FONT, TEXT_SIZE)
+        except (OSError, pygame.error):   # missing font file: fall back to pygame's bundled font so the game still runs
+            ttf = pygame.font.Font(None, TEXT_SIZE + 4)
+        return cls(atlas_module.load_alpha_sheet(path), ttf)
+
+    def width(self, text: str) -> int:
+        """Pixel width of `text` on one line."""
+        return self.ttf.size(text)[0] if self.ttf is not None else len(text) * CHAR_W
+
+    def text(self, text: str, fg: RGB = WHITE) -> pygame.Surface:
+        key = (text, tuple(fg))
+        hit = self._text.get(key)
+        if hit is None:
+            if len(self._text) > 3000:
+                self._text.clear()
+            hit = self.ttf.render(text, True, fg)
+            self._text[key] = hit
+        return hit
 
     def glyph(self, index: int, fg: RGB = WHITE) -> pygame.Surface:
         key = (index, tuple(fg))
@@ -146,25 +192,37 @@ class Canvas:
             self._print_line(x, y + row, line, fg, bg, alignment)
 
     def _print_line(self, x: int, y: int, line: str, fg: RGB, bg: Optional[RGB], alignment: int) -> None:
-        if alignment == CENTER:
-            x -= len(line) // 2
-        elif alignment == RIGHT:
-            x -= len(line) - 1
+        """One line of text; `x` and `y` are cells, the text itself is set in pixels (12 px per character)."""
         if y < 0 or y >= self.height or not line:
             return
+        width = self.font.width(line)
+        px = x * CELL
+        if alignment == CENTER:
+            px -= width // 2
+        elif alignment == RIGHT:
+            px = (x + 1) * CELL - width
         if bg is not None:
-            self.fill(x, y, len(line), 1, bg)
-        blit = self.surface.blit
-        glyph = self.font.glyph
-        pixel_y = y * CELL
-        for i, character in enumerate(line):
-            column = x + i
-            if character == " " or column < 0 or column >= self.width:
-                continue
-            blit(glyph(cp437_index(character), fg), (column * CELL, pixel_y))
+            self.surface.fill(bg, pygame.Rect(px, y * CELL, width, CELL))
+        if line.strip():
+            surface = self.font.text(line, fg)
+            self.surface.blit(surface, (px, y * CELL + (CELL - surface.get_height()) // 2))
 
     def text_width(self, text: str) -> int:
-        return max((len(line) for line in text.split("\n")), default=0)
+        """Width in cells (rounded up) of the widest line."""
+        return max((-(-self.font.width(line) // CELL) for line in text.split("\n")), default=0)
+
+    @staticmethod
+    def chars(cells: int) -> int:
+        """How many characters of text fit in `cells` cells."""
+        return cells * CELL // CHAR_W
+
+    def wrap(self, text: str, cells: int) -> list:
+        """`text` broken into lines that fit `cells` cells (existing line breaks are kept)."""
+        import textwrap
+        out: list = []
+        for paragraph in text.split("\n"):
+            out.extend(textwrap.wrap(paragraph, self.chars(cells)) or [""])
+        return out
 
     # ── composites ─────────────────────────────────────────────────────────────────
     def draw_frame(
@@ -178,23 +236,81 @@ class Canvas:
         fg: RGB = WHITE,
         bg: RGB = BLACK,
     ) -> None:
-        """A single-line box (`width` x `height` cells) with an optional inverted title on the top edge."""
+        """A window frame (`width` x `height` cells): dark teal glass, a double border with gold corner ornaments and the
+        title set in a notch on the top edge. `fg` and `bg` are accepted for the old call style and ignored."""
+        rect = self.cell_rect(x, y, width, height)
         if clear:
-            self.fill(x, y, width, height, bg)
-        put = lambda cx, cy, code: self.surface.blit(self.font.glyph(code, fg), (cx * CELL, cy * CELL))  # noqa: E731
-        for cx in range(x + 1, x + width - 1):
-            put(cx, y, _FRAME["h"])
-            put(cx, y + height - 1, _FRAME["h"])
-        for cy in range(y + 1, y + height - 1):
-            put(x, cy, _FRAME["v"])
-            put(x + width - 1, cy, _FRAME["v"])
-        put(x, y, _FRAME["tl"])
-        put(x + width - 1, y, _FRAME["tr"])
-        put(x, y + height - 1, _FRAME["bl"])
-        put(x + width - 1, y + height - 1, _FRAME["br"])
+            self.surface.fill(Theme.BG, rect)
+        outer = rect.inflate(-10, -10)
+        inner = rect.inflate(-18, -18)
+        pygame.draw.rect(self.surface, Theme.BORDER, outer, 2)
+        pygame.draw.rect(self.surface, Theme.BORDER_DIM, inner, 1)
+        for cx, cy in (outer.topleft, outer.topright, outer.bottomleft, outer.bottomright):
+            pygame.draw.rect(self.surface, Theme.BG, pygame.Rect(cx - 6, cy - 6, 12, 12))
+            pygame.draw.rect(self.surface, Theme.ORNAMENT, pygame.Rect(cx - 5, cy - 5, 10, 10), 2)
+            pygame.draw.rect(self.surface, Theme.ORNAMENT, pygame.Rect(cx - 2, cy - 2, 4, 4))
         if title:
-            title = title[: max(0, width - 2)]
-            self._print_line(x + width // 2, y, title, bg, fg, CENTER)
+            title = title[: max(0, self.chars(width) - 8)]
+            width_px = self.font.width(title)
+            cx = rect.centerx
+            notch = pygame.Rect(cx - width_px // 2 - 22, outer.top - 4, width_px + 44, 10)
+            pygame.draw.rect(self.surface, Theme.BG, notch)
+            self._print_line(x + width // 2, y, title, Theme.TITLE, None, CENTER)
+            for side in (notch.left + 6, notch.right - 6):
+                pygame.draw.polygon(self.surface, Theme.ORNAMENT, [(side, outer.top + 1), (side + 4, outer.top - 3), (side + 8, outer.top + 1), (side + 4, outer.top + 5)])
+
+    def draw_outline(self, x: int, y: int, width: int, height: int, color: RGB, thickness: int = 2) -> None:
+        """A plain coloured rectangle on the edges of the cell rectangle (map overlays such as the blast area)."""
+        pygame.draw.rect(self.surface, color, self.cell_rect(x, y, width, height), thickness)
+
+    def hints(self, x: int, y: int, hints, width: Optional[int] = None) -> None:
+        """A row of `[key] action` hints starting at cell (x, y); with `width` (cells) it is centred in that width."""
+        parts = [(f"[{key}]", f" {what}") for key, what in hints]
+        total = sum(self.font.width(k + w) + 2 * CHAR_W for k, w in parts) - 2 * CHAR_W
+        px = x * CELL + ((width * CELL - total) // 2 if width else 0)
+        row = pygame.Rect(0, y * CELL, 0, CELL)
+        for key, what in parts:
+            for text, fg in ((key, Theme.KEY), (what, Theme.TEXT)):
+                surface = self.font.text(text, fg)
+                self.surface.blit(surface, (px, row.y + (CELL - surface.get_height()) // 2))
+                px += surface.get_width()
+            px += 2 * CHAR_W
+
+    def window(self, x: int, y: int, width: int, height: int, title: str = "", hints=None, tabs=None, active: int = 0) -> Tuple[int, int, int, int]:
+        """Draw a framed window with an optional tab row (below the top edge) and `[key] action` hint bar (on the bottom
+        row). Returns the inner area `(x, y, width, height)` in cells for the caller's content."""
+        self.draw_frame(x, y, width, height, title=title)
+        top = y + 1
+        if tabs:
+            self.tab_row(x + 1, top, width - 2, tabs, active)
+            top += 2
+        bottom = y + height - 1
+        if hints:
+            self.fill_theme(x + 1, bottom - 1, width - 2, 1)
+            self.hints(x + 1, bottom - 1, hints, width - 2)
+            bottom -= 2
+        return x + 2, top, width - 4, bottom - top
+
+    def fill_theme(self, x: int, y: int, width: int, height: int, color: RGB = Theme.BG) -> None:
+        self.fill(x, y, width, height, color)
+
+    def tab_row(self, x: int, y: int, width: int, tabs, active: int) -> None:
+        """Tabs along the top of a window: `tabs` is a list of `(key, name)` (only the name is drawn); the active one is lit.
+        A rule runs under the row."""
+        px = x * CELL + CHAR_W
+        self.tab_rects = []
+        for i, (_, name) in enumerate(tabs):
+            label = f" {name} "
+            w = self.font.width(label) + 8
+            rect = pygame.Rect(px, y * CELL + 2, w, CELL - 2)
+            if i == active:
+                self.surface.fill(Theme.HILITE, rect)
+                pygame.draw.rect(self.surface, Theme.BORDER, rect, 1)
+            surface = self.font.text(label, Theme.HILITE_TEXT if i == active else Theme.TEXT)
+            self.surface.blit(surface, (px + 4, rect.y + (rect.height - surface.get_height()) // 2))
+            self.tab_rects.append(rect)
+            px += w + CHAR_W
+        pygame.draw.line(self.surface, Theme.BORDER_DIM, (x * CELL + 6, (y + 1) * CELL + 6), ((x + width) * CELL - 6, (y + 1) * CELL + 6), 1)
 
     def draw_bar(
         self,

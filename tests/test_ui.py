@@ -33,25 +33,36 @@ def test_font_glyph_is_white_mask(canvas):
 
 
 def test_print_draws_in_the_right_cells(canvas):
-    canvas.print(3, 2, "Hi", fg=(255, 0, 0))
-    assert lit(canvas, 3, 2) and lit(canvas, 4, 2)
-    assert not lit(canvas, 2, 2) and not lit(canvas, 5, 2) and not lit(canvas, 3, 3)
-    arr = pygame.surfarray.array3d(canvas.surface.subsurface(canvas.cell_rect(3, 2)))
+    canvas.print(3, 2, "Hello!", fg=(255, 0, 0))     # 6 characters of 12 px = 3 cells
+    assert lit(canvas, 3, 2) and lit(canvas, 4, 2) and lit(canvas, 5, 2)
+    assert not lit(canvas, 2, 2) and not lit(canvas, 6, 2) and not lit(canvas, 3, 3)
+    arr = pygame.surfarray.array3d(canvas.surface.subsurface(canvas.cell_rect(3, 2, 3, 1)))
     pixels = arr.reshape(-1, 3)
-    assert {tuple(p) for p in pixels[pixels.sum(axis=1) > 0]} == {(255, 0, 0)}
+    lit_pixels = pixels[pixels.sum(axis=1) > 0]
+    assert len(lit_pixels) and (lit_pixels[:, 1] == 0).all() and (lit_pixels[:, 2] == 0).all()   # red, antialiased
+
+
+def test_text_is_two_characters_per_cell(canvas):
+    assert canvas.font.width("MMMMMMMMMM") == 120 and canvas.text_width("MMMMMMMMMM") == 5
+    assert canvas.chars(10) == 20
+
+
+def test_wrap_fits_the_width(canvas):
+    lines = canvas.wrap("one two three four five six seven eight nine ten", 6)   # 12 characters per line
+    assert all(len(line) <= 12 for line in lines) and " ".join(lines) == "one two three four five six seven eight nine ten"
 
 
 def test_print_alignment(canvas):
-    canvas.print(40, 5, "abcd", alignment=ui.CENTER)
+    canvas.print(40, 5, "abcdefgh", alignment=ui.CENTER)      # 96 px wide, centred on x = 40 * 24
     assert lit(canvas, 38, 5) and lit(canvas, 41, 5) and not lit(canvas, 37, 5) and not lit(canvas, 42, 5)
-    canvas.print(10, 7, "xy", alignment=ui.RIGHT)
-    assert lit(canvas, 9, 7) and lit(canvas, 10, 7) and not lit(canvas, 11, 7)
+    canvas.print(10, 7, "wxyz", alignment=ui.RIGHT)           # 48 px, ending at the right edge of cell 10
+    assert lit(canvas, 9, 7) and lit(canvas, 10, 7) and not lit(canvas, 8, 7) and not lit(canvas, 11, 7)
 
 
 def test_print_multiline_and_bg(canvas):
     canvas.print(1, 1, "a\nb", bg=(0, 0, 90))
-    assert canvas.surface.get_at((1 * 24 + 23, 1 * 24 + 23))[:3] in ((0, 0, 90), (255, 255, 255))
-    assert canvas.surface.get_at((1 * 24 + 23, 2 * 24 + 23))[:3] in ((0, 0, 90), (255, 255, 255))
+    assert canvas.surface.get_at((1 * 24 + 2, 1 * 24 + 23))[:3] == (0, 0, 90)
+    assert canvas.surface.get_at((1 * 24 + 2, 2 * 24 + 23))[:3] == (0, 0, 90)
     assert lit(canvas, 1, 1) and lit(canvas, 1, 2)
 
 
@@ -71,7 +82,7 @@ def test_frame_has_corners_edges_and_title(canvas):
     canvas.draw_frame(5, 5, 10, 4, title="Hello")
     for cell in [(5, 5), (14, 5), (5, 8), (14, 8), (8, 8), (5, 6), (14, 7)]:
         assert lit(canvas, *cell), cell
-    assert not lit(canvas, 8, 7)  # interior stays empty
+    assert canvas.surface.get_at((8 * 24 + 12, 7 * 24 + 12))[:3] == ui.Theme.BG   # the interior is clear glass
     assert lit(canvas, 10, 5)  # title overlays the top edge
 
 
@@ -79,8 +90,8 @@ def test_frame_clear_fills_interior_unless_disabled(canvas):
     canvas.fill(0, 0, 20, 20, (50, 50, 50))
     canvas.draw_frame(2, 2, 6, 4, clear=False)
     assert canvas.surface.get_at((4 * 24 + 1, 3 * 24 + 1))[:3] == (50, 50, 50)
-    canvas.draw_frame(2, 2, 6, 4, clear=True, bg=(0, 0, 0))
-    assert canvas.surface.get_at((4 * 24 + 1, 3 * 24 + 1))[:3] == (0, 0, 0)
+    canvas.draw_frame(2, 2, 6, 4, clear=True)
+    assert canvas.surface.get_at((4 * 24 + 1, 3 * 24 + 1))[:3] == ui.Theme.BG
 
 
 def test_bar_fill_proportion(canvas):
