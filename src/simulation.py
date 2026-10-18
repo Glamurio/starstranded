@@ -14,6 +14,7 @@ coming back from a frozen or unloaded chunk) are applied analytically in one go.
 from __future__ import annotations
 
 import random
+from heapq import heappop, heappush
 from typing import Optional, Tuple, TYPE_CHECKING
 
 import exceptions
@@ -92,22 +93,56 @@ def _plant_upkeep(plant, last: int, now: int, elapsed: int) -> None:
     if not plant.fruit or plant.dead:
         return
     steps = steps_between(last, now, GROWTH_PERIOD)
-    if not steps:
-        return
-    if elapsed == 1:
-        plant.handle_growth()
-        return
-    # handle_growth: growth += 1 per step; when growth > avg_cycle it resets to 0 and a branch + fruit are added.
-    cycle = int(plant.avg_cycle) + 1
-    total = plant.growth + steps
-    cycles, plant.growth = divmod(total, cycle)
-    from components.consumable import Fruit
-    from crafting import Branch
+    cycle = int(plant.avg_cycle) + 1  # a step completes the cycle once growth > avg_cycle
+    cycles, plant.growth = divmod(plant.growth + steps, cycle)
     for _ in range(cycles):
-        if plant.inventory.is_full():
-            break  # (the per-turn version drops an item on a neighbouring tile; not modelled for absent chunks)
-        plant.inventory.add(Branch(plant))
-        plant.inventory.add(Fruit(plant.inventory, plant.fruit))
+        plant.complete_cycle()
+    world = plant.parent
+    if world is not None:
+        world.plant_queue.schedule(plant, now)
+
+
+class PlantQueue:
+    """Plants do nothing between harvests, so instead of polling every plant every turn a world keeps the time of
+    each plant's next completed growth cycle in a heap. `run(now)` brings only the due plants up to date.
+
+    Entries are validated lazily when they pop (the plant must still be on this world with the same due time), so
+    removed, unloaded or rescheduled plants need no cleanup. It is rebuilt from the plants themselves when a chunk
+    is restored; nothing is saved.
+    """
+
+    def __init__(self, world) -> None:
+        self.world = world
+        self._heap: list = []
+        self._counter = 0
+
+    def __len__(self) -> int:
+        return len(self._heap)
+
+    def schedule(self, plant, now: int) -> None:
+        if not plant.fruit or plant.dead:
+            plant.due = None
+            return
+        plant.due = GROWTH_PERIOD * (now // GROWTH_PERIOD + plant.steps_to_harvest())
+        self._counter += 1
+        heappush(self._heap, (plant.due, self._counter, plant))
+
+    def track(self, plant, now: int) -> None:
+        """A plant joined the world: a new one starts its clock now, a restored one has been caught up already."""
+        if plant.last_upkeep is None:
+            plant.last_upkeep = now
+        elif plant.last_upkeep < now:
+            upkeep(plant, now)  # (re)loaded after an absence: catch up, which also schedules it
+            return
+        self.schedule(plant, now)
+
+    def run(self, now: int) -> None:
+        heap = self._heap
+        while heap and heap[0][0] <= now:
+            due, _, plant = heappop(heap)
+            if plant.parent is not self.world or plant.due != due:
+                continue
+            upkeep(plant, now)  # reschedules
 
 
 # ── the turn ───────────────────────────────────────────────────────────────────────
@@ -125,6 +160,8 @@ def run_turn(engine: Engine) -> None:
             active.append(chunk)
         elif distance <= config.near_radius:
             near.append(chunk)
+
+    world.plant_queue.run(now)
 
     for chunk in active:
         for entity in list(chunk.actors):  # snapshot: AIs may add/remove/move entities

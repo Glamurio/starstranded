@@ -252,13 +252,3 @@ class HostileAI(BaseAI):
             return MovementAction(self.entity, dest_x, dest_y, self.path).perform()
 
         return WaitAction(self.entity).perform()
-
-class PlantAI(BaseAI):
-    def __init__(self, entity: Unit):
-        super().__init__(entity)
-        self.entity: Plant
-
-    def perform(self) -> None:
-        """Growth every 2nd turn (caught up analytically after an absence)."""
-        from simulation import upkeep
-        upkeep(self.entity, self.engine.game_world.current_time)

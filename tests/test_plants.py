@@ -75,15 +75,65 @@ def test_full_inventory_drops_an_item_on_an_adjacent_tile(small_world):
     assert max(abs(dropped[0].x - t.x), abs(dropped[0].y - t.y)) == 1
 
 
-def test_plant_ai_grows_only_on_even_minutes(small_world):
+def run_queue(e, until):
+    for now in range(e.game_world.current_time + 1, until + 1):
+        e.game_world.current_time = now
+        e.game_map.plant_queue.run(now)
+
+
+def test_plant_queue_grows_only_when_a_cycle_completes(small_world):
     e = small_world()
     t = make_fruiting_tree(e)
-    e.game_world.current_time = 1
-    t.ai.perform()
-    assert t.growth == 0
-    e.game_world.current_time = 2
-    t.ai.perform()
-    assert t.growth == 1
+    e.game_map.plant_queue.schedule(t, 0)
+    assert t.due == 6  # 3 growth steps, one per 2 turns
+    run_queue(e, 5)
+    assert t.inventory.items == [] and t.growth == 0  # nothing happens in between
+    run_queue(e, 6)
+    assert sorted(type(i).__name__ for i in t.inventory.items) == ["Branch", "Fruit"] and t.growth == 0
+    assert t.due == 12
+
+
+def test_plant_queue_matches_per_turn_growth(small_world):
+    """Event-driven growth is exactly the old per-turn polling (growth step every 2nd turn)."""
+    import random
+    from simulation import upkeep
+    rng = random.Random(5)
+    for trial in range(12):
+        e = small_world(width=30, height=30)
+        e.game_world.current_time = rng.randrange(0, 9)
+        a = make_fruiting_tree(e, 5, 5)
+        b = make_fruiting_tree(e, 20, 20)
+        a.avg_cycle = b.avg_cycle = rng.uniform(0, 9)
+        a.growth = b.growth = rng.randrange(0, int(a.avg_cycle) + 1)  # growth never exceeds avg_cycle
+        a.inventory.capacity = b.inventory.capacity = 10_000
+        e.game_map.plant_queue.schedule(a, e.game_world.current_time)
+        b.due = None  # b is the per-turn reference: its queue entries no longer validate
+        start = e.game_world.current_time
+        for now in range(start + 1, start + 80):
+            e.game_world.current_time = now
+            e.game_map.plant_queue.run(now)
+            if now % 2 == 0:
+                b.handle_growth()
+            upkeep(a, now)  # growth is lazy between harvests; bring it up to date to compare
+            assert (a.growth, len(a.inventory.items)) == (b.growth, len(b.inventory.items)), (trial, now)
+
+
+def test_removed_plants_are_dropped_from_the_queue(small_world):
+    e = small_world()
+    t = make_fruiting_tree(e)
+    e.game_map.plant_queue.schedule(t, 0)
+    e.game_map.remove_entity(t)
+    run_queue(e, 40)
+    assert t.inventory.items == []
+
+
+def test_a_full_plant_keeps_dropping_fruit_while_its_chunk_is_not_watched(small_world):
+    e = small_world(width=20, height=20)
+    t = make_fruiting_tree(e, 10, 10)
+    t.inventory.capacity = 2
+    e.game_map.plant_queue.schedule(t, 0)
+    run_queue(e, 60)
+    assert len([i for i in e.game_map.items if i.parent is e.game_map]) >= 3
 
 
 def test_current_plant_die_swaps_in_roots_and_blocks_tile(small_world):

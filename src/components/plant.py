@@ -8,7 +8,6 @@ import random
 
 from components.consumable import Fruit
 from components.inventory import Inventory
-from components.ai import PlantAI
 from crafting import Branch
 from species import ItemKind, PlantCategory, PlantSpecies, make_plant_species
 
@@ -42,8 +41,9 @@ class Plant(Entity):
         self.shade = get_gaussian_shade(self.color)
         self.mirrored = bool(random.getrandbits(1))
         self.dead = False
+        self.due: Optional[int] = None  # game time of the next completed growth cycle (simulation.PlantQueue)
         self.last_upkeep: Optional[int] = None  # game time of the last growth update (simulation.upkeep)
-        self.ai = PlantAI(self) if species.fruit else None  # only fruiting plants do anything per turn
+        self.ai = None  # plants have no per-turn behaviour: growth is event-driven (`simulation.PlantQueue`)
 
     @property
     def growth_cycle(self) -> int:
@@ -67,43 +67,36 @@ class Plant(Entity):
             dark=(self.sprite_id, self.flipped, dark['fg'], dark['bg']),
         )
 
-    def handle_growth(self):
-        """
-        Growth happens every `self.growth_cycle` with a gaussian deviation.
+    def steps_to_harvest(self) -> int:
+        """Growth steps (one per `simulation.GROWTH_PERIOD` turns) until the next cycle completes."""
+        return int(self.avg_cycle) + 1 - self.growth
 
-        Every cycle, a fruit (and a branch) is added to `self.inventory`
-        """
+    def handle_growth(self):
+        """One growth step; when the cycle completes a branch and a fruit are added (see `complete_cycle`)."""
         if not self.fruit:
             return
-
         self.growth += 1
         if self.growth > self.avg_cycle:
             self.growth = 0
+            self.complete_cycle()
 
-            # Drop some branches or fruit on the floor
-            if self.inventory.is_full():
-                item: Item = random.choice(self.inventory.items)
-                adjacent_tiles = self.engine.get_adjacent_tiles(self.x, self.y)
-
-                # Shuffle, so it doesn't drop everything on the same tile
-                random.shuffle(adjacent_tiles)
-
-                for tile in adjacent_tiles:
-                    entities: list[Entity] = self.engine.game_map.get_entities_at_location(tile[0], tile[1])
-
-                    if len(entities) >= 3:
-                        continue
-
-                    for entity in entities:
-                        if entity.blocks_movement:
-                            return
-                    
-                    self.inventory.drop(item, tile)
-                    break
-                
-            self.inventory.add(Branch(self))
-            if self.fruit:
-                self.inventory.add(Fruit(self.inventory, self.fruit))
+    def complete_cycle(self) -> None:
+        """A growth cycle finished: a full plant drops one of its items on a free neighbouring tile, then it
+        grows a branch and a fruit (if there is room)."""
+        world = self.parent
+        if self.inventory.is_full() and world is not None:
+            item: Item = random.choice(self.inventory.items)
+            adjacent_tiles = self.engine.get_adjacent_tiles(self.x, self.y)
+            random.shuffle(adjacent_tiles)  # so it doesn't drop everything on the same tile
+            for tile in adjacent_tiles:
+                entities = world.get_entities_at_location(tile[0], tile[1])
+                if len(entities) >= 3 or any(e.blocks_movement for e in entities):
+                    continue
+                self.inventory.drop(item, tile)
+                break
+        self.inventory.add(Branch(self))
+        if self.fruit:
+            self.inventory.add(Fruit(self.inventory, self.fruit))
 
     def die(self, killer: Unit) -> None:
         self.dead = True

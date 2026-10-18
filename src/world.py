@@ -13,6 +13,7 @@ from config import DEFAULT_CONFIG, GameConfig
 from entity import EntityCategory, Item, SpatialContainer
 from render_order import GROUND_LAYERS, LAYERS, MAX_GROUND_OBJECTS_PER_TILE, RenderOrder
 import tile_types
+from simulation import PlantQueue
 from view import Camera, Rect, ViewWindow
 
 if TYPE_CHECKING:
@@ -120,6 +121,7 @@ class World(SpatialContainer):
         self.bounds: Optional[Rect] = source.bounds
         self.chunks: Dict[ChunkKey, Chunk] = {}
         self.stored: Dict[ChunkKey, bytes] = {}
+        self.plant_queue = PlantQueue(self)
         self._by_pos: Dict[Tuple[int, int], List[Entity]] = {}
         self.window = ViewWindow(self)
         self.downstairs_location: Optional[Tuple[int, int]] = None
@@ -373,6 +375,12 @@ class World(SpatialContainer):
         self._by_pos.setdefault((x, y), []).append(entity)
         chunk.index(entity)
         entity.on_added_to_map(self)
+        if entity.category is EntityCategory.PLANT:
+            self.plant_queue.track(entity, self._now())
+
+    def _now(self) -> int:
+        game_world = getattr(self.engine, "game_world", None)
+        return getattr(game_world, "current_time", 0)
 
     def remove_entity(self, entity: Entity) -> None:
         """Take `entity` off this world (no-op if it is not here). Its `parent` becomes None."""
