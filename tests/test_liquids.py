@@ -5,6 +5,7 @@ import pytest
 import behavior
 import liquids
 import tile_types
+import worldgen
 from chunks import CHUNK_H, CHUNK_W
 from worldgen import NoiseWorldSource
 
@@ -34,18 +35,18 @@ def test_deeper_liquid_is_always_ringed_by_shallower_liquid():
     assert deep_seen > 0
 
 
-def test_only_shallow_liquid_can_be_waded_and_deeper_is_darker():
-    seen = {1: set(), 2: set(), 3: set()}
+def test_only_shallow_liquid_can_be_waded_and_there_are_just_two_colours():
+    colours = {1: set(), 2: set(), 3: set()}
     for seed in (1, 2, 3):
         for tiles in _chunks(seed, [(0, 0), (1, 0), (0, 1), (-1, 0)]).values():
             depth = tiles["depth"]
             assert (tiles["liquid"][depth > 0] > 0).all() and (tiles["liquid"][depth == 0] == 0).all()
             assert np.array_equal(tiles["walkable"][depth > 0], depth[depth > 0] == 1)
             for d in (1, 2, 3):
-                fg = tiles["light"]["fg"][depth == d].astype(int).sum(axis=1)
-                seen[d].update(fg.tolist())
-    assert seen[3], "no deep liquid generated"
-    assert max(seen[3]) < max(seen[1]) and (not seen[2] or max(seen[2]) <= max(seen[1]))
+                colours[d].update(map(tuple, tiles["light"]["fg"][depth == d].tolist()))
+    assert colours[3], "no deep liquid generated"
+    assert colours[1] == {worldgen.SHALLOW_COLOR} and colours[2] <= {worldgen.DEEP_COLOR} and colours[3] == {worldgen.DEEP_COLOR}
+    assert sum(worldgen.DEEP_COLOR) < sum(worldgen.SHALLOW_COLOR)  # deep is the darker of the two
 
 
 def test_kinds_are_whole_numbers_between_impure_and_acidic():

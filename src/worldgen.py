@@ -9,7 +9,6 @@ the same entities (only uids differ).
 """
 from __future__ import annotations
 
-import colorsys
 import contextlib
 import hashlib
 import random
@@ -31,8 +30,10 @@ MARGIN = 4
 """Padding (tiles) around a chunk for neighbour-dependent generation steps: dilation (1) + variations (1) + the two
 erosions that give the liquid depths (2)."""
 
-LIQUID_HUES = 24
-DEPTH_BRIGHTNESS = (1.0, 0.78, 0.58)  # shallow, deep, very deep: the same hue, darker
+SHALLOW_COLOR = (92, 150, 186)
+DEEP_COLOR = (58, 104, 148)
+"""Liquid has exactly two colours, the same everywhere: shallow (depth 1) and deep (depth 2 and 3). They are close in
+brightness on purpose: a stark light/dark edge clashes with the land."""
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 HEIGHT_LIMITS = (-1.1, -0.3, 0.3, 1.1)  # water | floor | wall (values outside stay wall, as before)
@@ -82,10 +83,6 @@ class TerrainNoise:
         """Slowly varying noise that decides what a lake is made of (a lake is mostly one kind)."""
         return self.sample(4, 0.006, x0, y0, width, height)
 
-    def liquid_hue_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
-        """Slowly varying noise for the colour of a lake: unrelated to its kind on purpose."""
-        return self.sample(5, 0.004, x0, y0, width, height)
-
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
         return self.sample(3, 0.1, x0, y0, width, height)
@@ -107,7 +104,7 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
 
 def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int) -> None:
     """Give the lake tiles (`liquid` mask) their depth (1 on the shore, +1 per tile inwards, at most 3: deeper liquid is
-    always ringed by shallower), kind and hue. Shallow liquid can be waded, deeper liquid cannot."""
+    always ringed by shallower), kind and colour (shallow or deep). Shallow liquid can be waded, deeper liquid cannot."""
     from procgen import neighbour_masks
     depth = liquid.astype(np.int8)
     inner = liquid
@@ -117,10 +114,7 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
         depth += inner
     kind_value = noise.liquid_kind_field(x0, y0, width, height)
     kind = np.where(kind_value < IMPURE_BELOW, 1, np.where(kind_value < TOXIC_BELOW, 2, 3)).astype(np.int8)
-    hue_index = np.clip(((noise.liquid_hue_field(x0, y0, width, height) + 1) / 2 * LIQUID_HUES).astype(np.int32), 0, LIQUID_HUES - 1)
-    palette = np.array([colorsys.hsv_to_rgb(i / LIQUID_HUES, 0.7, 0.85) for i in range(LIQUID_HUES)]) * 255
-    brightness = np.array((0, *DEPTH_BRIGHTNESS))[depth]
-    light = (palette[hue_index] * brightness[..., None]).astype(np.uint8)
+    light = np.where((depth >= 2)[..., None], np.array(DEEP_COLOR, dtype=np.uint8), np.array(SHALLOW_COLOR, dtype=np.uint8))
     landscape["liquid"][liquid] = kind[liquid]
     landscape["depth"][liquid] = depth[liquid]
     landscape["walkable"][liquid] = depth[liquid] == 1

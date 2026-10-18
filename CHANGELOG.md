@@ -22,8 +22,9 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - Thirsty creatures walk to impure liquid and drink it (they avoid toxic and acidic lakes). Meat now only restores 5 thirst (was 15).
 
 ## Liquids (lakes have depth and a hidden kind)
-- Lakes are now called "liquid" and have depths shown as darker shades of the same colour: shallow (can be waded), deep and very
-  deep (cannot). Deeper liquid is always ringed by shallower liquid. Lake colours vary from lake to lake.
+- Lakes are now called "liquid" and have two colours, the same everywhere: a lighter shallow (can be waded) and a slightly
+  darker deep (depth 2-3, cannot). Deeper liquid is always ringed by shallower liquid. The colours are deliberately close so
+  the edge does not clash with the land.
 - Each lake has a kind you cannot see: impure (unsafe to drink, boiling makes it safe), toxic (poisonous even when boiled) or acidic
   (burns you and sometimes your armor when you wade through it, and destroys a flask dipped into it). Creatures avoid acid.
 - Buildings and the spawn/cave entrance are never placed in a lake.

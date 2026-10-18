@@ -508,3 +508,8 @@ The plan above was implemented as written, with these specifics and deviations:
   (rejected: flushing it before saving is simpler and invisible).
 - **Single-player view:** nothing lets you look at or target another layer; I read the request as exactly that, so the
   look-down through open air (terrain only) is the sole exception, as before.
+
+## Liquid colours: exactly two
+- **What:** shallow `(92,150,186)` and deep `(58,104,148)` for every liquid tile; depths 2 and 3 share the deep colour.
+- **Why:** per-lake hue noise plus three brightness steps produced a gradient and harsh bright/dark edges; the brief was two colours.
+- **Alternative:** a per-lake hue — dropped: a pure per-chunk generator cannot tell where a lake ends, so hues seamed.
