@@ -244,8 +244,8 @@ def test_character_screen_and_crafting_menu(game):
     drawn(crafting)
     press(crafting, Key.DOWN)
     press(crafting, Key.UP)
-    press(crafting, Key.RETURN)  # not enough materials -> a message, still open
-    assert any("materials" in m.plain_text for m in e.message_log.messages)
+    press(crafting, Key.RETURN)  # nothing to make it from -> a message saying what is missing, still open
+    assert any("can't make that yet" in m.plain_text for m in e.message_log.messages)
     press(crafting, Key.ESCAPE)
 
 

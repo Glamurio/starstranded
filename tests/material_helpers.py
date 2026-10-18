@@ -15,3 +15,8 @@ COPPER = Material("t:copper", "Copper", Family.METAL, (190, 110, 60), hardness=4
                   electrical_conductivity=9, thermal_conductivity=9, melting_point=1080)
 VINE = Material("t:vine", "Vine", Family.FIBER, (60, 120, 50), toughness=3, tenacity=8, elasticity=5, flammability=6,
                 combustibility=3, burn_yield=5, burn_duration=2)
+
+
+def make_material(name: str, family: Family, **props) -> Material:
+    """A throwaway material for a test (id `t:<name>`, grey)."""
+    return Material(f"t:{name}", name.capitalize(), family, (128, 128, 128), **props)

@@ -285,6 +285,7 @@ class NoiseWorldSource:
             else:
                 env = shafts.environment(self.floor_seed, chunk.key)
                 self._grow_flora(world, chunk, tree_map, env)
+                self._scatter_stones(world, chunk, env, reserved)
                 self._spawn_fauna(world, chunk, env, reserved)
         for entity in chunk.entities:
             if entity not in before:
@@ -333,6 +334,27 @@ def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> Non
         world.add_entity(Unit(random.choices(pool, weights=column.tolist())[0]), x, y)
 
 
+STONES_PER_CHUNK = (3, 7)
+"""Loose stones lying about on the surface of a chunk (min, max): the first tools are made of them."""
+
+
+def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> None:
+    """Lay a few loose stones (of the kinds this biome has, plus flint) on free ground."""
+    import biomes
+    import resources
+    import species as defs
+    from items import Stuff
+    for _ in range(random.randint(*STONES_PER_CHUNK)):
+        lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
+        x, y = chunk.x0 + lx, chunk.y0 + ly
+        if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
+            continue
+        biome = biomes.BIOME_IDS[int(env["biome"][lx, ly])]
+        material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome)
+        world.add_entity(Stuff(defs.PIECE_STONE, material), x, y)
+
+
+NoiseWorldSource._scatter_stones = _scatter_stones
 NoiseWorldSource._grow_flora = _grow_flora
 NoiseWorldSource._spawn_fauna = _spawn_fauna
 

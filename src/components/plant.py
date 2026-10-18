@@ -9,6 +9,8 @@ import random
 from components.consumable import Fruit
 from components.inventory import Inventory
 from crafting import Branch
+from items import Stuff
+import species as defs
 from species import ItemKind, PlantCategory, PlantSpecies, STUMP, STUMP_SPRITES, make_plant_species
 
 from tile_types import roots
@@ -98,9 +100,16 @@ class Plant(Entity):
                     continue
                 self.inventory.drop(item, tile)
                 break
-        self.inventory.add(Branch(self))
+        self.inventory.add(self.yield_piece())
         if self.fruit:
             self.inventory.add(Fruit(self.inventory, self.fruit))
+
+    def yield_piece(self):
+        """What this plant gives when cut or when its cycle completes: fibre for fibrous shrubs, else a piece of its wood."""
+        fiber = getattr(self.kind, "fiber", None)
+        if fiber is not None:
+            return Stuff(defs.PIECE_FIBER, fiber)
+        return Branch(self)
 
     def resistances(self):
         return self.kind.resistances
@@ -118,7 +127,7 @@ class Plant(Entity):
         if world is None:
             return
         x, y = self.x, self.y
-        loot = list(self.inventory.items) + [Branch(self) for _ in range(2)]
+        loot = list(self.inventory.items) + [self.yield_piece() for _ in range(2)]
         world.remove_entity(self)
         if self._ground is not None:
             walkable, transparent, dark = self._ground

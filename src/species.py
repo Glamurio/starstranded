@@ -91,6 +91,9 @@ class ItemKind(_Definition):
     light_radius: int = 0
     lit_color: Optional[RGB] = None
     toxicity: int = 0  # turns of poison when eaten (hidden until identified or suffered)
+    tool_tags: Tuple[str, ...] = ()  # capabilities held while this tool is carried (see capabilities.py)
+    station: Optional[str] = None    # capability a placed copy provides to crafters nearby (workbench, furnace)
+    base_power: int = 0              # property-made weapons: power at a delivery rating of 5 (see items.Gear.power_bonus)
 
 
 @dataclass(frozen=True)
@@ -185,7 +188,7 @@ FLASK = register(ItemKind("flask", "Flask", sprite=(3, 23), color=(0xB0, 0x78, 0
 BRANCH = register(ItemKind("branch", "Branch", sprite=(108, 0), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 26), color=(0, 191, 255), material="Bronze",
                            equipment_type=EquipmentType.WEAPON, power_bonus=2, damage_type=DamageType.SHARP))
-AXE = register(ItemKind("axe", "Axe", sprite=(26, 28), color=(0x8B, 0x6B, 0x3D), material="Wooden",
+AXE = register(ItemKind("axe", "Axe", sprite=(26, 28), color=(0x8B, 0x6B, 0x3D), material="Wooden", tool_tags=("chopping",),
                         equipment_type=EquipmentType.WEAPON, power_bonus=4, damage_type=DamageType.SHARP))
 LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(25, 30), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
@@ -196,6 +199,67 @@ CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=
 STUMP = register(ItemKind("stump", "Stump", sprite=(4, 10), color=color.brown, render_order=RenderOrder.CORPSE))
 WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(3, 5), color=(150, 105, 60)))
 WOODEN_STAIRS = register(ItemKind("wooden_stairs", "Wooden stairs", sprite=(24, 1), color=(150, 105, 60)))
+
+
+# ── Material pieces (what the world gives you; each instance carries its own Material, see items.Stuff) ──
+def _piece(key, name, sprite, **kw):
+    return register(ItemKind(key, name, sprite=sprite, shade_sigma=6, **kw))
+
+
+PIECE_STONE = _piece("piece_stone", "Stone", (3, 24))
+PIECE_ORE = _piece("piece_ore", "Ore", (1, 24))
+PIECE_FIBER = _piece("piece_fiber", "Fibre", (1, 27))
+PIECE_HIDE = _piece("piece_hide", "Hide", (2, 25))
+PIECE_SAND = _piece("piece_sand", "Sand", (4, 25))
+PIECE_CLAY = _piece("piece_clay", "Clay", (4, 25))
+PIECE_COAL = _piece("piece_coal", "Coal", (3, 24))
+PIECE_INGOT = _piece("piece_ingot", "Ingot", (0, 25))
+PIECE_BRICK = _piece("piece_brick", "Brick", (5, 25))
+PIECE_GLASS = _piece("piece_glass", "Glass", (2, 23))
+PIECE_CORD = _piece("piece_cord", "Cord", (2, 27))
+PIECE_WIRE = _piece("piece_wire", "Wire", (0, 27))
+PIECE_FORMS = (PIECE_STONE, PIECE_ORE, PIECE_FIBER, PIECE_HIDE, PIECE_SAND, PIECE_CLAY, PIECE_COAL, PIECE_INGOT,
+               PIECE_BRICK, PIECE_GLASS, PIECE_CORD, PIECE_WIRE)
+
+# ── Tools, weapons and armour made of parts (power/defence come from the parts' properties) ──
+_WOOD = (0x8B, 0x6B, 0x3D)
+HATCHET = register(ItemKind("hatchet", "Hatchet", sprite=(27, 28), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                            damage_type=DamageType.SHARP, base_power=3, tool_tags=("chopping", "cutting")))
+PICKAXE = register(ItemKind("pickaxe", "Pickaxe", sprite=(1, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                            damage_type=DamageType.PIERCE, base_power=2, tool_tags=("mining",)))
+SHOVEL = register(ItemKind("shovel", "Shovel", sprite=(3, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                           damage_type=DamageType.BLUNT, base_power=1, tool_tags=("digging",)))
+KNIFE = register(ItemKind("knife", "Knife", sprite=(44, 26), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                          damage_type=DamageType.SHARP, base_power=2, tool_tags=("cutting",)))
+CLUB = register(ItemKind("club", "Club", sprite=(26, 27), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                         damage_type=DamageType.BLUNT, base_power=3))
+SPEAR = register(ItemKind("spear", "Spear", sprite=(42, 27), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                          damage_type=DamageType.PIERCE, base_power=3))
+HAMMER = register(ItemKind("hammer", "Hammer", sprite=(5, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+                           damage_type=DamageType.BLUNT, base_power=2, tool_tags=("hammering",)))
+HIDE_ARMOR = register(ItemKind("hide_armor", "Armour", sprite=(25, 30), color=color.brown,
+                               equipment_type=EquipmentType.ARMOR, base_power=1))
+SALVAGE_TOOL = register(ItemKind("salvage_tool", "Salvage tool", sprite=(9, 31), color=(180, 180, 190),
+                                 equipment_type=EquipmentType.WEAPON, damage_type=DamageType.PIERCE, base_power=1,
+                                 tool_tags=("salvaging", "cutting", "hammering")))
+OMNITOOL = register(ItemKind("omnitool", "Omnitool", sprite=(10, 31), color=(140, 200, 240),
+                             equipment_type=EquipmentType.WEAPON, damage_type=DamageType.SHARP, base_power=3,
+                             tool_tags=("chopping", "mining", "digging", "cutting", "hammering", "salvaging")))
+PISTOL = register(ItemKind("pistol", "Pistol", sprite=(50, 22), color=(190, 190, 200), equipment_type=EquipmentType.WEAPON,
+                           damage_type=DamageType.PIERCE, base_power=6))
+# ── Things made of parts that are not worn or wielded ──
+BED = register(ItemKind("bed", "Bed", sprite=(0, 36), color=_WOOD, station="bed"))
+WORKBENCH = register(ItemKind("workbench", "Workbench", sprite=(26, 31), color=_WOOD, station="workbench"))
+FURNACE = register(ItemKind("furnace", "Furnace", sprite=(27, 31), color=(140, 140, 150), station="furnace"))
+TORCH = register(ItemKind("torch", "Torch", sprite=(10, 31), color=color.orange, lit_color=color.orange, light_radius=5))
+WALL_BLOCK = register(ItemKind("wall_block", "Wall", sprite=(0, 2), color=(150, 150, 150)))
+CIRCUIT = register(ItemKind("circuit", "Circuit board", sprite=(51, 21), color=(80, 200, 120)))
+POWER_CELL = register(ItemKind("power_cell", "Power cell", sprite=(52, 24), color=(120, 220, 120)))
+HULL_PLATE = register(ItemKind("hull_plate", "Hull plate", sprite=(0, 25), color=(160, 160, 170)))
+LENS = register(ItemKind("lens", "Lens", sprite=(2, 23), color=(200, 230, 255)))
+MEDKIT = register(ItemKind("medkit", "Medkit", sprite=(2, 24), color=(240, 100, 100)))
+SURVEY_KIT = register(ItemKind("survey_kit", "Survey kit", sprite=(3, 21), color=(120, 180, 240), tool_tags=("surveying",)))
+NAV_UNIT = register(ItemKind("nav_unit", "Navigation unit", sprite=(51, 22), color=(120, 160, 240)))
 
 
 # ── Procedural definitions ───────────────────────────────────────────────────────

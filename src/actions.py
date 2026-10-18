@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
 from entity import EntityCategory
+from materials import Material, attack_factor
 
 if TYPE_CHECKING:
     from components.unit import Unit
@@ -33,6 +34,12 @@ class Action:
         plants = [e for e in self.engine.game_map.get_entities_at_location(*self.dest_xy)
                   if e.category is EntityCategory.PLANT and not e.dead]
         return next((p for p in plants if p.blocks_movement), plants[0] if plants else None)
+
+    @property
+    def target_structure(self) -> Optional[Entity]:
+        """Return the built structure (a wall) at this actions destination."""
+        return next((e for e in self.engine.game_map.get_entities_at_location(*self.dest_xy)
+                     if getattr(e, "is_structure", False) and not getattr(e, "dead", False)), None)
 
     def perform(self) -> bool:
         """Perform this action with the objects needed to determine its scope.
@@ -170,6 +177,21 @@ class ActionWithDirection(Action):
         super().perform()
 
 
+def material_damage(attacker, target, damage: int, damage_type) -> int:
+    """Scale a hit by how well the weapon's material delivers the damage type against the target's material
+    (`materials.attack_factor`): an iron axe bites wood, a wooden club barely dents stone. Targets without a material
+    (creatures, old-style plants) take the plain damage. Bare hands count as an ordinary weapon."""
+    if damage <= 0:
+        return damage
+    material = getattr(target, "material", None) if getattr(target, "is_structure", False) else getattr(target.kind, "material", None)
+    if not isinstance(material, Material):
+        return damage
+    weapon = attacker.equipment.weapon if getattr(attacker, "equipment", None) else None
+    props = getattr(weapon, "props", None)
+    factor = attack_factor(damage_type, props, material)
+    return max(1, round(damage * factor))
+
+
 class MeleeAction(ActionWithDirection):
     """Hit the unit (or, failing that, the plant) at the destination with the attacker's damage type."""
 
@@ -177,7 +199,7 @@ class MeleeAction(ActionWithDirection):
         from damage import resolve
 
         attacker: Unit = self.entity
-        target = self.target_unit or self.target_plant
+        target = self.target_unit or self.target_plant or self.target_structure
 
         if not target:
             raise exceptions.Impossible("Nothing to attack.")
@@ -187,6 +209,7 @@ class MeleeAction(ActionWithDirection):
 
         damage_type = attacker.damage_type
         damage = resolve(attacker.power, getattr(target, "defense", 0), damage_type, target.resistances())
+        damage = material_damage(attacker, target, damage, damage_type)
 
         attack_desc = f"{attacker.get_title()} attacks {target.get_title()}"
         if attacker is self.engine.player:
@@ -263,31 +286,188 @@ class BumpAction(ActionWithDirection):
         if plant is not None and plant.blocks_movement and distance <= 1 and self.entity.equipment.weapon is not None:
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
 
-        return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()
-    
-class CraftAction(Action):
-    """Craft a recipe and add the result to inventory."""
+        structure = self.target_structure
+        if structure is not None and distance <= 1 and self.entity.equipment.weapon is not None:
+            return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
 
-    def __init__(self, entity: Unit, recipe):
-        super().__init__(entity)
-        self.recipe = recipe
+        if distance <= 1 and is_rock_face(self.engine.game_map, self.dest_x, self.dest_y) and mining_tool(self.entity) is not None:
+            return MineAction(self.entity, self.dest_x, self.dest_y).perform()
+
+        return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()
+
+
+def is_rock_face(world, x: int, y: int) -> bool:
+    """A solid wall tile (not the edge of the world, not a door or stairs)."""
+    tile = world.tile_at(x, y)
+    if tile is None or tile["walkable"] or tile["transparent"] or tile["liquid"] or tile["stairs"]:
+        return False
+    from atlas import NO_SPRITE
+    return int(tile["dark"]["sprite"]) != NO_SPRITE
+
+
+def tool_with(unit, tag: str):
+    """The best carried tool granting `tag`: the wielded one first, then the one with the hardest head."""
+    from components.equippable import Equippable
+    tools = [i for i in unit.inventory.items if isinstance(i, Equippable) and tag in getattr(i, "tool_tags", ())]
+    weapon = unit.equipment.weapon if unit.equipment else None
+    if weapon is not None and weapon not in tools and tag in getattr(weapon, "tool_tags", ()):
+        tools.append(weapon)
+    if not tools:
+        return None
+    tools.sort(key=lambda t: (t is not weapon, -tool_head(t).hardness if tool_head(t) else 0))
+    return tools[0]
+
+
+def mining_tool(unit):
+    return tool_with(unit, "mining")
+
+
+def tool_head(tool) -> Optional[Material]:
+    parts = getattr(tool, "parts", None)
+    if not parts:
+        return None
+    for role in ("head", "blade", "body"):
+        if role in parts:
+            return parts[role]
+    return next(iter(parts.values()))
+
+
+class MineAction(ActionWithDirection):
+    """Break the rock face next to you with a mining tool: the tile opens up and you get a piece of what it was made of."""
 
     def perform(self) -> None:
-        inventory = self.entity.inventory
+        import resources
+        import species as defs
+        from crafting import make_piece
+        engine, user, world = self.engine, self.entity, self.engine.game_map
+        if max(abs(self.dest_x - user.x), abs(self.dest_y - user.y)) > 1 or not is_rock_face(world, self.dest_x, self.dest_y):
+            raise exceptions.Impossible("There is no rock face there to mine.")
+        tool = mining_tool(user)
+        if tool is None:
+            raise exceptions.Impossible("You need a pickaxe (or another mining tool) to break rock.")
+        game_world = engine.game_world
+        planet = game_world.planet
+        if planet is None:
+            raise exceptions.Impossible("The rock is too hard here.")
+        biome = resources.biome_key_at(game_world, world.z, self.dest_x, self.dest_y)
+        rock = resources.wall_material(planet, game_world.master_seed, world.z, self.dest_x, self.dest_y, biome)
+        head = tool_head(tool)
+        need = resources.mine_difficulty(rock)
+        if head is None or head.hardness < need:
+            raise exceptions.Impossible(
+                f"Your {tool.get_title()} cannot break {rock.name}: its head is too soft (hardness {head.hardness if head else 0:.1f} "
+                f"against about {need:.1f}).")
+        piece = piece_kind_for(rock)
+        import tile_types
+        world.set_tile(self.dest_x, self.dest_y, tile_types.cave_floor.get_array())
+        item = make_piece(piece, rock)
+        inventory = user.inventory
+        if inventory.is_full():
+            world.add_entity(item, self.dest_x, self.dest_y)
+            where = "it falls at your feet"
+        else:
+            inventory.add(item)
+            where = "you pick it up"
+        engine.message_log.add_message(f"You break out {item.get_title()}; {where}.", color.menu_text)
+        from skills import Skill
+        user.practice(Skill.GEOLOGY)
+        game_world.pass_time(unit=user, time=2)
+        engine.update_fov()
 
-        if not self.recipe.can_craft(inventory):
-            raise exceptions.Impossible("You don't have the required materials.")
 
-        result = self.recipe.craft(inventory)
-        inventory.add(result)
+def piece_kind_for(rock: Material):
+    import species as defs
+    from materials import Family
+    if rock.family is Family.FUEL:
+        return defs.PIECE_COAL
+    if rock.refines_to or rock.id.startswith("ore:"):
+        return defs.PIECE_ORE
+    return defs.PIECE_STONE
 
+
+class GatherAction(Action):
+    """Dig the ground you stand on: sand on shores and in deserts, clay in wet ground. A shovel is fast, bare hands slow."""
+
+    def perform(self) -> None:
+        import resources
+        import species as defs
+        from crafting import make_piece
+        engine, user, world = self.engine, self.entity, self.engine.game_map
+        planet = engine.game_world.planet
+        tile = world.tile_at(user.x, user.y)
+        if planet is None or tile is None or tile["liquid"] or tile["stairs"]:
+            raise exceptions.Impossible("There is nothing to dig here.")
+        found = resources.ground_material(planet, engine.game_world, world, user.x, user.y)
+        if found is None:
+            raise exceptions.Impossible("The ground here is just loose soil: nothing useful to dig. Look near water, or in sandy country.")
+        form, material = found
+        item = make_piece(defs.PIECE_SAND if form == "sand" else defs.PIECE_CLAY, material)
+        tool = tool_with(user, "digging")
+        user.inventory.add(item)  # raises Impossible if the pack is full, before time passes
+        engine.message_log.add_message(f"You dig up {item.get_title()}.", color.menu_text)
+        engine.game_world.pass_time(unit=user, time=resources.DIG_TURNS_TOOL if tool else resources.DIG_TURNS_BARE)
+
+
+class SharpenAction(Action):
+    """Put an edge on the wielded (or given) tool with an abrasive stone or sand you carry."""
+
+    def __init__(self, entity: Unit, gear=None):
+        super().__init__(entity)
+        self.gear = gear
+
+    def perform(self) -> None:
+        from items import ABRASIVE, Stuff
+        user = self.entity
+        gear = self.gear or (user.equipment.weapon if user.equipment else None)
+        if gear is None or not hasattr(gear, "sharpen"):
+            raise exceptions.Impossible("Wield an edged tool first.")
+        if not getattr(gear, "dull", False):
+            raise exceptions.Impossible(f"{gear.get_title()} is already keen.")
+        head = tool_head(gear)
+        needed = max(ABRASIVE, (head.hardness if head else 0) - 3.5)
+        stones = [i for i in user.inventory.items if isinstance(i, Stuff) and i.form in ("Stone", "Sand") and i.substance.abrasivity >= needed]
+        if not stones:
+            raise exceptions.Impossible(f"You need a whetstone: a stone or sand with abrasivity of at least {needed:.1f}.")
+        gear.sharpen()
+        self.engine.message_log.add_message(f"You sharpen {gear.get_title()} on {stones[0].get_title()}.", color.menu_text)
+        self.engine.game_world.pass_time(unit=user, time=2)
+
+
+class UseMedkitAction(Action):
+    def __init__(self, entity: Unit, kit):
+        super().__init__(entity)
+        self.kit = kit
+
+    def perform(self) -> None:
+        user = self.entity
+        if user.hp >= user.max_hp:
+            raise exceptions.Impossible("You are not hurt.")
+        amount = user.heal(10 + round(10 * self.kit.quality))
+        if user.inventory.items and self.kit in user.inventory.items:
+            user.inventory.remove(self.kit)
+        self.engine.message_log.add_message(f"You use the medkit and recover {amount} health.", color.health_recovered)
+        self.engine.game_world.pass_time(unit=user, time=3)
+
+
+class CraftAction(Action):
+    """Craft a recipe from what the unit carries (see `crafting.check`) and add the result to the inventory."""
+
+    def __init__(self, entity: Unit, recipe, choices=None):
+        super().__init__(entity)
+        self.recipe = recipe
+        self.choices = choices
+
+    def perform(self) -> None:
+        import crafting
+        results = crafting.craft(self.recipe, self.entity, self.choices)
+        names = ", ".join(r.get_title() for r in results)
         hint = " Use it from your inventory to place it." if self.recipe.is_placeable else ""
-        self.engine.message_log.add_message(
-            f"You crafted a {self.recipe.name}!{hint}",
-            color.menu_text,
-        )
-
-        self.engine.game_world.pass_time(unit=self.entity, time=1)
+        self.engine.message_log.add_message(f"You made {names}!{hint}", color.menu_text)
+        from skills import Skill
+        skill = self.recipe.skill[0] if self.recipe.skill else (Skill.ENGINEERING if self.recipe.stage >= 3 else None)
+        if skill is not None and self.entity.practice(skill):
+            self.engine.message_log.add_message(f"Your {skill.value} improves!", color.menu_text)
+        self.engine.game_world.pass_time(unit=self.entity, time=max(1, self.recipe.time))
 
 
 class UseFlaskAction(Action):
@@ -345,31 +525,69 @@ class UseFlaskAction(Action):
 
 
 class InteractAction(Action):
-    """Interact with an entity at the player's location."""
+    """Interact with a fire on or next to the player's tile: light it (needs fuel in your pack and something to strike a
+    spark with), or add fuel to a burning one. Fires with no fuel mechanics (the old toggle) still flip on and off."""
 
     def __init__(self, entity: Unit):
         super().__init__(entity)
 
-    def perform(self) -> None:
+    def _fire(self):
         from crafting import Campfire
+        world, e = self.engine.game_map, self.entity
+        for dx, dy in [(0, 0)] + [(dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx, dy) != (0, 0)]:
+            for thing in world.get_entities_at_location(e.x + dx, e.y + dy):
+                if isinstance(thing, Campfire) and thing.is_placed:
+                    return thing
+        return None
 
-        entities = self.engine.game_map.get_entities_at_location(
-            self.entity.x, self.entity.y
-        )
+    def perform(self) -> None:
+        import crafting
+        import materials
+        from items import Stuff
+        fire = self._fire()
+        if fire is None:
+            raise exceptions.Impossible("There's nothing to interact with here.")
+        user, log = self.entity, self.engine.message_log
+        fuel = next((i for i in crafting.fuel_candidates(user) if i.form in ("Branch", "Coal")), None)
+        own = getattr(fire, "stock", 0)
+        if fire.is_lit:
+            if fuel is None:
+                raise exceptions.Impossible(f"The {fire.kind.object_type.lower()} burns on. You have no fuel to add.")
+            burn = materials.burn_turns(fuel.substance)
+            user.inventory.remove(fuel)
+            fire.add_fuel(burn)
+            log.add_message(f"You add {fuel.get_title()} to the fire.", color.orange)
+        else:
+            if "firestarting" not in crafting.unit_tags(user):
+                raise exceptions.Impossible("You need something to strike a spark with: carry a flint or another very hard stone.")
+            if own:
+                turns = own
+                note = ""
+            else:
+                if fuel is None:
+                    raise exceptions.Impossible("The fire needs fuel: carry a branch or some coal to burn.")
+                outcome = materials.ignite(fuel.substance, SPARK_TEMPERATURE, self.engine.game_world.planet.oxygen if self.engine.game_world.planet else materials.AMBIENT_OXYGEN)
+                if outcome is materials.Burn.NONE:
+                    raise exceptions.Impossible(f"{fuel.get_title()} will not catch from a spark: it is too hard to ignite.")
+                if outcome is materials.Burn.FLASH:
+                    user.inventory.remove(fuel)
+                    log.add_message(f"{fuel.get_title()} flares and dies: it cannot sustain a flame in this air.", color.impossible)
+                    self.engine.game_world.pass_time(unit=user, time=1)
+                    return
+                turns = materials.burn_turns(fuel.substance)
+                user.inventory.remove(fuel)
+                note = f" with {fuel.get_title()}"
+            fire.stock = 0
+            fire.add_fuel(turns)
+            log.add_message(f"You strike a spark and light the {fire.kind.object_type.lower()}{note}. Warm light fills the area.", color.orange)
+        self.engine.update_fov()
+        self.engine.game_world.pass_time(unit=user, time=1)
 
-        for target in entities:
-            if isinstance(target, Campfire) and target.is_placed:
-                message = target.toggle()
-                self.engine.message_log.add_message(
-                    message,
-                    color.orange if target.is_lit else color.white,
-                )
-                self.engine.update_fov()
-                self.engine.game_world.pass_time(unit=self.entity, time=1)
-                return
 
-        raise exceptions.Impossible("There's nothing to interact with here.")
-    
+SPARK_TEMPERATURE = 450.0
+"""Degrees C of a spark struck from a hard stone: enough to ignite anything with flammability >= 3.4."""
+
+
 class PlaceConstructableAction(Action):
     """Place a constructable item from inventory onto the map."""
 

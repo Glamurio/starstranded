@@ -250,7 +250,7 @@ def generate_planet(seed: int, culture: str = "human") -> Planet:
     sand_props = _roll(rng, SAND["ranges"])
     sand_color = _tint(rng, SAND["color"])
     add(Material("sand:0", namer.name("sand:0", "sand", sand_color, sand_props).text, Family.SAND, sand_color,
-                 is_amorphous=True, melting_point=rng.randint(1550, 1750), **sand_props))
+                 is_amorphous=True, melting_point=rng.randint(1300, 1480), **sand_props))
     clay_props = _roll(rng, CLAY["ranges"])
     clay_color = _tint(rng, CLAY["color"])
     add(Material("clay:0", namer.name("clay:0", "clay", clay_color, clay_props).text, Family.CLAY, clay_color, **clay_props))

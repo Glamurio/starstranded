@@ -135,6 +135,17 @@ _tag("archaeology", TagKind.CAPABILITY, "Recognises precursor sites and artifact
 _tag("first_aid", TagKind.CAPABILITY, "Treats injuries better.", ("health",))
 _tag("pilot_training", TagKind.CAPABILITY, "Can fly and repair spacecraft systems.", ("escape",))
 
+# ── tool and station capabilities (granted by held tools and nearby stations; see crafting.py / items.py) ─────
+_tag("chopping", TagKind.CAPABILITY, "Fells trees and cuts wood quickly (hatchets, axes).", ("gathering", "crafting"))
+_tag("mining", TagKind.CAPABILITY, "Breaks rock and digs out ore (pickaxes).", ("gathering", "crafting"))
+_tag("digging", TagKind.CAPABILITY, "Digs sand and clay from the ground (shovels; hands do it slowly).", ("gathering",))
+_tag("cutting", TagKind.CAPABILITY, "Cuts hide, fibre and cord (knives).", ("crafting",))
+_tag("hammering", TagKind.CAPABILITY, "Shapes and joins hard parts (hammers).", ("crafting",))
+_tag("sharpening", TagKind.CAPABILITY, "Puts an edge on a dull tool (whetstones).", ("crafting",))
+_tag("salvaging", TagKind.CAPABILITY, "Takes constructed things apart for their parts (salvage tool).", ("salvage",))
+_tag("workbench", TagKind.CAPABILITY, "A workbench is within reach: lets you do careful assembly.", ("crafting",))
+_tag("furnace", TagKind.CAPABILITY, "A fuelled furnace is within reach: refines ore, fires clay, melts sand.", ("crafting",))
+
 # ── restrictions ──────────────────────────────────────────────────────────────────────────────────────
 _tag("liquid_averse", TagKind.RESTRICTION,
      "Will not voluntarily enter liquid terrain. Forced movement (knockback, falling) is not voluntary and is "

@@ -531,3 +531,25 @@ The plan above was implemented as written, with these specifics and deviations:
   figures). Chunk blobs hold sprite ids, so pre-merge saves would draw wrong sprites too.
 - **Alternative:** migrate old saves with `legacy_map.json` — not done: procedural fruit and plant definitions inside the pickles also
   carry old coordinates; the project already accepts rejecting old saves.
+
+## Gameplay core: items made of materials, property-based recipes (branch `gameplay-core`)
+- **What:** every gathered thing is a `Stuff` (one piece of one planet `Material`); crafted things are `Composite`s (`Gear`, `Made`,
+  `Placed`, built floors/stairs/walls) that remember which material filled which role and derive their properties from them with the
+  recipe's rules (`materials.derive_properties`). Recipes (`recipes.py`) are lists of `Need`s (role, accepted forms, property
+  thresholds on the 0-10 scale) plus tool/station tags, skill, heat and time; `crafting.check` reports each requirement as met or
+  not, `crafting.craft` consumes exactly the pieces it picked. All pieces of one role are one material (no mixing).
+- **Why:** the old recipes were fixed ingredient counts of an object type; the same hatchet whatever you made it from. Thresholds
+  and derivation make material choice matter and let planets with different materials still be playable.
+- **Race efficiency** (`craft_cost`, Human) trims counts above 1 by the stat, never below one piece per role, never touching thresholds.
+- **Refining** is a recipe at a placed furnace that burns fuel pieces from the pack: furnace temperature = 450 + 125 x the best fuel's
+  combustibility (wood ~1200 C, coal ~1575 C). Smelting needs the metal's melting point, glass the sand's. Ignition of a fire uses
+  `materials.ignite` with a 450 C spark from a hard stone (hardness >= 7): fuel that cannot ignite or only flashes is reported.
+- **Acquisition paths:** `acquisition.reachable(planet)` plays the tree forward from what the planet gives; a test requires every
+  recipe to be reachable on 8 sample planets. Skills are ignored there on purpose (earned by `Unit.practice`).
+- **Mining:** rock faces yield the deposit of their 5x5 cell (`resources.wall_material`: stone of the biome, ore veins, coal, crystal,
+  radioactive ore in caves), a pickaxe head must be harder than the rock (`mine_difficulty`). Loose stones are scattered entities
+  (so they persist like any item); sand and clay are dug from shores and the right biomes.
+- **Material damage:** `actions.material_damage` multiplies a hit by `materials.attack_factor` against the target's material
+  (plants' wood, built walls); creatures use their plain numbers.
+- **Limitations:** sprites for new items reuse the nearest existing art (stone, ore, pieces share icons, furnace/workbench are
+  placeholders) - tinted by material colour; held torches do not light the carrier (torches are placed).

@@ -6,7 +6,8 @@ import exceptions
 from components.equippable import Axe
 from components.plant import Shrub, Tree
 from components.unit import Animal
-from crafting import RECIPES, Branch, WoodenSpear
+from crafting import Branch, WoodenSpear
+from recipes import RECIPES
 from damage import DamageType, resolve
 
 
@@ -91,5 +92,6 @@ def test_animals_hit_with_their_natural_type(small_world):
     assert a.damage_type is DamageType.BLUNT
 
 
-def test_axe_is_craftable_from_branches():
-    assert any(r.name == "Axe" and r.ingredients == {"Branch": 3} for r in RECIPES)
+def test_hatchet_is_craftable_from_head_handle_and_binding():
+    hatchet = next(r for r in RECIPES if r.key == "hatchet")
+    assert set(hatchet.ingredients) == {"head", "handle", "binding"}

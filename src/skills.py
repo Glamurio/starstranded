@@ -64,3 +64,8 @@ class SkillSet:
 def skills(**levels: int) -> SkillSet:
     """`skills(biology=3, survival=1)`."""
     return SkillSet({Skill(name): level for name, level in levels.items()})
+
+
+PRACTICE_NEEDED = (6, 14, 28, 50, 80)
+"""Practice points needed to go from level 0->1, 1->2 ... 4->5. Using a skill (crafting something that needs it, scanning
+something of its field) earns a point; the first levels come quickly, the last take a long run."""

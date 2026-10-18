@@ -711,6 +711,12 @@ class GameWorld:
         self.arrivals: List[tuple] = []  # (due time, unit, z, x, y): followers still on the stairs
 
     @property
+    def planet(self):
+        """The planet catalogue (species, materials, names) of this game; None for the old single-species test worlds."""
+        source = self.world_at(0).source
+        return getattr(source, "planet", None)
+
+    @property
     def current_floor(self) -> int:
         """The depth: 1 on the surface, 2 one cave below it, 0 on the first upper floor."""
         return 1 - self.current_z

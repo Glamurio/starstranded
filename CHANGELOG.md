@@ -167,3 +167,8 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 
 ## Phase 0
 - No behavior changes. Added tests, benchmark and notes only.
+
+## Gameplay core (branch gameplay-core)
+- Items are made of planet materials; crafting is property-based (`recipes.py`, `crafting.py`, `items.py`), with a requirement-by-
+  requirement crafting screen, tools/stations/skills/heat, derived properties, dull-until-sharpened edges, furnaces, fuel and
+  sparks, built walls, mining (`X` dig, bump a rock face with a pickaxe, `T` sharpen), hide and fibre drops.

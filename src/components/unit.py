@@ -10,6 +10,8 @@ from components.inventory import Inventory
 from components.equipment import Equipment
 from components.level import Level
 from components.consumable import Meat
+from capabilities import CapabilitySet, Grant
+from skills import SkillSet
 from species import AIKind, HUMAN, RABBIT, SELENITE, UnitSpecies
 
 from utilities import clamp, generate_name, get_gaussian_shade, get_random_color
@@ -54,8 +56,35 @@ class Unit(Entity):
         self.poison: int = 0  # turns of poison left: 1 damage each
         self.last_upkeep: Optional[int] = None  # game time of the last hunger/thirst update (simulation.upkeep)
         self.blocks_movement = True
+        self.skills: SkillSet = SkillSet()                 # trained skill levels (race + background + practice)
+        self.skill_practice: dict = {}                     # Skill -> practice points toward the next level
+        self.extra_grants: tuple = ()                      # tags from background, sponsor gear, statuses
         ai_class = _AI_FOR_KIND.get(species.ai)
         self.ai = ai_class(self) if ai_class else None
+
+    @property
+    def capabilities(self) -> CapabilitySet:
+        """Every tag this unit has: its species (race), background and worn gear. Tools it merely carries and
+        stations near it are added by the crafting system when it asks (`crafting.unit_tags`)."""
+        found = list(self.kind.grants) + list(self.extra_grants)
+        armor = self.equipment.armor if self.equipment else None
+        if armor is not None:
+            found += [Grant(tag) for tag in getattr(armor, "worn_tags", ())]
+        return CapabilitySet(found)
+
+    def practice(self, skill, points: int = 1) -> bool:
+        """Use a skill: enough practice raises it one level (thresholds in `skills.PRACTICE_NEEDED`). True on a level-up."""
+        from skills import MAX_LEVEL, PRACTICE_NEEDED
+        level = self.skills.level(skill)
+        if level >= MAX_LEVEL:
+            return False
+        total = self.skill_practice.get(skill, 0) + points
+        if total >= PRACTICE_NEEDED[level]:
+            self.skill_practice[skill] = 0
+            self.skills = self.skills.combine(SkillSet({skill: 1}))
+            return True
+        self.skill_practice[skill] = total
+        return False
 
     @property
     def radius(self) -> int:
@@ -135,6 +164,10 @@ class Unit(Entity):
         if self.kind.leather:
             from crafting import Leather
             self.inventory.add(Leather(self.species, self.inventory))
+        if self.kind.hide is not None:
+            from items import Stuff
+            import species as defs
+            self.inventory.add(Stuff(defs.PIECE_HIDE, self.kind.hide, self.inventory))
 
 
         seen = self is self.engine.player or self.game_map is None or self.game_map.is_visible(self.x, self.y)

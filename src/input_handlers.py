@@ -636,89 +636,136 @@ class InventoryEventHandler(AskUserEventHandler):
 
 
 class CraftingMenuHandler(AskUserEventHandler):
-    """Display available recipes and let the player craft items."""
+    """The crafting screen: recipes on the left; on the right what the selected one needs, line by line (met or not), and
+    which of your materials it would use. TAB picks a role, LEFT/RIGHT changes the material used for it."""
 
     TITLE = "Crafting"
+    LIST_ROWS = 30
 
     def __init__(self, engine: Engine):
         super().__init__(engine)
-        from crafting import RECIPES
-        self.recipes = RECIPES
+        from crafting import get_recipes
+        self.recipes = get_recipes()
         self.menu_i: int = 0
         self.button_highlight: int = 0
+        self.role_i: int = 0
+        self.choices: dict = {}  # recipe key -> {role: material id}
+
+    @property
+    def recipe(self):
+        return self.recipes[self.button_highlight]
+
+    def plan(self, recipe=None):
+        import crafting
+        recipe = recipe or self.recipe
+        return crafting.check(recipe, self.engine.player, self.choices.get(recipe.key))
 
     def on_render(self, canvas: Canvas) -> None:
         super().on_render(canvas)
+        x, y = layout.SIDE_PANEL_WIDTH, 1
+        width, height = 68, self.LIST_ROWS + 6
+        canvas.draw_frame(x=x, y=y, width=width, height=height, title=self.TITLE, clear=True, fg=color.menu_text, bg=color.nigh_black)
+        top = max(0, min(self.button_highlight - self.LIST_ROWS // 2, len(self.recipes) - self.LIST_ROWS))
+        for row, i in enumerate(range(top, min(len(self.recipes), top + self.LIST_ROWS))):
+            recipe = self.recipes[i]
+            ok = self.plan(recipe).ok
+            selected = i == self.button_highlight
+            fg = color.black if selected else (color.menu_text if ok else color.impossible)
+            bg = color.white if selected else color.nigh_black
+            canvas.print(x + 2, y + 2 + row, f"{recipe.stage} {recipe.name:<20}"[:24], fg=fg, bg=bg)
+        recipe = self.recipe
+        plan = self.plan()
+        dx = x + 28
+        canvas.print(dx, y + 2, recipe.name, fg=color.yellow)
+        canvas.print(dx, y + 3, f"Stage {recipe.stage}   Time {recipe.time}", fg=color.impossible)
+        for i, text in enumerate(self._wrap(recipe.description, width - 30)):
+            canvas.print(dx, y + 4 + i, text, fg=color.menu_text)
+        row = y + 8
+        roles = [n.role for n in recipe.needs]
+        for line in plan.lines:
+            for k, text in enumerate(self._wrap(("[+] " if line.ok else "[ ] ") + line.text, width - 30)):
+                canvas.print(dx, row, text if k == 0 else "    " + text, fg=color.green if line.ok else color.red)
+                row += 1
+        row += 1
+        if recipe.needs:
+            role = roles[self.role_i % len(roles)]
+            mats = __import__("crafting").options(recipe, self.engine.player, role)
+            chosen = (self.choices.get(recipe.key) or {}).get(role)
+            names = ", ".join((f"<{m.name}>" if m.id == chosen else m.name) for m in mats) or "none"
+            canvas.print(dx, row, f"Material for {role} (TAB, LEFT/RIGHT):", fg=color.impossible)
+            for k, text in enumerate(self._wrap(names, width - 30)):
+                canvas.print(dx, row + 1 + k, text, fg=color.menu_text)
+        if plan.ok and recipe.needs:
+            props = self._preview(recipe, plan)
+            if props:
+                canvas.print(dx, y + height - 4, props, fg=color.menu_text)
+        canvas.print(x + 2, y + height - 2, "ENTER: make   UP/DOWN: recipe   ESC: close", fg=color.impossible)
 
-        x = layout.SIDE_PANEL_WIDTH
-        y = 1
-        width = 36
-        height = len(self.recipes) * 3 + 4
+    @staticmethod
+    def _wrap(text: str, width: int):
+        import textwrap
+        return textwrap.wrap(text, width) or [""]
 
-        canvas.draw_frame(
-            x=x, y=y,
-            width=width, height=height,
-            title=self.TITLE,
-            clear=True,
-            fg=color.menu_text,
-            bg=color.nigh_black,
-        )
-
-        player_inv = self.engine.player.inventory
-
-        for i, recipe in enumerate(self.recipes):
-            can_craft = recipe.can_craft(player_inv)
-            recipe_y = y + 2 + (i * 3)
-
-            name_color = color.menu_text if can_craft else color.impossible
-            highlight_bg = color.white if i == self.button_highlight else color.nigh_black
-            highlight_fg = color.black if i == self.button_highlight else name_color
-
-            canvas.print(
-                x=x + 2, y=recipe_y,
-                text=recipe.name,
-                fg=highlight_fg,
-                bg=highlight_bg,
-            )
-
-            parts = []
-            for item_type, count in recipe.ingredients.items():
-                available = sum(
-                    1 for item in player_inv.items
-                    if item.object_type == item_type
-                )
-                parts.append(f"{item_type} x{count} ({available}/{count})")
-
-            ingredient_str = ", ".join(parts)
-            canvas.print(
-                x=x + 4, y=recipe_y + 1,
-                text=ingredient_str,
-                fg=color.white if can_craft else color.impossible,
-            )
+    def _preview(self, recipe, plan) -> str:
+        import materials
+        if not plan.parts:
+            return ""
+        rules = dict(recipe.rules)
+        keys = [k for k in rules][:3] or ["hardness", "toughness"]
+        try:
+            props = materials.derive_properties(plan.parts, rules, plan.quality, keys=keys)
+        except Exception:
+            return ""
+        return "Result: " + ", ".join(f"{k} {v:.1f}" for k, v in props.items()) + f"  quality {plan.quality:.1f}"
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         key = event.sym
-
+        count = len(self.recipes)
         if key == Key.UP:
-            self.button_highlight = max(0, self.button_highlight - 1)
+            self.button_highlight = (self.button_highlight - 1) % count
+            self.role_i = 0
             return None
         elif key == Key.DOWN:
-            self.button_highlight = min(len(self.recipes) - 1, self.button_highlight + 1)
+            self.button_highlight = (self.button_highlight + 1) % count
+            self.role_i = 0
+            return None
+        elif key == Key.PAGEUP:
+            self.button_highlight = max(0, self.button_highlight - 10)
+            return None
+        elif key == Key.PAGEDOWN:
+            self.button_highlight = min(count - 1, self.button_highlight + 10)
+            return None
+        elif key == Key.TAB:
+            self.role_i += 1
+            return None
+        elif key in (Key.LEFT, Key.RIGHT):
+            self._cycle(1 if key == Key.RIGHT else -1)
             return None
         elif key in CONFIRM_KEYS:
-            recipe = self.recipes[self.button_highlight]
-            if recipe.can_craft(self.engine.player.inventory):
-                return actions.CraftAction(self.engine.player, recipe)
-            else:
-                self.engine.message_log.add_message(
-                    "You don't have enough materials.", color.impossible
-                )
-                return None
-
+            recipe = self.recipe
+            plan = self.plan()
+            if plan.ok:
+                return actions.CraftAction(self.engine.player, recipe, self.choices.get(recipe.key))
+            self.engine.message_log.add_message(f"You can't make that yet: {plan.reasons[0]}", color.impossible)
+            return None
         return super().ev_keydown(event)
+
+    def _cycle(self, step: int) -> None:
+        import crafting
+        recipe = self.recipe
+        role = recipe.needs[self.role_i % len(recipe.needs)].role
+        mats = crafting.options(recipe, self.engine.player, role)
+        if not mats:
+            return
+        current = (self.choices.get(recipe.key) or {}).get(role)
+        ids = [m.id for m in mats]
+        index = (ids.index(current) + step) % len(ids) if current in ids else (0 if step > 0 else len(ids) - 1)
+        self.choices.setdefault(recipe.key, {})[role] = ids[index]
 
     def ev_mousebuttondown(self, event: events.MouseButtonDown) -> Optional[ActionOrHandler]:
         return None
+
+
 class InventoryActivateHandler(InventoryEventHandler):
     """Handle using an inventory item."""
 
@@ -963,6 +1010,10 @@ class MainGameEventHandler(EventHandler):
             return CraftingMenuHandler(self.engine)
         elif key == Key.F:
             return actions.InteractAction(player)
+        elif key == Key.X:
+            return actions.GatherAction(player)   # dig the ground (sand, clay)
+        elif key == Key.T:
+            return actions.SharpenAction(player)  # put an edge on the wielded tool
 
         elif key == Key.C:
             return CharacterScreenEventHandler(self.engine)
