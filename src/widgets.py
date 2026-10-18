@@ -285,3 +285,80 @@ def next_screen(handler, step: int = 1):
     if target is ih.InventoryActivateHandler:
         return target(engine, engine.player.inventory)
     return target(engine)
+
+
+class Choices:
+    """A short vertical list of choices that works with the keyboard and the mouse (positions are cells).
+
+    `handle(event)` returns the chosen index (Enter or a click) or None; Up/Down and hovering move the highlight."""
+
+    def __init__(self, labels: Sequence[str], gap: int = 1) -> None:
+        self.labels = list(labels)
+        self.gap = gap
+        self.selected = 0
+        self.rects: List[Tuple[pygame.Rect, int]] = []   # in cells
+
+    def draw(self, canvas: ui.Canvas, x: int, y: int, width: int) -> None:
+        import events as ev
+        self.rects = []
+        for i, label in enumerate(self.labels):
+            row = y + i * (1 + self.gap)
+            if i == self.selected:
+                canvas.fill(x, row, width, 1, Theme.HILITE)
+            canvas.print(x + width // 2, row, label, fg=Theme.HILITE_TEXT if i == self.selected else Theme.TEXT, alignment=ui.CENTER)
+            self.rects.append((pygame.Rect(x, row, width, 1), i))
+
+    def at(self, position) -> Optional[int]:
+        for rect, index in self.rects:
+            if rect.collidepoint(int(position[0]), int(position[1])):
+                return index
+        return None
+
+    def handle(self, event) -> Optional[int]:
+        from events import Key, MouseButton
+        kind = getattr(event, "type", "")
+        if kind == "keydown":
+            if event.sym == Key.UP:
+                self.selected = (self.selected - 1) % len(self.labels)
+            elif event.sym == Key.DOWN:
+                self.selected = (self.selected + 1) % len(self.labels)
+            elif event.sym in (Key.RETURN, Key.KP_ENTER):
+                return self.selected
+        elif kind == "mousemotion":
+            hit = self.at(event.position)
+            if hit is not None:
+                self.selected = hit
+        elif kind == "mousebuttondown" and event.button == MouseButton.LEFT:
+            hit = self.at(event.position)
+            if hit is not None:
+                self.selected = hit
+                return hit
+        return None
+
+
+HINT_KEYS = {"Esc": "ESCAPE", "Enter": "RETURN", "Tab": "TAB", "Space": "SPACE", "any key": "RETURN",
+             "g": "G", "R": "R", "Z": "Z", "S": "S", "H": "H", "F": "F", "Home/End": "HOME"}
+# hints that name several keys, a range or a gesture (Up/Down, a-z, Left/Right ...) are not clickable: the list itself is
+
+
+def expand_click(handler, canvas, event) -> list:
+    """Turn a left click on window chrome into key events: a tab switches screen, a hint like `[Esc] close` presses its key.
+    Any other event comes back unchanged (in a list), so the caller can feed the result straight to the handler."""
+    from events import Key, KeyDown, MouseButton
+    if getattr(event, "type", "") == "mousebuttondown" and event.button == MouseButton.LEFT and canvas is not None:
+        px, py = int(event.position[0]) * CELL + CELL // 2, int(event.position[1]) * CELL + CELL // 2
+        for i, rect in enumerate(canvas.tab_rects):
+            if rect.collidepoint(px, py):
+                active = handler.tab if isinstance(getattr(handler, "tab", None), int) else tab_index(handler)
+                steps = (i - active) % len(canvas.tab_rects)
+                return [KeyDown(Key.TAB, 0)] * steps if steps else []
+        for rect, label in canvas.hint_hits:
+            if rect.collidepoint(px, py):
+                name = HINT_KEYS.get(label)
+                if name is None:
+                    return []
+                return [KeyDown(getattr(Key, name), 0)]
+    if getattr(event, "type", "") == "mousewheel":
+        from events import Key, KeyDown
+        return [KeyDown(Key.UP if event.dy > 0 else Key.DOWN, 0)]
+    return [event]

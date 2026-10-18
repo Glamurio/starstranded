@@ -132,6 +132,8 @@ class Canvas:
 
     def __init__(self, surface: pygame.Surface, font: Font, sprites: Optional[atlas_module.SpriteAtlas] = None):
         self.surface = surface
+        self.tab_rects: list = []
+        self.hint_hits: list = []
         self.font = font
         self.sprites = sprites or atlas_module.get_atlas()
         self.width = surface.get_width() // CELL
@@ -146,6 +148,8 @@ class Canvas:
 
     # ── primitives ─────────────────────────────────────────────────────────────────
     def clear(self, color: RGB = BLACK) -> None:
+        self.tab_rects = []
+        self.hint_hits = []
         self.surface.fill(color)
 
     def fill(self, x: int, y: int, width: int, height: int, color: RGB) -> None:
@@ -285,19 +289,25 @@ class Canvas:
     def hints(self, x: int, y: int, hints, width: Optional[int] = None) -> None:
         """A row of `[key] action` hints starting at cell (x, y); with `width` (cells) it is centred in that width."""
         parts = [(f"[{key}]", f" {what}") for key, what in hints]
+        labels = [key for key, _ in hints]
         total = sum(self.font.width(k + w) + 2 * CHAR_W for k, w in parts) - 2 * CHAR_W
         px = x * CELL + ((width * CELL - total) // 2 if width else 0)
         row = pygame.Rect(0, y * CELL, 0, CELL)
-        for key, what in parts:
+        for (key, what), label in zip(parts, labels):
+            start = px
             for text, fg in ((key, Theme.KEY), (what, Theme.TEXT)):
                 surface = self.font.text(text, fg)
                 self.surface.blit(surface, (px, row.y + (CELL - surface.get_height()) // 2))
                 px += surface.get_width()
+            self.hint_hits.append((pygame.Rect(start, row.y, px - start, CELL), label))   # clicking a hint presses its key
             px += 2 * CHAR_W
 
     def window(self, x: int, y: int, width: int, height: int, title: str = "", hints=None, tabs=None, active: int = 0) -> Tuple[int, int, int, int]:
         """Draw a framed window with an optional tab row (below the top edge) and `[key] action` hint bar (on the bottom
         row). Returns the inner area `(x, y, width, height)` in cells for the caller's content."""
+        frame = self.cell_rect(x, y, width, height)
+        self.tab_rects = [r for r in self.tab_rects if not frame.colliderect(r)]    # whatever this window covers is not clickable
+        self.hint_hits = [h for h in self.hint_hits if not frame.colliderect(h[0])]
         self.draw_frame(x, y, width, height, title=title)
         top = y + 1
         if tabs:

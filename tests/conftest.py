@@ -82,3 +82,15 @@ def small_world():
 def new_engine():
     """A full noise-generated game, exactly as the New Game flow builds it."""
     return setup_game.new_game(setup_game.create_player())
+
+
+@pytest.fixture(autouse=True)
+def private_sprite_config(tmp_path, monkeypatch):
+    """No test may write the real data/sprites.json (the fuzz test can wander into the sprite editor and click)."""
+    import spriteconfig
+    monkeypatch.setattr(spriteconfig, "PATH", str(tmp_path / "sprites.json"))
+    spriteconfig.reload()
+    yield
+    for key in list(spriteconfig._load()):
+        spriteconfig.reset(key, save_now=False)
+    spriteconfig.reload()

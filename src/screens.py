@@ -99,6 +99,18 @@ class PodHandler(AskUserEventHandler):
             return self.on_exit()
         return None
 
+    def ev_mousebuttondown(self, event):
+        if event.button == events.MouseButton.RIGHT:
+            return self.on_exit()
+        view = getattr(self, "list", None)
+        if view is not None:
+            index = view.row_at(int(event.position[0]) * 24 + 12, int(event.position[1]) * 24 + 12)
+            if index is not None:
+                if index == self.row:
+                    self._activate()   # a second click on the chosen row does what Enter does
+                self.row = index
+        return None
+
     def _activate(self) -> None:
         log = self.engine.message_log
         rows = self.rows()
@@ -218,3 +230,47 @@ class HelpHandler(AskUserEventHandler):
                 canvas.print(ix + 17, row, part, fg=Theme.TEXT)
                 row += 1
             row += 1
+
+
+class PauseMenu(AskUserEventHandler):
+    """Esc on the map: resume, or save and leave (to the main menu, or out of the game)."""
+
+    OPTIONS = ("Resume", "Save & Quit to Main Menu", "Save & Quit Game")
+
+    def __init__(self, engine):
+        super().__init__(engine)
+        import widgets
+        self.choices = widgets.Choices(self.OPTIONS)
+
+    def on_render(self, canvas) -> None:
+        parent = self.session.handlers[self.session.handlers.index(self) - 1] if self in self.session.handlers and self.session.handlers.index(self) > 0 else None
+        (parent or super()).on_render(canvas)
+        canvas.dim(3)
+        width, height = 36, 11
+        ix, iy, iw, ih = canvas.window((canvas.width - width) // 2, (canvas.height - height) // 2, width, height, title="Paused",
+                                       hints=[("Up/Down", "choose"), ("Enter", "select"), ("Esc", "resume")])
+        self.choices.draw(canvas, ix, iy + 1, iw)
+
+    def _choose(self, index: int):
+        if index == 0:
+            return self.on_exit()
+        if index == 1:
+            import setup_game
+            self.engine.save_as("savegame")
+            menu = setup_game.MainMenu(self.session)
+            self.session.reset(menu)
+            return menu
+        raise SystemExit()   # the main loop saves on the way out
+
+    def ev_keydown(self, event):
+        if event.sym == events.Key.ESCAPE:
+            return self.on_exit()
+        index = self.choices.handle(event)
+        return None if index is None else self._choose(index)
+
+    def ev_mousemotion(self, event):
+        self.choices.handle(event)
+
+    def ev_mousebuttondown(self, event):
+        index = self.choices.handle(event)
+        return None if index is None else self._choose(index)

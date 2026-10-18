@@ -122,6 +122,15 @@ class MouseButtonDown(Event):
         self.button = button
 
 
+class MouseWheel(Event):
+    """`dy` is +1 for a notch away from you (up) and -1 towards you (down)."""
+
+    type = "mousewheel"
+
+    def __init__(self, dy: int):
+        self.dy = dy
+
+
 class WindowChanged(Event):
     """The window was resized or exposed: the screen needs repainting."""
 
@@ -150,6 +159,9 @@ class EventDispatch:
         return None
 
     def ev_mousebuttondown(self, event: MouseButtonDown) -> Any:
+        return None
+
+    def ev_mousewheel(self, event: MouseWheel) -> Any:
         return None
 
     def ev_windowchanged(self, event: WindowChanged) -> Any:
@@ -182,6 +194,8 @@ def translate(raw: pygame.event.Event, to_cell, previous_cell: Optional[Point] =
         if cell is None or raw.button > MouseButton.RIGHT:
             return None
         return MouseButtonDown(cell, raw.button)
+    if kind == pygame.MOUSEWHEEL:
+        return MouseWheel(1 if raw.y > 0 else -1) if raw.y else None
     if kind in (pygame.WINDOWSIZECHANGED, pygame.WINDOWEXPOSED, pygame.VIDEORESIZE, pygame.WINDOWRESTORED):
         return WindowChanged()
     return None

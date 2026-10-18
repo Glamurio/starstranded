@@ -39,8 +39,14 @@ def test_random_input_never_raises(seed, monkeypatch, tmp_path):
     for step in range(600):
         if step % 150 == 0 and not hasattr(handler, "engine"):
             # help the fuzzer into a game now and then: New Game, confirm every step
-            for key in [Key.RETURN] * 7:
-                handler = main.process(handler, KeyDown(key, 0), SESSION)
+            try:
+                if getattr(handler, "button_highlight", "New Game") != "New Game":
+                    handler.menu_i, handler.button_highlight = 0, "New Game"
+                for key in [Key.RETURN] * 7:
+                    handler = main.process(handler, KeyDown(key, 0), SESSION)
+            except SystemExit:
+                handler = setup_game.MainMenu(SESSION)
+                SESSION.handlers = [handler]
         event = random_event(rng)
         if isinstance(event, KeyDown) and event.sym in (Key.ESCAPE,) and isinstance(handler, setup_game.MainMenu):
             continue                      # Escape on the main menu quits the program

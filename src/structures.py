@@ -60,7 +60,7 @@ class Ship(Structure):
         Structure.__init__(self, defs.SHIP)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
-        return "your crashed ship"
+        return "crashed shuttle"
 
     def interact(self, user, engine):
         run = engine.game_world.run

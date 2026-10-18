@@ -224,15 +224,31 @@ class SettingsMenu(input_handlers.BaseEventHandler):
         self.settings.clamp()
         settings_module.apply(self.settings, self.session)
 
+    def ev_mousebuttondown(self, event: events.MouseButtonDown):
+        """Click a row to select it; on a volume row the left half turns it down and the right half up; Fullscreen toggles."""
+        if event.button != events.MouseButton.LEFT:
+            return None
+        x, y = int(event.position[0]), int(event.position[1])
+        for rect, i in getattr(self, "row_rects", []):
+            if rect.collidepoint(x, y):
+                self.row = i
+                if self.ROWS[i][1] == "fullscreen":
+                    self.change(1)
+                else:
+                    self.change(1 if x >= rect.x + rect.w // 2 else -1)
+        return None
+
     def on_render(self, canvas: Canvas) -> None:
         from ui import Theme
         canvas.blit_image(background_image())
+        self.row_rects = []
         x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 7, 40
         ix, iy, iw, ih = canvas.window(x, y, width, 14, title="Settings", hints=[("Up/Down", "row"), ("Left/Right", "change"), ("Esc", "back")])
         for i, (label, field) in enumerate(self.ROWS):
             value = getattr(self.settings, field)
             selected = i == self.row
             row = iy + 1 + i * 2
+            self.row_rects.append((pygame.Rect(ix, row, iw, 1), i))
             if selected:
                 canvas.fill(ix, row, iw, 1, Theme.HILITE)
             canvas.print(ix, row, label, fg=Theme.HILITE_TEXT if selected else Theme.TEXT)
@@ -340,7 +356,7 @@ class CharacterCreation(input_handlers.BaseEventHandler):
         left_w = 24 if options else 0
         if options:
             rows = [widgets.Row(label, data=i) for i, (_, label) in enumerate(options)]
-            view = widgets.ListView(rows)
+            view = self.view = widgets.ListView(rows)
             view.selected = self.choice.get(step, 0)
             view.draw(canvas, ix, iy, left_w, ih)
         dx = ix + (left_w + 1 if options else 0)
@@ -351,6 +367,19 @@ class CharacterCreation(input_handlers.BaseEventHandler):
         for k, paragraph in enumerate(self.details(step)):
             lines.append((paragraph, Theme.TEXT))
         widgets.text_block(canvas, dx, iy, iw - (left_w + 1 if options else 0), ih, lines)
+
+    view = None
+
+    def ev_mousebuttondown(self, event: events.MouseButtonDown):
+        """Click an option to choose it; click the chosen one again to go on."""
+        step = self.STEPS[self.step]
+        if step in self.choice and self.view is not None and event.button == events.MouseButton.LEFT:
+            index = self.view.row_at(int(event.position[0]) * 24 + 12, int(event.position[1]) * 24 + 12)
+            if index is not None:
+                if self.choice[step] == index:
+                    return self.ev_keydown(events.KeyDown(Key.RETURN, 0))
+                self.choice[step] = index
+        return None
 
     def ev_textinput(self, event: events.TextInput) -> Optional[input_handlers.BaseEventHandler]:
         if self.STEPS[self.step] != "name":

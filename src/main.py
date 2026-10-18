@@ -57,12 +57,25 @@ def recover(handler, session):
     return safe
 
 
+def expand_click(handler, session, event):
+    """Clicks on window tabs and `[key] action` hints, and the mouse wheel, become the key presses they stand for."""
+    import input_handlers
+    import widgets
+    if isinstance(handler, (input_handlers.MainGameEventHandler, input_handlers.SelectIndexHandler)) and getattr(event, "type", "") == "mousewheel":
+        return []   # the map has no use for the wheel
+    if getattr(event, "type", "") not in ("mousebuttondown", "mousewheel"):
+        return [event]
+    return widgets.expand_click(handler, getattr(session, "canvas", None), event)
+
+
 def process(handler, event, session):
     """Feed one event to `handler` and return the handler to use next. Errors never escape: an `Impossible` is a message,
     anything else is logged (stderr and the message log) and the game falls back to a safe screen."""
     import input_handlers
     try:
-        return handler.handle_events(event)
+        for event in expand_click(handler, session, event):
+            handler = handler.handle_events(event)
+        return handler
     except (exceptions.QuitWithoutSaving, SystemExit):
         raise
     except exceptions.Impossible as exc:

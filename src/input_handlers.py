@@ -152,6 +152,9 @@ class PopupMessage(BaseEventHandler):
         """Any key returns to the parent handler."""
         return self.parent
 
+    def ev_mousebuttondown(self, event: events.MouseButtonDown) -> Optional[BaseEventHandler]:
+        return self.parent   # so does any click
+
 
 class EventHandler(BaseEventHandler):
     def __init__(self, engine: Engine):
@@ -190,12 +193,12 @@ class EventHandler(BaseEventHandler):
             # A valid action was performed.
             if self.engine.game_world.run.ending is not None:
                 import screens
-                return screens.EndingHandler(self.engine)
+                return self._take_over(screens.EndingHandler(self.engine))
             if not self.engine.player.is_alive:
                 # The player was killed sometime during or after the action.
-                return GameOverEventHandler(self.engine)
+                return self._take_over(GameOverEventHandler(self.engine))
             elif self.engine.player.level.requires_level_up:
-                return LevelUpEventHandler(self.engine)
+                return self._take_over(LevelUpEventHandler(self.engine))
 
             if isinstance(self, SelectIndexHandler) and self in self.session.handlers:
                 # a targeting screen that has just done its job (place, scan, fire ...) is finished: back to the map
@@ -207,6 +210,11 @@ class EventHandler(BaseEventHandler):
             return self.session.handlers[-1] # Switch to most recent handler in stack
 
         return self
+
+    def _take_over(self, handler):
+        """Make `handler` the only screen: until it is done the map handler below it must not see another key."""
+        self.session.reset(handler)
+        return handler
 
     def handle_action(self, action: Optional[actions.Action]) -> bool:
         """Handle actions returned from event methods.
@@ -261,8 +269,10 @@ class AskUserEventHandler(EventHandler):
     def ev_mousebuttondown(
         self, event: events.MouseButtonDown
     ) -> Optional[ActionOrHandler]:
-        """By default any mouse click exits this input handler."""
-        return self.on_exit()
+        """By default a right click cancels (a left click is left to the screen: windows are clickable now)."""
+        if event.button == MouseButton.RIGHT:
+            return self.on_exit()
+        return None
 
     def on_exit(self) -> Optional[ActionOrHandler]:
         """Called when the user is trying to exit or cancel an action.
@@ -301,6 +311,15 @@ class Panel(AskUserEventHandler):
             import widgets
             return widgets.next_screen(self, -1 if event.mod & (Mod.LSHIFT | Mod.RSHIFT) else 1)
         return super().ev_keydown(event)
+
+    def ev_mousebuttondown(self, event: events.MouseButtonDown) -> Optional[ActionOrHandler]:
+        """A click on an entry of the screen's list (`self.list`) selects it; elsewhere it does nothing."""
+        view = getattr(self, "list", None)
+        if view is not None and event.button == MouseButton.LEFT:
+            index = view.row_at(int(event.position[0]) * 24 + 12, int(event.position[1]) * 24 + 12)
+            if index is not None and not view.rows[index].header:
+                view.selected = index
+        return super().ev_mousebuttondown(event)
 
 
 class CodexHandler(Panel):
@@ -1144,7 +1163,8 @@ class MainGameEventHandler(EventHandler):
             action = actions.WaitAction(player)
 
         elif key == Key.ESCAPE:
-            raise SystemExit()
+            import screens
+            return screens.PauseMenu(self.engine)
 
         elif key == Key.L:
             return actions.TakeStairsAction(player)
@@ -1224,11 +1244,10 @@ class GameOverEventHandler(EventHandler):
 
     def on_render(self, canvas: Canvas) -> None:
         from ui import Theme
-        super().on_render(canvas)
-        canvas.dim(3)
+        super().on_render(canvas)   # the map stays visible (and the tooltip works): you can still look around with the mouse
         hints = [("R", "wake at your last bed"), ("Esc", "give up")] if self.casual_respawn() else [("Esc", "leave")]
-        ix, iy, iw, ih = canvas.window((canvas.width - 40) // 2, 16, 40, 10, title="The end of the road", hints=hints)
-        canvas.print(ix + iw // 2, iy + 2, "You died.", fg=Theme.BAD, alignment=CENTER)
+        ix, iy, iw, ih = canvas.window((canvas.width - 40) // 2, 1, 40, 6, title="The end of the road", hints=hints)
+        canvas.print(ix + iw // 2, iy + 1, "You died.", fg=Theme.BAD, alignment=CENTER)
 
     def on_quit(self) -> None:
         """Handle exiting out of a finished game."""

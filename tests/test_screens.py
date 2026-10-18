@@ -293,8 +293,8 @@ def test_quit_event_exits_from_the_game(game):
     e, handler = game
     with pytest.raises(SystemExit):
         handler.handle_events(Quit())
-    with pytest.raises(SystemExit):
-        press(handler, Key.ESCAPE)
+    import screens
+    assert isinstance(press(handler, Key.ESCAPE), screens.PauseMenu)   # Esc opens the pause menu
 
 
 def test_place_constructable_highlights_neighbours(game):
@@ -307,3 +307,51 @@ def test_place_constructable_highlights_neighbours(game):
     canvas = drawn(place)
     px, py = e.player.x, e.player.y
     assert cell(canvas, px + 1, py).mean() > cell(canvas, px + 3, py).mean() + 50
+
+
+# ── pause menu and death ───────────────────────────────────────────────────────────
+def test_escape_opens_the_pause_menu_instead_of_quitting(new_engine):
+    import screens
+    handler = ih.MainGameEventHandler(new_engine)
+    SESSION.handlers = [handler]
+    state = press(handler, Key.ESCAPE)
+    assert isinstance(state, screens.PauseMenu)
+    drawn(state)
+    assert isinstance(press(state, Key.ESCAPE), ih.MainGameEventHandler)   # Esc again resumes
+
+
+def test_pause_menu_saves_and_leaves(new_engine, monkeypatch):
+    import screens
+    saved = []
+    monkeypatch.setattr(type(new_engine), "save_as", lambda self, d: saved.append(d))
+    SESSION.handlers = [ih.MainGameEventHandler(new_engine)]
+    menu = screens.PauseMenu(new_engine)
+    SESSION.handlers.append(menu)
+    drawn(menu)
+    ys = [rect.y for rect, _ in menu.choices.rects]
+    # a mouse click on "Save & Quit to Main Menu"
+    state = menu.handle_events(MouseButtonDown(Point(40, ys[1]), MouseButton.LEFT))
+    assert isinstance(state, setup_game.MainMenu) and saved == ["savegame"]
+    SESSION.handlers = [ih.MainGameEventHandler(new_engine)]
+    menu = screens.PauseMenu(new_engine)
+    SESSION.handlers.append(menu)
+    drawn(menu)
+    with pytest.raises(SystemExit):
+        menu.handle_events(MouseButtonDown(Point(40, ys[2]), MouseButton.LEFT))
+
+
+def test_a_dead_player_cannot_move_but_can_look(new_engine):
+    player = new_engine.player
+    handler = ih.MainGameEventHandler(new_engine)
+    SESSION.handlers = [handler]
+    player.is_alive = False                       # killed during the last turn
+    state = press(handler, Key.PERIOD, 0) if False else handler.handle_events(KeyDown(Key.SPACE, 0))
+    assert isinstance(state, ih.GameOverEventHandler)
+    assert SESSION.handlers == [state]            # nothing is left underneath to take the next key
+    start = (player.x, player.y)
+    for sym in (Key.LEFT, Key.RIGHT, Key.UP, Key.DOWN, Key.SPACE):
+        state = state.handle_events(KeyDown(sym, 0))
+        assert isinstance(state, ih.GameOverEventHandler)
+    assert (player.x, player.y) == start
+    state.handle_events(MouseMotion(Point(10, 10)))   # looking around still works
+    drawn(state)
