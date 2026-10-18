@@ -5,7 +5,7 @@ import pytest
 
 from components.consumable import Meat
 from components.plant import Tree
-from components.unit import Animal
+from animals import Animal
 from index_helpers import assert_index_consistent
 
 

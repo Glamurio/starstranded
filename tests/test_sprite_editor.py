@@ -33,20 +33,21 @@ def draw(editor):
 
 def test_catalog_lists_items_units_tiles_flora_and_fauna(config):
     keys = spriteconfig.catalog()
-    for expected in ("item.meat", "unit.rabbit", "unit.rabbit.corpse", "tile.floor", "tile.water.west", "flora.broadleaf.1",
+    for expected in ("item.meat", "unit.selenite", "unit.selenite.corpse", "tile.floor", "tile.water.west", "flora.broadleaf.1",
                      "fauna.hopper", "fauna.hopper.corpse"):
         assert expected in keys
 
 
 def test_set_applies_live_and_save_writes_only_the_changes(config):
-    spriteconfig.set("unit.rabbit", (9, 9))
-    assert species.UNIT_SPECIES["rabbit"].sprite == (9, 9)
-    assert json.loads(config.read_text()) == {"unit.rabbit": [9, 9]}
+    spriteconfig.set("unit.selenite", (9, 9))
+    assert species.UNIT_SPECIES["selenite"].sprite == (9, 9)
+    assert json.loads(config.read_text()) == {"unit.selenite": [9, 9]}
     spriteconfig.set("tile.floor", (7, 7))
     assert tile_types.floor.sprite == atlas.sprite_id(7, 7)
     assert tile_types.floor.get_array()["light"]["sprite"] == atlas.sprite_id(7, 7)
-    spriteconfig.reset("unit.rabbit")
-    assert species.UNIT_SPECIES["rabbit"].sprite == (3, 20)
+    assert species.UNIT_SPECIES["selenite_people"].sprite == (9, 9)   # the playable Selenites share the entry
+    spriteconfig.reset("unit.selenite")
+    assert species.UNIT_SPECIES["selenite"].sprite == (115, 1)
     assert json.loads(config.read_text()) == {"tile.floor": [7, 7]}
 
 
@@ -76,19 +77,19 @@ def test_main_menu_opens_the_editor_and_escape_returns(config):
 def test_search_click_assign_and_reset(config):
     editor = sprite_editor.SpriteEditor(SESSION)
     draw(editor)
-    for ch in "rabbit":
+    for ch in "selenite":
         editor.ev_textinput(events.TextInput(ch))
-    assert editor.key == "unit.rabbit"
+    assert editor.key == "unit.selenite"
     draw(editor)
     rect = editor.sheet_rect
     editor.ev_mousemotion(events.MouseMotion(Point(rect.x + 2, rect.y + 3)))
     assert editor.hover == (2, 3)
     editor.ev_mousebuttondown(events.MouseButtonDown(Point(rect.x + 2, rect.y + 3)))
-    assert species.UNIT_SPECIES["rabbit"].sprite == (2, 3)
-    assert json.loads(config.read_text()) == {"unit.rabbit": [2, 3]}
+    assert species.UNIT_SPECIES["selenite"].sprite == (2, 3)
+    assert json.loads(config.read_text()) == {"unit.selenite": [2, 3]}
     draw(editor)
     editor.ev_keydown(events.KeyDown(Key.R, events.Mod.CTRL))
-    assert species.UNIT_SPECIES["rabbit"].sprite == (3, 20)
+    assert species.UNIT_SPECIES["selenite"].sprite == (115, 1)
 
 
 def test_sheet_scrolls_and_clicks_follow_the_scroll(config):

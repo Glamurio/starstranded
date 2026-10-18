@@ -1,7 +1,8 @@
 """A corpse and a living unit can share a tile; game logic must address the living one."""
 import actions
 from components.ai import PassiveAI
-from components.unit import Animal, Selenite
+from components.unit import Selenite
+from animals import Animal
 
 
 def corpse_at(e, x, y):

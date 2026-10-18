@@ -5,8 +5,9 @@ import actions
 import exceptions
 from components.equippable import Axe
 from components.plant import Shrub, Tree
-from components.unit import Animal
-from crafting import Branch, WoodenSpear
+from animals import Animal
+from crafting import Branch
+from animals import Spear as WoodenSpear
 from recipes import RECIPES
 from damage import DamageType, resolve
 

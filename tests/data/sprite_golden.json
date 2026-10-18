@@ -29,7 +29,6 @@
  "item.meat": "12e8c624986f282b3543256ea4f9a95a6c848352",
  "item.stump": "d24769cf0951fad18345709fb41c9c12218a43fa",
  "item.wooden_floor": "d0744a4afc5c8a90fdcf21d803025f3841b4d3d9",
- "item.wooden_spear": "a26f64053bdd39d04c715e081995dcdcacfd9835",
  "item.wooden_stairs": "49e67f3510d859f409c984533f48f33716aa9cd0",
  "plant.shrub.corpse": "6206add914b194dfe49965329391a7d05ab172f0",
  "plant.tree.corpse": "d24769cf0951fad18345709fb41c9c12218a43fa",
@@ -86,8 +85,6 @@
  "tree.Willow": "3ca84e273722f64f6ebc3f01dd85d461d9dd1c8e",
  "unit.human": "268471b2c0d0f0c5ec872c138a5e7341e330666f",
  "unit.human.corpse": "bccc1aed9ff647bc62c78a8152e21820e4b87221",
- "unit.rabbit": "656feeacc1063bcc64826745c7c0acce14ba1b2f",
- "unit.rabbit.corpse": "26a8397e06657ba5ac882973600598490669843d",
  "unit.selenite": "dfc23b48b8d7fe2562592d330f3247011cdf3ae8",
  "unit.selenite.corpse": "26a8397e06657ba5ac882973600598490669843d"
 }

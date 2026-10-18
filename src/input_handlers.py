@@ -446,6 +446,7 @@ class PickupHandler(AskUserEventHandler):
         if len(targets) == 1:
             target = targets[0]
             if isinstance(target, Item):
+                self.resolve_handler()   # the pick-up prompt is done
                 return actions.PickupAction(self.engine.player, target)
 
         self.resolve_handler()

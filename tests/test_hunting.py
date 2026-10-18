@@ -2,7 +2,8 @@
 import behavior
 import exceptions
 from components.consumable import Fruit, Meat
-from components.unit import Animal, Selenite
+from components.unit import Selenite
+from animals import Animal
 from species import Diet
 
 

@@ -3,7 +3,7 @@ import pytest
 
 import actions
 import exceptions
-from components.unit import Animal
+from animals import Animal
 
 
 class IdleAI:

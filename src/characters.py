@@ -25,8 +25,6 @@ ISSUE_CLOTH = Material(
 ISSUE_GLASS = Material(
     "issue:glass", "clear polymer", Family.GLASS, (200, 225, 240), hardness=4, toughness=3, density=3, insulation=2,
     transparency=9, is_amorphous=True, melting_point=800)
-ISSUE_FLINT = Material(
-    "issue:ferrocerium", "ferro rod", Family.STONE, (120, 120, 130), hardness=8, toughness=3, abrasivity=7, density=5)
 ISSUE_CIRCUIT = Material(
     "issue:circuit", "printed circuit", Family.COMPOSITE, (80, 200, 120), hardness=3, toughness=2, density=2,
     electrical_conductivity=8)
@@ -100,7 +98,7 @@ BACKGROUNDS: Dict[str, Background] = {b.key: b for b in (
 
 DEFAULT_RACE = defs.HUMAN.key
 DEFAULT_BACKGROUND = "survivalist"
-COMMON_KIT = ("knife", "hide_armor", "ration", "ration", "ration", "firesteel", "flask")
+COMMON_KIT = ("knife", "hide_armor", "ration", "ration", "ration", "flask")
 EQUIPPED = ("knife", "hide_armor")
 
 
@@ -130,8 +128,6 @@ def issue_item(key: str, unit):
         item = Ration(inventory)
     elif key == "ammo":
         item = Ammo(inventory, 12)
-    elif key == "firesteel":
-        item = Stuff(defs.PIECE_STONE, ISSUE_FLINT, inventory)
     elif key == "flask":
         item = crafting.Flask(inventory)
     elif key == "pistol":

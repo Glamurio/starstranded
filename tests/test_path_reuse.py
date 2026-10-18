@@ -1,5 +1,6 @@
 """AIs keep following a planned path instead of re-planning every turn."""
-from components.unit import Animal, Selenite
+from components.unit import Selenite
+from animals import Animal
 
 
 def count_paths(engine, monkeypatch):

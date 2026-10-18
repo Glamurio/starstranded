@@ -6,7 +6,7 @@ import color
 from ui_helpers import SESSION
 from render_helpers import cell, expected_sprite_cell
 from components.consumable import Meat
-from components.unit import Animal
+from animals import Animal
 from render_order import RenderOrder
 
 

@@ -178,7 +178,7 @@ HUMAN = register(UnitSpecies(
 ))
 SELENITE_PEOPLE = register(UnitSpecies(
     "selenite_people", "Selenite", sprite=(115, 1), corpse_sprite=(44, 16), color=(190, 215, 255), shade_sigma=None,
-    default_name="Selene", diet=Diet.HERBIVORE, damage_type=DamageType.BLUNT,
+    default_name="Zudaab", diet=Diet.HERBIVORE, damage_type=DamageType.BLUNT,
     grants=grants("increased_plant_yield", "faster_crop_growth", "prolonged_breath_holding", "herbivore", "frail_exoskeleton",
                   "requires_organic"), **dict(_RACE_BASE, max_hp=26),
 ))
@@ -194,11 +194,6 @@ SELENITE = register(UnitSpecies(
     max_hp=10, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.HOSTILE, name_origin="selenite",
     damage_type=DamageType.SHARP, diet=Diet.CARNIVORE,
 ))
-RABBIT = register(UnitSpecies(
-    "rabbit", "Rabbit", sprite=(3, 20), corpse_sprite=(44, 16), color=None,
-    max_hp=1, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.PASSIVE, diet=Diet.HERBIVORE,
-    leather=True,
-))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
 MEAT = register(ItemKind("meat", "Meat", sprite=(1, 21), color=color.red, hunger_amount=10, thirst_amount=5))
@@ -211,8 +206,6 @@ AXE = register(ItemKind("axe", "Axe", sprite=(26, 28), color=(0x8B, 0x6B, 0x3D),
                         equipment_type=EquipmentType.WEAPON, power_bonus=4, damage_type=DamageType.SHARP))
 LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(25, 30), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
-WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(42, 27), color=(0x8B, 0x6B, 0x3D), material="Wooden",
-                                 equipment_type=EquipmentType.WEAPON, power_bonus=3, damage_type=DamageType.PIERCE))
 CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(1, 38), color=color.white,
                              lit_color=color.orange, light_radius=8))
 STUMP = register(ItemKind("stump", "Stump", sprite=(4, 10), color=color.brown, render_order=RenderOrder.CORPSE))

@@ -28,13 +28,13 @@ max_monsters_by_floor = [
 item_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {}
 """Items scattered at generation, by minimum floor. Empty: the demo items are gone, loot returns with the new content."""
 enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(units.Animal, 100), (units.Selenite, 8)],
+    0: [(units.Selenite, 8)],   # the surface's animals come from the planet's fauna (worldgen), not from here
 }
 
 cave_enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(units.Selenite, 100), (units.Animal, 15)],
+    0: [(units.Selenite, 100)],
 }
-"""Creatures of the caves: mostly Selenites (they are carnivores and hunt the cave's few rabbits, and you)."""
+"""Creatures of the caves: Selenites (carnivores; they hunt you)."""
 
 
 def get_max_value_for_floor(

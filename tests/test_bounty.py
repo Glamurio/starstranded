@@ -8,7 +8,7 @@ import characters
 import exceptions
 import setup_game
 import sponsors
-from components.unit import Animal
+from animals import Animal
 from items import Ammo
 
 
@@ -87,7 +87,7 @@ def test_kills_are_counted_per_species():
     p = e.player
     rabbit = target(e, hp=1)
     rabbit.handle_health(-5, p)
-    assert e.game_world.run.kills["rabbit"] == 1
+    assert e.game_world.run.kills["test_hopper"] == 1
 
 
 def test_hunt_contracts_are_offered_and_paid_by_kills_since_the_offer():

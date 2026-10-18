@@ -3,7 +3,8 @@ import actions
 import behavior
 import exceptions
 import tile_types
-from components.unit import Animal, Selenite
+from components.unit import Selenite
+from animals import Animal
 
 
 def _wall(e, x, y):

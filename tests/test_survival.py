@@ -54,7 +54,7 @@ def test_dehydration_damages_the_unit_and_messages_the_player_once(small_world):
 
 
 def test_npc_starves_to_death_without_player_messages(small_world):
-    from components.unit import Animal
+    from animals import Animal
     e = small_world()
     a = Animal(); a.place(4, 4, e.game_map)
     a.hunger = 0
@@ -81,7 +81,7 @@ def test_hunger_above_zero_never_damages(small_world):
 
 
 def test_handle_health_damage_and_death_of_ai_unit(small_world):
-    from components.unit import Animal
+    from animals import Animal
     e = small_world()
     a = Animal(); a.place(3, 3, e.game_map)
     a.handle_health(-5, e.player)
@@ -119,7 +119,7 @@ def test_player_death_sets_flags(small_world):
 
 
 def test_npc_hunger_ticks_in_ai_perform(small_world):
-    from components.unit import Animal
+    from animals import Animal
     from components.ai import BaseAI
     e = small_world()
     a = Animal(); a.place(5, 5, e.game_map)

@@ -99,13 +99,6 @@ class Flask(Item):
         return UseFlaskAction(user, self)
 
 
-# ─── Crafted: Wooden Spear (the old fixed-stat weapon; new spears are `items.Gear`) ──────
-
-class WoodenSpear(Equippable):
-    def __init__(self, parent=None):
-        Equippable.__init__(self, defs.WOODEN_SPEAR, parent)
-
-
 # ─── Fires: campfire and torch (Constructable, placeable light sources that burn fuel) ──────
 
 class Campfire(Constructable):

@@ -1,7 +1,8 @@
 """A simulated playthrough driven only by key presses and mouse movement.
 
 The bot starts at the main menu, creates a character, then plays: it walks to a tree, chops it down with the wielded knife,
-picks the branches up, makes a campfire from the recipe screen, places it and lights it with a spark from the ferro rod.
+picks the branches up, looks for a stone hard enough to strike a spark (flint), makes a campfire from the recipe screen, places it
+and lights it.
 Every action goes through `main.process` as a real KeyDown / MouseMotion / TextInput event, and every frame through
 `main.render`, exactly as the main loop does. The bot reads the game state only for what a player sees on screen (where
 things are, what the lists say).
@@ -16,7 +17,10 @@ import events
 import main
 import setup_game
 from components.plant import Plant
+import crafting
 from crafting import Branch, Campfire
+from items import Stuff
+from materials import Family
 from events import Key, KeyDown, Point, TextInput
 from ui_helpers import SESSION
 
@@ -142,6 +146,29 @@ class Bot:
                 if type(self.handler).__name__ != "MainGameEventHandler":
                     self.key(Key.ESCAPE)    # close the loot window
 
+    def has_spark(self) -> bool:
+        return "firestarting" in crafting.unit_tags(self.player)
+
+    def find_a_spark(self, tries: int = 40) -> None:
+        """Pick up loose stones, nearest first, until one of them will strike a spark (flint lies about everywhere)."""
+        tried = set()
+        for _ in range(tries):
+            if self.has_spark():
+                return
+            stones = {(i.x, i.y): i for i in self.world.entities
+                      if isinstance(i, Stuff) and i.parent is self.world and i.substance.family is Family.STONE and (i.x, i.y) not in tried}
+            if not stones or not self.walk_to(lambda x, y: (x, y) in stones, limit=400):
+                return
+            here = (self.player.x, self.player.y)
+            tried.add(here)
+            self.hover(*here)
+            self.key(Key.G)
+            self.key(Key.G)
+            if type(self.handler).__name__ == "InventoryLootHandler":
+                self.choose("")             # the first thing listed
+                if type(self.handler).__name__ != "MainGameEventHandler":
+                    self.key(Key.ESCAPE)
+
     def make_a_campfire(self) -> None:
         self.key(Key.R)
         assert type(self.handler).__name__ == "CraftingMenuHandler"
@@ -181,6 +208,9 @@ def test_player_builds_and_lights_a_campfire_with_key_presses_only(bot):
         bot.pick_up_branches(4)
     assert len(bot.branches()) >= 4
 
+    bot.find_a_spark()
+    assert bot.has_spark(), "no stone that strikes a spark was found"
+
     bot.make_a_campfire()
     assert any(isinstance(i, Campfire) for i in bot.player.inventory.items), "the campfire was not made"
 
@@ -190,6 +220,6 @@ def test_player_builds_and_lights_a_campfire_with_key_presses_only(bot):
     assert len(fires) == 1 and not fires[0].is_lit
 
     bot.light_it()
-    assert fires[0].is_lit and fires[0].emits_light
+    assert fires[0].is_lit and fires[0].emits_light, [m.plain_text for m in log.messages[-4:]]
     assert not any("went wrong" in m.plain_text for m in log.messages), "an error was caught during the playthrough"
     assert bot.events_sent > 20

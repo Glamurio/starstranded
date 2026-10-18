@@ -74,7 +74,7 @@ def test_old_unversioned_saves_are_rejected_with_a_clear_error(tmp_path):
 
 
 def test_uids_stay_unique_after_load(new_engine, tmp_path):
-    from components.unit import Animal
+    from animals import Animal
     path = str(tmp_path / "u.sav")
     new_engine.save_as(path)
     loaded = setup_game.load_game(path)

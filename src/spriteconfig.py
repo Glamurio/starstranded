@@ -111,9 +111,10 @@ def _apply_live(key: str, pos: Pos) -> None:
         import species
         name, _, part = rest.partition(".")
         registry = species.ITEM_KINDS if kind == "item" else species.UNIT_SPECIES
-        definition = registry.get(name)
-        if definition is not None:
-            object.__setattr__(definition, "corpse_sprite" if part == "corpse" else "sprite", pos)
+        for key in [name] + [alias for alias, target in ALIASES.items() if target == name]:
+            definition = registry.get(key)
+            if definition is not None:
+                object.__setattr__(definition, "corpse_sprite" if part == "corpse" else "sprite", pos)
     elif kind == "tile":
         import tile_types
         name, _, variation = rest.partition(".")
@@ -123,13 +124,17 @@ def _apply_live(key: str, pos: Pos) -> None:
     # flora and fauna: generated per world, so they take the new sprite at the next world generation
 
 
+ALIASES = {"selenite_people": "selenite"}
+"""The playable Selenites look like the Selenites of the caves: one entry in the editor serves both."""
+
+
 def registered(definition, kind: str):
     """Used by species.register: record the definition's default sprites and return it with any overrides applied."""
     changes = {}
     for attr, suffix in (("sprite", ""), ("corpse_sprite", ".corpse")):
         default = getattr(definition, attr, None)
         if default is not None and definition.key is not None:
-            pos = get(f"{kind}.{definition.key}{suffix}", default)
+            pos = get(f"{kind}.{ALIASES.get(definition.key, definition.key)}{suffix}", default)
             if pos != tuple(default):
                 changes[attr] = pos
     return dataclasses.replace(definition, **changes) if changes else definition

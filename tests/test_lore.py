@@ -8,7 +8,7 @@ import characters
 import exceptions
 import lore
 import setup_game
-from components.unit import Animal
+from animals import Animal
 from knowledge import Know
 
 
@@ -24,7 +24,7 @@ def make_visible(engine):
 def place_creature(engine, dx=2):
     planet = engine.game_world.planet
     kind = planet.fauna[0]
-    from components.unit import Animal
+    from animals import Animal
     animal = Animal(kind) if kind else Animal()
     animal.place(engine.player.x + dx, engine.player.y, engine.game_map)
     return animal, kind

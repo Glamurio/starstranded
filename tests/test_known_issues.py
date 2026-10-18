@@ -8,7 +8,7 @@ import pytest
 import actions
 import input_handlers
 import setup_game
-from components.unit import Animal
+from animals import Animal
 
 
 def test_setup_game_uses_the_game_exceptions_module():

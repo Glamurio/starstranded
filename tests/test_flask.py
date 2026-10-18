@@ -6,7 +6,7 @@ import behavior
 import exceptions
 import liquids
 import tile_types
-from components.unit import Animal
+from animals import Animal
 from crafting import Flask, Leather, Campfire
 
 

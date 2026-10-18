@@ -101,6 +101,7 @@ def test_sleep_stops_when_the_sleeper_dies(monkeypatch):
     engine = new_game()
     p = engine.player
     monkeypatch.setattr(resources, "ambient_temperature", lambda *a, **k: 15.0)
+    monkeypatch.setattr(actions.SleepAction, "_enemy_in_view", lambda self: False)   # the world is random: no wanderers
     place_bed(engine)
     action = actions.SleepAction(p)
     assert action.perform()
@@ -109,8 +110,9 @@ def test_sleep_stops_when_the_sleeper_dies(monkeypatch):
 
     def deadly(unit, time):
         original(unit=unit, time=time)
-        p.hp = 0
-        p.die()
+        if p.is_alive:
+            p.hp = 0
+            p.die()
     monkeypatch.setattr(engine.game_world, "pass_time", deadly)
     assert action.perform() is False
     assert not p.is_alive and p.hp <= 0     # no healing the dead, no further sleeping

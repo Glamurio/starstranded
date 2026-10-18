@@ -7,19 +7,20 @@ import random
 import pytest
 
 import species
+from animals import HOPPER
 from species import ITEM_KINDS, UNIT_SPECIES, PlantCategory, make_plant_species
 
 
 def test_definitions_are_frozen_and_hashable():
     with pytest.raises(dataclasses.FrozenInstanceError):
-        species.RABBIT.max_hp = 99
-    assert hash(species.RABBIT) == hash(species.RABBIT)
+        HOPPER.max_hp = 99
+    assert hash(HOPPER) == hash(HOPPER)
     assert {species.MEAT, species.DAGGER}
 
 
 def test_registries_contain_the_static_content():
-    assert {"human", "selenite", "rabbit"} <= set(UNIT_SPECIES)
-    assert {"meat", "branch", "dagger", "leather_armor", "wooden_spear", "campfire"} <= set(ITEM_KINDS)
+    assert {"human", "selenite"} <= set(UNIT_SPECIES)
+    assert {"meat", "branch", "dagger", "leather_armor", "campfire"} <= set(ITEM_KINDS)
     for key, kind in ITEM_KINDS.items():
         assert kind.key == key and kind.sprite_id is not None
 
@@ -59,9 +60,9 @@ def test_plant_species_generation_is_reproducible_from_an_rng():
 
 
 def test_sprite_ids_index_the_sheet_row_major():
-    assert species.RABBIT.sprite_id == species.RABBIT.sprite[1] * atlas.COLUMNS + species.RABBIT.sprite[0]
-    assert species.RABBIT.corpse_sprite_id == species.RABBIT.corpse_sprite[1] * atlas.COLUMNS + species.RABBIT.corpse_sprite[0]
-    assert species.RABBIT.sprite_id != species.RABBIT.corpse_sprite_id
+    assert HOPPER.sprite_id == HOPPER.sprite[1] * atlas.COLUMNS + HOPPER.sprite[0]
+    assert HOPPER.corpse_sprite_id == HOPPER.corpse_sprite[1] * atlas.COLUMNS + HOPPER.corpse_sprite[0]
+    assert HOPPER.sprite_id != HOPPER.corpse_sprite_id
     assert species.MEAT.corpse_sprite_id is None
 
 

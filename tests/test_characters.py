@@ -78,10 +78,10 @@ def test_background_kits_match_their_trade():
     assert characters.create_character("T", "human", "pilot").capabilities.has("pilot_training")
 
 
-def test_everyone_can_light_a_fire_from_the_start():
+def test_nobody_starts_with_a_spark_flint_has_to_be_found():
     import items
     p = characters.create_character("T", "mau", "chemist")
-    assert "firestarting" in items.carried_tags(p)
+    assert "firestarting" not in items.carried_tags(p)   # no issued ferro rod: a hard stone (flint) lies about and does it
 
 
 # ── enforcement ──────────────────────────────────────────────────────────────────

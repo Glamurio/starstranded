@@ -13,7 +13,7 @@ import actions
 import tile_types
 from chunks import CHUNK_H, CHUNK_W, chebyshev, chunk_key, keys_around
 from components.consumable import Meat
-from components.unit import Animal
+from animals import Animal
 from config import GameConfig
 from index_helpers import assert_index_consistent
 from simulation import steps_between

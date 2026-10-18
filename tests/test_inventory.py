@@ -26,7 +26,7 @@ def test_add_until_full_raises_for_player(small_world):
 
 
 def test_full_npc_inventory_silently_refuses(small_world):
-    from components.unit import Animal
+    from animals import Animal
     e = small_world()
     a = Animal(); a.place(4, 4, e.game_map)
     for _ in range(12):
@@ -84,7 +84,7 @@ def test_equip_toggle_changes_power(small_world):
 def test_equipping_second_weapon_swaps_slot(small_world):
     e = small_world()
     p = e.player
-    from crafting import WoodenSpear
+    from animals import Spear as WoodenSpear
     spear = WoodenSpear(p.inventory)
     p.inventory.add(spear)
     p.equipment.toggle_equip(spear)
@@ -103,7 +103,7 @@ def test_food_consumption_restores_and_depletes(small_world):
 
 def test_only_the_players_drops_are_announced(small_world):
     from components.consumable import Meat
-    from components.unit import Animal
+    from animals import Animal
     e = small_world()
     rabbit = Animal(); rabbit.place(5, 5, e.game_map)
     meat = Meat("x", rabbit.inventory); rabbit.inventory.add(meat)

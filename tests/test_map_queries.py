@@ -1,7 +1,7 @@
 """Entity lookup contracts on GameMap."""
 import inspect
 
-from components.unit import Animal
+from animals import Animal
 from components.consumable import Meat
 
 

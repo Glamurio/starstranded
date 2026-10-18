@@ -566,10 +566,10 @@ class InteractAction(Action):
         import crafting
         import materials
         from items import Stuff
-        site = self._site()
+        fire = self._fire()   # a fire beside you comes first: the fuss over a wreck two tiles away must not stop you lighting it
+        site = self._site() if fire is None else None
         if site is not None:
             return self.engine.session.push(handler) if (handler := site.interact(self.entity, self.engine)) else None
-        fire = self._fire()
         if fire is None:
             raise exceptions.Impossible("There's nothing to interact with here.")
         user, log = self.entity, self.engine.message_log

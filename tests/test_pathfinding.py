@@ -67,7 +67,7 @@ def test_unexplored_terrain_is_treated_as_walkable(small_world):
 
 
 def test_blocking_entities_add_cost_and_are_detoured(small_world):
-    from components.unit import Animal
+    from animals import Animal
     e = small_world()
     for y in range(0, 10):
         if y != 1:
@@ -117,7 +117,7 @@ def test_new_pathfinding_returns_exactly_the_old_paths(small_world):
     import dataclasses
     import random
     import numpy as np
-    from components.unit import Animal
+    from animals import Animal
     for seed in range(3):
         random.seed(seed)
         np.random.seed(seed)

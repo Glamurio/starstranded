@@ -8,7 +8,7 @@ import render_order
 import render_functions
 from components.consumable import Meat
 from components.plant import Shrub, Tree
-from components.unit import Animal
+from animals import Animal
 from config import GameConfig
 from render_helpers import cell, draw_map, expected_tile
 from render_order import RenderOrder

@@ -12,7 +12,7 @@ from ui_helpers import SESSION
 import input_handlers as ih
 import setup_game
 from components.consumable import Meat
-from components.unit import Animal
+from animals import Animal
 from events import Key, KeyDown, Mod, MouseButton, MouseButtonDown, MouseMotion, Point, Quit, TextInput
 from render_helpers import cell
 
@@ -111,14 +111,15 @@ def test_movement_keys_and_wait(game):
 
 def test_mouse_motion_updates_cursor_and_draws_path_preview(game):
     e, handler = game
-    handler.handle_events(MouseMotion(Point(8, 6)))
-    assert tuple(e.mouse_location) == (8, 6)
+    # open ground two cells from the player: no item or wall there, so there is a path to show
+    cx, cy = e.camera.to_screen(e.player.x + 2, e.player.y + 1)
+    handler.handle_events(MouseMotion(Point(cx, cy)))
+    assert tuple(e.mouse_location) == (e.player.x + 2, e.player.y + 1)
     assert handler.mouse_motion
     with_preview = pygame.surfarray.array3d(drawn(handler).surface).astype(int)
     handler.mouse_motion = False
     without = pygame.surfarray.array3d(drawn(handler).surface).astype(int)
-    assert (with_preview > without).any()  # the highlight wash brightens the path tiles
-    assert (with_preview >= without).all()
+    assert (with_preview != without).any()  # the faint wash is drawn over the path tiles
 
 
 def test_left_click_walks_towards_the_cursor(game):

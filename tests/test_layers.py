@@ -1,3 +1,4 @@
+from animals import Animal
 """Layers (z-levels): deterministic stairs, caves, buildings, seeing down, building floors and stairs, saving."""
 import numpy as np
 import pytest
@@ -87,7 +88,7 @@ def test_buildings_have_walls_a_door_and_open_air_above():
 def test_climbing_and_descending_round_trip(new_engine):
     e = new_engine
     surface = e.game_map
-    rabbit = units.Animal()
+    rabbit = Animal()
     spot = surface.downstairs_location
     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
         if surface.is_walkable(spot[0] + dx, spot[1] + dy) and not surface.is_blocked(spot[0] + dx, spot[1] + dy):

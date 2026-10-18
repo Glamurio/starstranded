@@ -62,7 +62,8 @@ def test_main_menus_do_not_share_buttons():
 
 
 def test_ai_paths_are_per_instance(small_world):
-    from components.unit import Animal, Selenite
+    from components.unit import Selenite
+    from animals import Animal
     e = small_world()
     a, b = Animal(), Animal()
     assert a.ai.path is not b.ai.path
