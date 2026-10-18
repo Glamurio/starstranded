@@ -225,6 +225,8 @@ class MovementAction(ActionWithDirection):
                 continue
             if not enemy.ai.is_hostile:
                 continue
+            if max(abs(enemy.x - self.entity.x), abs(enemy.y - self.entity.y)) > 8:
+                continue  # cheap reject before the line-of-sight test
 
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
                 return False

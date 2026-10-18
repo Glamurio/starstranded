@@ -175,6 +175,7 @@ class NoiseWorldSource:
                     plant = components.plant.Tree(self.tree_species)
                 else:
                     plant = components.plant.Shrub(self.shrub_species)
+                plant.growth = random.randrange(int(plant.avg_cycle) + 1)  # staggered, so the forest does not fruit in unison
                 world.add_entity(plant, chunk.x0 + lx, chunk.y0 + ly)
             reserved = {self.spawn_point} if chunk.key == (0, 0) else set()
             place_entities(world, self.floor, area=(chunk.x0, chunk.y0, CHUNK_W, CHUNK_H), reserved=reserved)
