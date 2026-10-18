@@ -32,6 +32,9 @@ FPS = 60
 def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
     """If the current event handler has an active Engine then save it."""
     import input_handlers
+    import screens
+    if isinstance(handler, (input_handlers.GameOverEventHandler, screens.EndingHandler)):
+        return   # a finished run is never saved (a crash on the death screen must not bring the dead back)
     if isinstance(handler, input_handlers.EventHandler):
         handler.engine.save_as(filename)
         print("Game saved.")

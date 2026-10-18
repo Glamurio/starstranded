@@ -26,7 +26,7 @@ SATURATION = 0.9
 MIN_SATURATION = 0.3
 RESCUE_REPUTATION = 40
 RESCUE_CONTRACTS = 2
-DELIVERY_RADIUS = 3
+MAX_REPUTATION = 100
 
 BASE_VALUE: Dict[str, int] = {
     "food": 6, "meat": 4, "fibre": 3, "hide": 5, "ore": 8, "radioactive": 20, "ingot": 15, "fuel": 5, "glass": 10,
@@ -88,7 +88,8 @@ def categories_of(item) -> Tuple[str, ...]:
     elif isinstance(item, Meat):
         found.append("meat")
     elif isinstance(item, Artifact):
-        found.append("artifact")
+        if not item.is_key:
+            found.append("artifact")   # the gate keys are not for sale
     elif isinstance(item, Stuff):
         form, mat = item.form, item.substance
         if form == "Fibre":
@@ -250,7 +251,7 @@ def add_reputation(run, sponsor: str, amount: int) -> Dict[str, int]:
     for other, delta in factions.spillover(sponsor, amount).items():
         changes[other] = delta
     for key, delta in changes.items():
-        run.reputation[key] = run.reputation.get(key, 0) + delta
+        run.reputation[key] = max(-MAX_REPUTATION, min(MAX_REPUTATION, run.reputation.get(key, 0) + delta))
     return changes
 
 
@@ -258,15 +259,39 @@ def matching_items(player, contract: Contract):
     return [i for i in player.inventory.items if contract.category in categories_of(i)]
 
 
+def offer_value(player, run, contract: Contract) -> Tuple[int, int]:
+    """(units, credits) a delivery would pay right now: what `deliver` would hand over and earn, without doing it."""
+    if contract.is_hunt:
+        first = max(contract.start_kills, run.hunt_claimed.get(contract.species_key, 0))
+        take = min(contract.remaining, max(0, run.kills.get(contract.species_key, 0) - first))
+        return take, take * contract.credits // contract.count
+    if contract.category == KNOWLEDGE_CONTRACT:
+        take = min(contract.remaining, max(0, knowledge_count(run) - run.knowledge_spent))
+        return take, take * BASE_VALUE.get("electronics", 12) // 2
+    items = matching_items(player, contract)[:contract.remaining]
+    counts = run.delivered.setdefault(contract.sponsor, {})
+    before = counts.get(contract.category, 0)
+    total = 0
+    try:
+        for item in items:    # every item sold lowers the price of the next one, exactly as `deliver` does
+            total += unit_value(item, contract.sponsor, run, contract.category)
+            counts[contract.category] = counts.get(contract.category, 0) + 1
+    finally:
+        counts[contract.category] = before
+    return len(items), total
+
+
 def deliver(player, run, contract: Contract) -> Tuple[int, int]:
     """Hand over what the player carries for `contract`. Returns (items delivered, credits earned). Raises Impossible if
-    nothing fits or the player is not at the pod."""
+    nothing fits. (The pod screen is only reachable at the pod, so there is no distance check here.)"""
     import exceptions
     if contract.done:
         raise exceptions.Impossible("That contract is finished.")
     if contract.is_hunt:
-        kills = run.kills.get(contract.species_key, 0) - contract.start_kills
-        take = min(contract.remaining, max(0, kills - contract.filled))
+        first = max(contract.start_kills, run.hunt_claimed.get(contract.species_key, 0))
+        take = min(contract.remaining, max(0, run.kills.get(contract.species_key, 0) - first))
+        if take:
+            run.hunt_claimed[contract.species_key] = first + take
         if not take:
             raise exceptions.Impossible(f"You have not killed any {contract.label or contract.species_key} for this bounty yet.")
         value = take * contract.credits // contract.count

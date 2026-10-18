@@ -23,6 +23,7 @@ SHIP_NEEDS: Tuple[Tuple[str, str, int], ...] = (
 FLY_ENGINEERING = 4
 RUIN_COUNT = 3
 RUIN_DIFFICULTY = (3, 3, 4)
+STUDY_COOLDOWN = 60       # turns between study sessions that can teach
 EXCAVATE_TURNS = (6, 2)   # by hand, with a digging tool
 
 WRECK_LOOT: Tuple[Tuple[Tuple[str, int], ...], ...] = (
@@ -195,6 +196,7 @@ class Ruin(Structure):
         Structure.__init__(self, defs.RUIN)
         self.index = index
         self.relic_taken = False
+        self.studied_at = -STUDY_COOLDOWN   # glyph study only teaches once per cooldown, so it cannot be ground at the stone
         self.color = self.shade = (170, 200, 190)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
@@ -215,16 +217,20 @@ class Ruin(Structure):
             if learned:
                 log.add_message(f"You read the inscription: \"{fact.value}\"", color.orange)
         else:
-            if user.practice(Skill.LINGUISTICS, 1):
+            now = engine.game_world.current_time
+            if now - self.studied_at >= STUDY_COOLDOWN and user.practice(Skill.LINGUISTICS, 1):
                 log.add_message("Something clicks: you read the glyphs better now.", color.orange)
+            if now - self.studied_at >= STUDY_COOLDOWN:
+                self.studied_at = now
             log.add_message("You puzzle over the glyphs." + ("" if level is Know.UNKNOWN else " The sense is almost there."))
         if not self.relic_taken:
             digging = "digging" in __import__("crafting").unit_tags(user)
-            if user.inventory.is_full():
-                raise exceptions.Impossible("Your inventory is full.")
+            if len(user.inventory.contents) + 2 > user.inventory.capacity:
+                raise exceptions.Impossible("You need room for two finds in your inventory.")
             self.relic_taken = True
-            user.inventory.add(Artifact(user.inventory, f"Precursor key {self.index + 1}", self.index))
-            log.add_message("You dig a humming key out of the rubble.", color.orange)
+            user.inventory.add(Artifact(user.inventory, f"Precursor key {self.index + 1}", self.index, is_key=True))
+            user.inventory.add(Artifact(user.inventory, "Precursor curio", self.index))
+            log.add_message("You dig a humming key and a carved curio out of the rubble.", color.orange)
             engine.game_world.pass_time(unit=user, time=EXCAVATE_TURNS[1 if digging else 0])
         else:
             engine.game_world.pass_time(unit=user, time=5)
@@ -243,7 +249,7 @@ class Gate(Structure):
         from items import Artifact
         run = engine.game_world.run
         log = engine.message_log
-        keys = {a.index for a in user.inventory.items if isinstance(a, Artifact)}
+        keys = {a.index for a in user.inventory.items if isinstance(a, Artifact) and a.is_key}
         read = [i for i in range(RUIN_COUNT) if run.knowledge.level(f"ruin:{i}", "inscription") is Know.FULL]
         lines = [(len(keys) >= RUIN_COUNT, f"keys: {len(keys)}/{RUIN_COUNT}"),
                  (len(read) >= RUIN_COUNT, f"inscriptions read: {len(read)}/{RUIN_COUNT}")]

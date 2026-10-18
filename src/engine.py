@@ -45,6 +45,7 @@ class Engine:
         self.message_log = MessageLog()
         self.mouse_location = Point(0, 0)
         self.player = player
+        self.continued = False   # True when loaded from the active save slot (its death deletes that save)
 
 
     def save_as(self, directory: str) -> None:

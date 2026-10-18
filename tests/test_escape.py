@@ -180,7 +180,7 @@ def test_ancient_route_needs_three_keys_and_the_inscriptions_read():
         assert isinstance(ruin, structures.Ruin) and ruin.index == index
         ruin.interact(p, e)
         assert run.knowledge.level(f"ruin:{index}", "inscription") is Know.FULL  # skill 3 + scanner 1 reads difficulty 3-4
-    assert sum(isinstance(i, Artifact) for i in p.inventory.items) == 3
+    assert sum(isinstance(i, Artifact) and i.is_key for i in p.inventory.items) == 3
     gate = visit(e, *sites[3])
     gate.interact(p, e)
     assert run.ending == "ancient_gate"
@@ -195,9 +195,20 @@ def test_a_stranger_has_to_study_the_glyphs_before_reading_them():
     ruin.interact(p, e)
     assert run.knowledge.level("ruin:0", "inscription") is not Know.FULL
     for _ in range(25):
+        e.game_world.current_time += structures.STUDY_COOLDOWN   # study sessions are spaced out
         ruin.interact(p, e)
     assert run.knowledge.level("ruin:0", "inscription") is Know.FULL
     assert p.skills.level(Skill.LINGUISTICS) >= 2
+
+
+def test_pressing_f_at_the_stone_does_not_grind_the_skill():
+    e = new_game(6, background="chemist")
+    p = e.player
+    ruin = structures.Ruin(0)
+    e.game_map.add_entity(ruin, p.x, p.y + 1)
+    for _ in range(8):                       # each visit costs a few turns, well under the cooldown
+        ruin.interact(p, e)
+    assert p.skill_practice.get(Skill.LINGUISTICS, 0) <= 1
 
 
 def test_epilogue_describes_the_run():

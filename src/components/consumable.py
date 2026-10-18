@@ -44,6 +44,8 @@ class FoodConsumable(Consumable):
         return self.kind.thirst_amount
 
     def activate(self, user: Unit) -> None:
+        if not user.can_eat(self):
+            raise Impossible(f"{user.get_title()} cannot digest {self.get_title()}.")
         message = self.consume(user)
         if user == self.engine.player and message:
             self.engine.message_log.add_message(message, color.health_recovered)

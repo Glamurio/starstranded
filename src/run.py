@@ -39,4 +39,5 @@ class RunState:
     deaths: int = 0
     kills: Dict[str, int] = field(default_factory=dict)                   # species key -> creatures the player killed
     hunt_targets: list = field(default_factory=list)                        # (species key, name, danger) a sponsor may ask for
+    hunt_claimed: Dict[str, int] = field(default_factory=dict)             # species key -> kills already paid out (one kill, one bounty)
     tracker_charge: Tuple[int, int] = (5, 0)                                # (charges stored, game time they were counted)

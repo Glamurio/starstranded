@@ -96,10 +96,10 @@ def epilogue(engine) -> List[str]:
     player = engine.player
     lines = [ending.title, "", ending.text, ""]
     from clock import days_survived
-    lines.append(f"{player.name}, a {player.kind.name} {player.background or 'castaway'}: survived {days_survived(engine)} days.")
+    lines.append(f"{player.name}, a {player.kind.name} {player.background or 'castaway'}: survived {days_survived(engine)} day{'s' if days_survived(engine) != 1 else ''}.")
     done = len(run.completed)
     if done:
-        lines.append(f"Contracts completed: {done}. Credits earned: {run.credits}.")
+        lines.append(f"Contracts completed: {done}. Credits held: {run.credits}.")
     import sponsors as s
     known = s.knowledge_count(run)
     if known:

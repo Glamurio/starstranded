@@ -231,11 +231,12 @@ class Ammo(Item):
 class Artifact(Item):
     """A precursor relic from a ruin: worthless to eat or wear, priceless to collectors, and part of the ancient route."""
 
-    def __init__(self, parent=None, name: str = "Precursor relic", index: int = 0):
+    def __init__(self, parent=None, name: str = "Precursor relic", index: int = 0, is_key: bool = False):
         Item.__init__(self, defs.ARTIFACT)
         self.parent = parent
         self.relic_name = name
         self.index = index
+        self.is_key = is_key   # a key opens the precursor gate and is not for sale; other relics are curios collectors buy
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         return self.relic_name

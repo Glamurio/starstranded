@@ -55,9 +55,8 @@ class PodHandler(AskUserEventHandler):
             if not rows:
                 canvas.print(x + 2, line, "No open contracts.", fg=color.impossible)
             for i, c in enumerate(rows):
-                carry = len(sponsors.matching_items(self.engine.player, c)) if c.category != sponsors.KNOWLEDGE_CONTRACT else \
-                    max(0, sponsors.knowledge_count(run) - run.knowledge_spent)
-                text = f"{c.title}  {c.filled}/{c.count}  (carrying {carry})  +{c.reputation} rep, {c.credits} cr"
+                carry, worth = sponsors.offer_value(self.engine.player, run, c)
+                text = f"{c.title}  {c.filled}/{c.count}  (ready {carry}: {worth} cr now)  +{c.reputation} rep"
                 fg, bg = (color.black, color.white) if i == self.row else (color.menu_text, color.nigh_black)
                 canvas.print(x + 2, line + i, text[:width - 4], fg=fg, bg=bg)
             canvas.print(x + 2, y + height - 3, "ENTER: hand in what you carry   TAB: next page   ESC: close", fg=color.impossible)
@@ -140,12 +139,10 @@ class EndingHandler(EventHandler):
         self.finish()
 
     def finish(self) -> None:
-        import shutil, os
-        for path in ("savegame", "savegame_bed"):
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            elif os.path.exists(path):
-                os.remove(path)
+        import savegame
+        if getattr(self.engine, "continued", False):
+            savegame.remove_save("savegame")
+        savegame.remove_save("savegame_bed")   # the run is over: no bed to wake in
         raise exceptions.QuitWithoutSaving()
 
 

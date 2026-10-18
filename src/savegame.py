@@ -305,6 +305,15 @@ def load_game(directory: str, session=None) -> Engine:
     return engine
 
 
+def remove_save(path: str) -> None:
+    """Delete a save (a directory, or an old single file) if there is one."""
+    import shutil
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    elif os.path.exists(path):
+        os.remove(path)
+
+
 def _reject_single_file(path: str) -> None:
     try:
         payload = pickle.loads(lzma.decompress(open(path, "rb").read()))

@@ -56,7 +56,11 @@ def new_game(player: Unit, session=None, mode: str = "roguelike") -> Engine:
     """Return a brand new game session as an Engine instance."""
     from world import GameWorld
 
+    import actions
+    import savegame
+    savegame.remove_save(actions.BED_SAVE)   # a bed save belongs to the run that made it, never to the next one
     engine = Engine(player=player, session=session)
+    engine.continued = False
     engine.game_world = GameWorld(engine=engine, culture=CULTURE_OF_RACE.get(player.kind.key, "human"))  # the seed is drawn from `random`
     engine.game_world.run.mode = mode
     sponsor = getattr(player, "sponsor", None)
@@ -78,7 +82,9 @@ SAVE_PATH = "savegame"
 def load_game(path: str = SAVE_PATH, session=None) -> Engine:
     """Load a game saved with `Engine.save_as` (see `savegame.load_game`)."""
     import savegame
-    return savegame.load_game(path, session)
+    engine = savegame.load_game(path, session)
+    engine.continued = path == SAVE_PATH   # this run owns the active save slot (see `GameOverEventHandler.on_quit`)
+    return engine
 
 
 class MainMenu(input_handlers.BaseEventHandler):
@@ -104,7 +110,13 @@ class MainMenu(input_handlers.BaseEventHandler):
             return CharacterCreation(self.session)
         elif self.button_highlight == 'Continue':
             try:
-                return input_handlers.MainGameEventHandler(load_game(SAVE_PATH, self.session))
+                try:
+                    return input_handlers.MainGameEventHandler(load_game(SAVE_PATH, self.session))
+                except FileNotFoundError:   # a Casual run that ended in death still has its last bed
+                    import actions
+                    if not os.path.isdir(actions.BED_SAVE):
+                        raise
+                    return input_handlers.MainGameEventHandler(load_game(actions.BED_SAVE, self.session))
             except FileNotFoundError:
                 return input_handlers.PopupMessage(self, "No saved game to load.")
             except Exception as exc:

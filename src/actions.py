@@ -250,10 +250,10 @@ class MovementAction(ActionWithDirection):
 
         self.dest_x, self.dest_y = self.path.pop(0)
 
-        if not self.engine.can_move(self.dest_x, self.dest_y):
-            raise exceptions.Impossible("That way is blocked.")
         if self.entity.refuses_liquid(self.dest_x, self.dest_y):
             raise exceptions.Impossible(f"{self.entity.get_title()} will not wade into the liquid.")
+        if not self.engine.can_move(self.dest_x, self.dest_y):
+            raise exceptions.Impossible("That way is blocked.")
 
         self.entity.move(self.dest_x, self.dest_y)
         turns = self.entity.step_turns(dark=self.entity is self.engine.player and lighting.is_dark_at(self.engine))
@@ -691,6 +691,7 @@ class ScanAction(Action):
         if result is None:
             raise exceptions.Impossible("There is nothing to scan there.")
         title, learned = result
+        engine.game_world.pass_time(unit=user, time=1)
         log = engine.message_log.add_message
         if not learned:
             log(f"Scanner: {title} - nothing new beyond what you know.", color.impossible)
@@ -801,6 +802,8 @@ class SleepAction(Action):
         user.sleeping = True
         engine.game_world.pass_time(unit=user, time=1)
         user.sleeping = False
+        if not user.is_alive or engine.game_world.run.ending:
+            return False   # died (or was rescued) in the night: the sleep is over
         self.hp = user.hp
         self.slept += 1
         if self.slept % 3 == 0:

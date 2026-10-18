@@ -633,6 +633,9 @@ class InventoryEventHandler(AskUserEventHandler):
         if event.sym == Key.G:
             return self.on_items_selected(self.inventory_entries)
         
+        if event.sym in CONFIRM_KEYS and (self.menu_i is None or not self.inventory_entries
+                                          or not 0 <= self.menu_i < len(self.inventory_entries)):
+            return None   # nothing selected (or nothing to select)
         if event.sym in CONFIRM_KEYS:
             item: Item = self.inventory_entries[self.menu_i]
             if isinstance(item, Item):
@@ -1073,9 +1076,11 @@ class MainGameEventHandler(EventHandler):
         elif key == Key.S:
             return SingleRangedAttackHandler(self.engine, lambda xy: actions.ScanAction(player, *xy))  # scanner
         elif key == Key.H:
-            return HelpHandler(self.engine)
+            import screens
+            return screens.HelpHandler(self.engine)
         elif key == Key.M:
-            return NavigationHandler(self.engine)   # where things are
+            import screens
+            return screens.NavigationHandler(self.engine)   # where things are
         elif key == Key.O:
             return CodexHandler(self.engine)      # what you have learned
 
@@ -1120,11 +1125,9 @@ class GameOverEventHandler(EventHandler):
 
     def on_quit(self) -> None:
         """Handle exiting out of a finished game."""
-        import shutil
-        if os.path.isdir("savegame"):
-            shutil.rmtree("savegame")  # Deletes the active save.
-        elif os.path.exists("savegame"):
-            os.remove("savegame")
+        import savegame
+        if getattr(self.engine, "continued", False):
+            savegame.remove_save("savegame")  # this run owns the active save: permadeath deletes it (never another run's)
         raise exceptions.QuitWithoutSaving()  # Avoid saving a finished game.
 
     def ev_quit(self, event: events.Quit) -> None:
@@ -1134,6 +1137,7 @@ class GameOverEventHandler(EventHandler):
         if event.sym == Key.R and self.casual_respawn():
             import savegame
             engine = savegame.load_game(actions.BED_SAVE, self.engine.session)
+            engine.continued = getattr(self.engine, "continued", False)
             engine.game_world.run.deaths += 1
             engine.message_log.add_message("You wake at your last bed.", color.green)
             self.session.reset(MainGameEventHandler(engine))
