@@ -154,39 +154,6 @@ class BaseAI(Action):
                 return x, y
         return self.entity.x, self.entity.y
 
-class ConfusedEnemy(BaseAI):
-    """
-    A confused enemy will stumble around aimlessly for a given number of turns, then revert back to its previous AI.
-    If a unit occupies a tile it is randomly moving into, it will attack.
-    """
-
-    def __init__(
-        self, entity: Unit, previous_ai: Optional[BaseAI], turns_remaining: int
-    ):
-        super().__init__(entity)
-
-        self.previous_ai = previous_ai
-        self.turns_remaining = turns_remaining
-
-    def perform(self) -> None:
-        super().perform()
-
-        # Revert the AI back to the original state if the effect has run its course.
-        if self.turns_remaining <= 0:
-            self.engine.message_log.add_message(
-                f"{self.entity.get_title()} is no longer confused."
-            )
-            self.entity.ai = self.previous_ai
-        else:
-            # Pick a random direction
-            direction_x, direction_y = random.choice(self.directions)
-            self.turns_remaining -= 1
-
-            # The unit will either try to move or attack in the chosen random direction.
-            # Its possible the unit will just bump into the wall, wasting a turn.
-            return BumpAction(self.entity, direction_x, direction_y,).perform()
-
-
 class PassiveAI(BaseAI):
     def __init__(self, entity: Unit):
         super().__init__(entity)

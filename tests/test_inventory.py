@@ -3,7 +3,7 @@ import pytest
 
 import actions
 import exceptions
-from components.consumable import Meat, HealthPotion
+from components.consumable import Meat
 import components.equippable as equip
 
 
@@ -36,7 +36,7 @@ def test_full_npc_inventory_silently_refuses(small_world):
 
 def test_loot_moves_item_from_map_to_inventory(small_world):
     e = small_world()
-    potion = HealthPotion()
+    potion = Meat("x")
     potion.place(1, 1, e.game_map)
     assert potion in e.game_map.get_entities_at_location(1, 1)
     e.player.inventory.loot(potion)
@@ -46,7 +46,7 @@ def test_loot_moves_item_from_map_to_inventory(small_world):
 
 def test_pickup_action_adds_message(small_world):
     e = small_world()
-    potion = HealthPotion(); potion.place(1, 1, e.game_map)
+    potion = Meat("x"); potion.place(1, 1, e.game_map)
     actions.PickupAction(e.player, potion).perform()
     assert potion in e.player.inventory.items
     assert any("picked up" in m.plain_text for m in e.message_log.messages)
@@ -99,17 +99,6 @@ def test_food_consumption_restores_and_depletes(small_world):
     meat = Meat("x", p.inventory); p.inventory.add(meat)
     meat.activate(p)
     assert p.hunger == 60 and meat not in p.inventory.items
-
-
-def test_health_potion_heals_or_raises_when_full(small_world):
-    e = small_world()
-    p = e.player
-    pot = HealthPotion(); p.inventory.add(pot)
-    with pytest.raises(exceptions.Impossible):
-        pot.activate(p)
-    p.hp = 10
-    pot.activate(p)
-    assert p.hp == 14 and pot not in p.inventory.items
 
 
 def test_only_the_players_drops_are_announced(small_world):

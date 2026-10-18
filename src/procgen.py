@@ -8,7 +8,6 @@ import random
 import numpy as np  # type: ignore
 
 import components.unit as units
-import components.consumable as consumables
 
 if TYPE_CHECKING:
     from world import World
@@ -26,17 +25,10 @@ max_monsters_by_floor = [
 ]
 
 
-item_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(consumables.HealthPotion, 35)],
-    # 2: [(entity_funities.confusion_scroll, 10)],
-    # 4: [(entity_funities.lightning_scroll, 25), (entity_funities.sword, 5)],
-    # 6: [(entity_funities.fireball_scroll, 25), (entity_funities.chain_mail, 15)],
-}
+item_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {}
+"""Items scattered at generation, by minimum floor. Empty: the demo items are gone, loot returns with the new content."""
 enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
     0: [(units.Animal, 100)],
-    # 3: [(entity_funities.troll, 15)],
-    # 5: [(entity_funities.troll, 30)],
-    # 7: [(entity_funities.troll, 60)],
 }
 
 def get_max_value_for_floor(
@@ -70,6 +62,8 @@ def get_entities_at_random(
 
                 entity_weighted_chances[entity] = weighted_chance
     
+    if not entity_weighted_chances:
+        return []
     entities = list(entity_weighted_chances.keys())
     entity_weighted_chance_values = list(entity_weighted_chances.values())
 

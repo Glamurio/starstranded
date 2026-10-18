@@ -2,6 +2,12 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Demo leftovers removed
+- Health potion, sword, chain mail and the confusion/fireball/lightning scrolls are gone (items, species entries, the
+  confusion AI, the tutorial-era `entity_factories.py`). Worlds no longer scatter any ground items; the Selenite, dagger,
+  leather armor, wooden spear, meat, fruit, branch and campfire stay. The targeting handlers (`SingleRangedAttackHandler`,
+  `AreaRangedAttackHandler`) stay as generic UI for future ranged items.
+
 ## Performance pass 1
 - Animals walk to their chosen wander spot instead of picking a new one every turn (hungry rabbits used to jitter).
 - Plants grow and drop fruit in every loaded chunk (not just the nearby ones), and at the same pace as before; trees no longer

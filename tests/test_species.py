@@ -18,7 +18,7 @@ def test_definitions_are_frozen_and_hashable():
 
 def test_registries_contain_the_static_content():
     assert {"human", "selenite", "rabbit"} <= set(UNIT_SPECIES)
-    assert {"health_potion", "meat", "branch", "dagger", "leather_armor", "wooden_spear", "campfire"} <= set(ITEM_KINDS)
+    assert {"meat", "branch", "dagger", "leather_armor", "wooden_spear", "campfire"} <= set(ITEM_KINDS)
     for key, kind in ITEM_KINDS.items():
         assert kind.key == key and kind.sprite_id is not None
 

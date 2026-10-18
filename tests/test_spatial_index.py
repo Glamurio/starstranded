@@ -4,7 +4,7 @@ import random
 import pytest
 
 import actions
-from components.consumable import HealthPotion, Meat
+from components.consumable import Meat
 from components.plant import Tree
 from components.unit import Animal
 from index_helpers import assert_index_consistent
@@ -42,7 +42,7 @@ def test_flag_changes_update_blocked_buckets_and_actors(small_world):
 
 def test_entities_can_be_reattached_between_maps_and_inventories(small_world):
     e1, e2 = small_world(), small_world()
-    pot = HealthPotion(); pot.place(3, 3, e1.game_map)
+    pot = Meat("x"); pot.place(3, 3, e1.game_map)
     pot.place(4, 4, e2.game_map)
     assert pot not in e1.game_map.entities and pot.parent is e2.game_map
     e2.player.inventory.loot(pot)
@@ -73,7 +73,7 @@ def test_random_walk_soak_keeps_index_consistent(small_world):
     e = small_world(width=20, height=15)
     m = e.game_map
     rng = random.Random(4)
-    pool = [Animal() for _ in range(15)] + [HealthPotion() for _ in range(10)]
+    pool = [Animal() for _ in range(15)] + [Meat("x") for _ in range(10)]
     for ent in pool:
         ent.place(rng.randrange(20), rng.randrange(15), m)
     for step in range(600):

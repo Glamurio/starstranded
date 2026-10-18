@@ -8,7 +8,6 @@ import pytest
 import actions
 import input_handlers
 import setup_game
-from components.consumable import HealthPotion
 from components.unit import Animal
 
 

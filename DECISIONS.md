@@ -381,3 +381,14 @@ The plan above was implemented as written, with these specifics and deviations:
   proportional to harvests, not to plants.
 - **Not done:** render caching (already 5 ms, drawn on change only), pre-generating chunks ahead of the player (border crossing
   is ~20 ms, below one frame at 60 FPS plus a turn).
+
+
+## Demo leftovers removed
+- Removed: HealthPotion/HealingConsumable, Sword, ChainMail, the three scrolls and their consumable classes,
+  `ConfusedEnemy`, `entity_factories.py` (all commented out), `ItemKind.heal_amount/damage/radius/max_range/turns`, the
+  `item_chances` entries. Kept: Selenite (owner), dagger/leather armor (the player's start kit), wooden spear and campfire
+  (crafting), meat/fruit/branch.
+- `item_chances` is now an empty table rather than deleted so loot can return without touching the generator;
+  `get_entities_at_random` returns `[]` for an empty table. World generation therefore draws different random numbers
+  than before (same seed, different monster layout), which nothing depends on.
+- The area/single-target handlers are kept: generic UI with their own tests, and ranged weapons will want them.

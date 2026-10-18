@@ -11,7 +11,7 @@ import exceptions
 import g
 import input_handlers as ih
 import setup_game
-from components.consumable import HealthPotion
+from components.consumable import Meat
 from components.unit import Animal
 from events import Key, KeyDown, Mod, MouseButton, MouseButtonDown, MouseMotion, Point, Quit, TextInput
 from render_helpers import cell
@@ -128,7 +128,7 @@ def test_left_click_walks_towards_the_cursor(game):
 
 def test_inventory_menu_opens_navigates_and_closes(game):
     e, handler = game
-    e.player.inventory.add(HealthPotion())
+    e.player.inventory.add(Meat("x"))
     inv = press(handler, Key.I)
     assert isinstance(inv, ih.InventoryActivateHandler)
     assert lit_pixels(drawn(inv)) > 1000
@@ -142,15 +142,15 @@ def test_inventory_menu_opens_navigates_and_closes(game):
 
 def test_inventory_confirm_uses_the_item(game):
     e, handler = game
-    e.player.hp = 1
-    potion = HealthPotion()
+    e.player.hunger = 10
+    potion = Meat("x", e.player.inventory)
     e.player.inventory.add(potion)
     inv = press(handler, Key.I)
     drawn(inv)  # the menu builds its entry list while rendering (the real loop always draws first)
     for _ in range(len(e.player.inventory.items)):
         inv = press(inv, Key.DOWN)
     inv = press(inv, Key.RETURN)
-    assert e.player.hp > 1
+    assert e.player.hunger > 10
     assert potion not in e.player.inventory.items
 
 

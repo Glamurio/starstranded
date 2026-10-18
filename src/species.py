@@ -74,17 +74,11 @@ class ItemKind(_Definition):
     blocks_sight: bool = False
     hunger_amount: int = 0
     thirst_amount: int = 0
-    heal_amount: int = 0
     equipment_type: Optional[EquipmentType] = None
     power_bonus: int = 0
     defense_bonus: int = 0
     light_radius: int = 0
     lit_color: Optional[RGB] = None
-    # parameters of the (unspawned) scroll-like consumables
-    damage: int = 0
-    radius: int = 0
-    max_range: int = 0
-    turns: int = 0
 
 
 @dataclass(frozen=True)
@@ -158,24 +152,16 @@ RABBIT = register(UnitSpecies(
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
-HEALTH_POTION = register(ItemKind("health_potion", "Health Potion", sprite=(29, 19), color=(127, 0, 255), heal_amount=4))
 MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(15, 5), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 21), color=(0, 191, 255), material="Bronze",
                            equipment_type=EquipmentType.WEAPON, power_bonus=2))
-SWORD = register(ItemKind("sword", "Sword", sprite=(29, 21), color=(0, 191, 255), material="Iron",
-                          equipment_type=EquipmentType.WEAPON, power_bonus=4))
 LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(31, 23), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
-CHAIN_MAIL = register(ItemKind("chain_mail", "Chain Mail", sprite=(32, 23), color=(139, 69, 19), material="Iron",
-                               equipment_type=EquipmentType.ARMOR, defense_bonus=3))
 WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(45, 21), color=(0x8B, 0x6B, 0x3D), material="Wooden",
                                  equipment_type=EquipmentType.WEAPON, power_bonus=3))
 CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(7, 29), color=color.white,
                              lit_color=color.orange, light_radius=8))
-CONFUSION_SCROLL = register(ItemKind("confusion_scroll", "Consumable", sprite=(33, 24), color=(207, 63, 255)))
-FIREBALL_SCROLL = register(ItemKind("fireball_scroll", "Consumable", sprite=(33, 24), color=(255, 0, 0)))
-LIGHTNING_SCROLL = register(ItemKind("lightning_scroll", "Consumable", sprite=(33, 24), color=(255, 255, 0)))
 
 
 # ── Procedural definitions ───────────────────────────────────────────────────────

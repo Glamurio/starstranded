@@ -48,14 +48,7 @@ class Dagger(Equippable):
         Equippable.__init__(self, defs.DAGGER, parent)
 
 
-class Sword(Equippable):
-    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
-        Equippable.__init__(self, defs.SWORD, parent)
-
 class LeatherArmor(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
         Equippable.__init__(self, defs.LEATHER_ARMOR, parent)
 
-class ChainMail(Equippable):
-    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
-        Equippable.__init__(self, defs.CHAIN_MAIL, parent)

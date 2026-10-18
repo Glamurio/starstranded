@@ -3,7 +3,7 @@ import numpy as np
 
 import g
 import input_handlers
-from components.consumable import HealthPotion, Meat
+from components.consumable import Meat
 from render_helpers import cell, expected_sprite_cell
 import color
 
@@ -13,16 +13,6 @@ def render_inventory(e):
     g.handlers = [input_handlers.MainGameEventHandler(e), handler]
     g.draw(handler)
     return g.canvas
-
-
-def test_inventory_renders_a_health_potion_icon(small_world):
-    e = small_world()
-    potion = HealthPotion()
-    e.player.inventory.add(potion)
-    canvas = render_inventory(e)
-    # entries start at (12, 3) and are 2 rows apart: dagger, armor, potion
-    expected = expected_sprite_cell(potion.sprite_id, potion.color, potion.flipped, bg=color.nigh_black)
-    assert np.array_equal(cell(canvas, 12, 7), expected)
 
 
 def test_inventory_renders_meat_icon_and_title(small_world):
