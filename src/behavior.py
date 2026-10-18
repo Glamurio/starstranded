@@ -28,8 +28,15 @@ SEEK_THRESHOLD = 90
 """Creatures look for food at or below this hunger/thirst (of 100)."""
 FLEE_SIGHT = 4
 """How far away a creature notices something that hunts it."""
-HOSTILE_SIGHT = 15
-"""NEAR-tier hostiles head for the player within this many tiles (full-tier ones need to be in the player's view)."""
+HOSTILE_CLOSE = 15
+"""Hostiles within this many tiles of the player (or full-tier ones that see him) go for him before anything else."""
+HOSTILE_SIGHT = 45
+"""Hungry hostiles feed first; otherwise they track the player down from this far (about a chunk), seen or not, across chunk
+borders."""
+FOLLOW_RANGE = 8
+"""Hostiles this close to the player when he takes stairs follow him to the other layer."""
+STAIRS_CHANCE = 0.04
+"""Chance per turn that an idle creature standing on a staircase uses it."""
 
 DIRECTIONS = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
 
@@ -109,7 +116,7 @@ def act(unit: Unit, ai: BaseAI, cheap: bool = False) -> None:
         if threat is not None and not ai.is_hostile:
             return _flee(unit, ai, threat, cheap)
 
-    if ai.is_hostile and _hunt_player(unit, ai, cheap):
+    if ai.is_hostile and _hunt_player(unit, ai, cheap, HOSTILE_CLOSE):
         return
 
     thirsty = unit.thirst <= SEEK_THRESHOLD and unit.thirst <= unit.hunger
@@ -119,7 +126,24 @@ def act(unit: Unit, ai: BaseAI, cheap: bool = False) -> None:
     if is_hungry(unit) and _feed(unit, ai, cheap):
         return
 
+    if ai.is_hostile and _hunt_player(unit, ai, cheap, HOSTILE_SIGHT):
+        return
+
+    if not ai.is_hostile and use_stairs(unit):
+        return
+
     _idle(unit, ai, cheap)
+
+
+def use_stairs(unit) -> bool:
+    """An idle creature on a staircase sometimes takes it. True if it did."""
+    world = unit.game_map
+    tile = world.tile_at(unit.x, unit.y)
+    if tile is None or not int(tile["stairs"]) or random.random() > STAIRS_CHANCE:
+        return False
+    game_world = world.engine.game_world
+    game_world.send(unit, world.z + int(tile["stairs"]))
+    return True
 
 
 def _flee(unit, ai, threat, cheap):
@@ -135,29 +159,41 @@ def _gap(point, other) -> int:
     return max(abs(point[0] - other.x), abs(point[1] - other.y))
 
 
-def _hunt_player(unit, ai, cheap) -> bool:
-    """Chase and attack the player. Returns False when the player is out of sight (and no path is being followed)."""
+def _hunt_player(unit, ai, cheap, reach: int) -> bool:
+    """Chase and attack the player. Returns False when the player is out of range (and no path is being followed)."""
     from actions import MeleeAction
     engine = ai.engine
     target = engine.player
     distance = max(abs(target.x - unit.x), abs(target.y - unit.y))
-    if cheap:
-        if distance > HOSTILE_SIGHT:
-            return False
-        if distance <= 1:
-            MeleeAction(unit, target.x, target.y).perform()
-        else:
-            step_towards(engine, unit, target.x, target.y)
+    if distance <= 1:
+        MeleeAction(unit, target.x, target.y).perform()
         return True
 
-    if unit.game_map.is_visible(unit.x, unit.y):
-        if distance <= 1:
-            MeleeAction(unit, target.x, target.y).perform()
+    visible = not cheap and reach == HOSTILE_CLOSE and unit.game_map.is_visible(unit.x, unit.y)
+    if not visible and distance > reach:
+        ai.path = []
+        return False
+    # Re-plan only when the player has moved away from where the path ends.
+    end = ai.path[-1] if ai.path else None
+    needs_plan = end is None or max(abs(end[0] - target.x), abs(end[1] - target.y)) > 2
+    if visible and needs_plan:
+        ai.path = ai.get_path(target.x, target.y)
+    elif cheap and ai.path:
+        try:
+            _walk(unit, ai)
             return True
-        # Re-plan only when the player has moved away from where the path ends.
-        end = ai.path[-1] if ai.path else None
-        if end is None or max(abs(end[0] - target.x), abs(end[1] - target.y)) > 2:
+        except exceptions.Impossible:
+            pass
+    if cheap or (not visible and not ai.path):
+        # Greedy steps; two without progress mean an obstacle (a lake, a wall): plan a real path round it.
+        before = distance
+        step_towards(engine, unit, target.x, target.y)
+        after = max(abs(target.x - unit.x), abs(target.y - unit.y))
+        ai.stuck = 0 if after < before else getattr(ai, "stuck", 0) + 1
+        if ai.stuck >= 2:
+            ai.stuck = 0
             ai.path = ai.get_path(target.x, target.y)
+        return True
     if ai.path:
         _walk(unit, ai)
         return True

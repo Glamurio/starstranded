@@ -696,6 +696,7 @@ class GameWorld:
         self.current_z = current_z if current_floor is None else 1 - current_floor
         self.current_time = current_time
         self.layers: Dict[int, World] = {}
+        self.arrivals: List[tuple] = []  # (due time, unit, z, x, y): followers still on the stairs
 
     @property
     def current_floor(self) -> int:
@@ -739,11 +740,73 @@ class GameWorld:
         world.update_tiers()
         self.engine.update_fov()
 
+    def place_on_layer(self, unit: Unit, z: int, x: int, y: int) -> bool:
+        """Put `unit` on the free tile nearest (x, y) of layer `z` (loading its chunk, and storing it again if the layer is not
+        the current one). False if there is no room within 3 tiles."""
+        from chunks import chunk_key
+        world = self.world_at(z)
+        for radius in range(4):
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    if max(abs(dx), abs(dy)) != radius:
+                        continue
+                    tx, ty = x + dx, y + dy
+                    key = chunk_key(tx, ty)
+                    was_loaded = key in world.chunks
+                    world.load_chunk(key)
+                    tile = world.tile_at(tx, ty)
+                    ok = (tile is not None and bool(tile["walkable"]) and not int(tile["liquid"])
+                          and not world.get_entities_at_location(tx, ty, True))
+                    if ok:
+                        unit.place(tx, ty, world)
+                        if not was_loaded and world is not self.engine.game_map:
+                            world.unload_chunk(key)
+                        return True
+                    if not was_loaded and world is not self.engine.game_map:
+                        world.unload_chunk(key)
+        return False
+
+    def send(self, unit: Unit, z: int, delay: int = 0) -> None:
+        """A creature takes stairs to layer `z`: it leaves its layer now and arrives `delay` turns later at the same x/y."""
+        x, y = unit.x, unit.y
+        unit.game_map.remove_entity(unit)
+        if unit.ai is not None:
+            unit.ai.path = []
+        if delay <= 0:
+            self.place_on_layer(unit, z, x, y)
+        else:
+            self.arrivals.append((self.current_time + delay, unit, z, x, y))
+
+    def release_arrivals(self, everyone: bool = False) -> None:
+        """Place the followers whose time has come (all of them with `everyone`: the player moved on, or the game is saved)."""
+        due = [a for a in self.arrivals if everyone or a[0] <= self.current_time]
+        if not due:
+            return
+        self.arrivals = [a for a in self.arrivals if a not in due]
+        for _, unit, z, x, y in due:
+            self.place_on_layer(unit, z, x, y)
+
+    def followers(self, world: World) -> list:
+        """Living hostile creatures close enough to the player to follow him down (or up) a staircase."""
+        import behavior
+        player = self.engine.player
+        found = []
+        for chunk in list(world.chunks.values()):
+            for entity in chunk.actors:
+                if (entity is player or entity.category is not EntityCategory.UNIT or not entity.is_alive
+                        or entity.ai is None or not entity.ai.is_hostile):
+                    continue
+                gap = max(abs(entity.x - player.x), abs(entity.y - player.y))
+                if gap <= behavior.FOLLOW_RANGE:
+                    found.append((gap, entity))
+        return found
+
     def change_layer(self, z: int, x: int, y: int) -> World:
         """Move the player to (x, y) of layer `z`; the layer left is stored away."""
         from chunks import chunk_key
         engine, player = self.engine, self.engine.player
         old = engine.game_map
+        self.release_arrivals(everyone=True)
         old.remove_entity(player)
         old.suspend()
         old.window.visible[:] = False
@@ -793,7 +856,14 @@ class GameWorld:
             raise exceptions.Impossible("There are no stairs here.")
         if direction and stairs != direction:
             raise exceptions.Impossible("These stairs only go " + ("up." if stairs > 0 else "down."))
+        followers = self.followers(world)
+        for _, creature in followers:  # they leave before the layer is stored
+            world.remove_entity(creature)
+            if creature.ai is not None:
+                creature.ai.path = []
         self.change_layer(world.z + stairs, player.x, player.y)
+        for gap, creature in followers:
+            self.arrivals.append((self.current_time + gap, creature, self.current_z, player.x, player.y))
         return self.current_z
 
     def pass_time(self, unit: Unit, time: int) -> int:
@@ -808,6 +878,7 @@ class GameWorld:
             unit.tick_poison(1)
             unit.last_upkeep = self.current_time
 
+            self.release_arrivals()
             from simulation import run_turn
             run_turn(self.engine)
             self.engine.update_fov()

@@ -496,3 +496,15 @@ The plan above was implemented as written, with these specifics and deviations:
   names its contents so tests (science gear) can come later without changing the item.
 - **Alternative:** a boolean "safe" flag on tiles — rejected: three kinds are needed for the later science gear. Making animals
   immune to impure liquid vs. sickening them — chose immune/avoiding toxic, so ecology stays stable.
+
+## Creature movement across chunks and layers
+- **What:** `HOSTILE_SIGHT` 45 / `HOSTILE_CLOSE` 15 in `behavior`; a stuck greedy hunter (two steps without progress) plans with A*;
+  `GameWorld.arrivals` queues followers (due = turns equal to their distance), flushed on layer change and before saving;
+  `GameWorld.send` moves an idle creature standing on stairs (`STAIRS_CHANCE` 4 %/turn) to the next layer.
+- **Why:** hunting must not stop at a chunk border and stairs must not be a safe haven; the cheap tier stays pathfinding-free except
+  when stuck, so benchmarks are unchanged (BENCHMARKS.md).
+- **Alternatives:** simulate every layer near the player (cost, rejected: frozen-then-caught-up stays the model); followers
+  appearing instantly (rejected: you get a head start equal to their distance); persisting the arrivals queue in saves
+  (rejected: flushing it before saving is simpler and invisible).
+- **Single-player view:** nothing lets you look at or target another layer; I read the request as exactly that, so the
+  look-down through open air (terrain only) is the sole exception, as before.

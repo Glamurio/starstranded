@@ -201,6 +201,7 @@ def save_game(engine: Engine, directory: str) -> None:
         os.remove(directory)  # an old single-file save of the same name
     world = engine.game_map
     game_world = engine.game_world
+    game_world.release_arrivals(everyone=True)  # followers still on the stairs arrive before the save
     previous = _read_manifest_body(directory) or {}
     previous_layers = previous.get("layers", {})
     generation = previous.get("generation", 0) + 1

@@ -235,3 +235,16 @@ def test_terrain_of_a_stored_layer_is_readable_without_loading(new_engine):
     assert not surface.chunks and surface.stored
     again = e.game_world.tile_on_layer(0, *pos)
     assert again["light"]["sprite"] == here["light"]["sprite"]
+
+
+def test_the_view_never_leaves_the_players_layer(new_engine):
+    """Single-player: what is on screen, under the cursor and targetable is the player's own layer; the only glimpse of another
+    one is the dimmed terrain seen through open air (never creatures or items)."""
+    e = new_engine
+    gw = e.game_world
+    e.player.place(*e.game_map.downstairs_location)
+    for direction in (-1, 1):
+        actions.TakeStairsAction(e.player, direction).perform()
+        assert e.game_map is gw.world_at(gw.current_z) and e.player.parent is e.game_map
+        assert e.game_map.z == gw.current_z
+        assert [w for z, w in gw.layers.items() if z != gw.current_z and w.chunks] == []  # others are stored, not shown

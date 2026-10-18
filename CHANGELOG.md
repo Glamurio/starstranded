@@ -2,6 +2,14 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Creature movement: hunting, stairs
+- Hostile creatures hunt you from up to 45 tiles away (about a chunk), seen or not, across chunk borders, in the full and the
+  NEAR tier alike. Closer than 15 tiles (or in view) they come before eating; farther away a hungry hostile feeds first.
+- Creatures blocked by a lake or wall plan a real path round it (A*) after two steps without progress.
+- Hostile creatures within 8 tiles of you when you take stairs follow you to the other layer, arriving one turn per tile of
+  distance after you. Idle creatures standing on a staircase sometimes use it (4 % per turn).
+- You can only ever see your own layer (plus the dimmed ground seen through open air); there is no layer scrolling.
+
 ## Stumps
 - Felling a deciduous tree, evergreen or palm leaves a **Stump** (walkable scenery, nothing to pick up). Fungi and cacti leave
   nothing yet (they will get their own remains later).
