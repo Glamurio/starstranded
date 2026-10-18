@@ -218,3 +218,34 @@ def test_a_cold_start_is_announced(monkeypatch):
     monkeypatch.setattr(resources, "ambient_temperature", lambda *a, **k: -20.0)
     engine = new_game()
     assert any("cold" in str(m.plain_text).lower() for m in engine.message_log.messages)
+
+
+def test_grabbing_a_wreck_or_using_a_component_is_a_message_not_an_error():
+    import main
+    import traceback
+    from ui_helpers import SESSION
+    engine = new_game(background="surveyor")
+    p = engine.player
+    engine.game_map.add_entity(structures.Wreckage(0), p.x + 1, p.y)
+    main_handler = ih.MainGameEventHandler(engine)
+    SESSION.handlers = [main_handler]
+    errors = []
+    orig = main.traceback.print_exc
+    main.traceback.print_exc = lambda *a, **k: errors.append(traceback.format_exc())
+    try:
+        engine.mouse_location = type(engine.mouse_location)(p.x + 1, p.y)
+        handler = main.process(main_handler, KeyDown(Key.G, 0), SESSION)
+        handler = main.process(handler, KeyDown(Key.G, 0), SESSION)        # grab: the wreck has no inventory
+        main.render(handler, SESSION)
+        main.process(handler, KeyDown(Key.RETURN, 0), SESSION)
+        SESSION.handlers = [main_handler]
+        inv = ih.InventoryActivateHandler(engine, p.inventory)
+        SESSION.handlers = [main_handler, inv]
+        main.render(inv, SESSION)
+        kit_index = next(i for i, item in enumerate(inv.inventory_entries) if "survey" in item.kind.key)
+        inv.menu_i = kit_index
+        main.process(inv, KeyDown(Key.RETURN, 0), SESSION)                 # a component: "used by what it is built into"
+    finally:
+        main.traceback.print_exc = orig
+    assert not errors, errors[0]
+    assert any("component" in m.plain_text or "survey" in m.plain_text for m in engine.message_log.messages)

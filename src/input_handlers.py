@@ -177,7 +177,11 @@ class EventHandler(BaseEventHandler):
 
     def handle_events(self, event: events.Event) -> BaseEventHandler:
         """Handle events for input handlers with an engine."""
-        action_or_state = self.dispatch(event)
+        try:
+            action_or_state = self.dispatch(event)
+        except exceptions.Impossible as exc:   # e.g. using a crafting material from the inventory menu
+            self.engine.message_log.add_message(exc.args[0] if exc.args else "You cannot do that.", color.impossible)
+            action_or_state = None
 
         if isinstance(action_or_state, BaseEventHandler):
             self.session.push(action_or_state) # Add handler to stack
@@ -502,7 +506,7 @@ class InventoryEventHandler(AskUserEventHandler):
         self.buttons = {}
         # If there's only one entity at target location, treat it as single inventory
         entity: Entity = entities[0] if entities and len(entities) == 1 else None
-        self.inventory = entity.inventory if entity and not inventory else inventory
+        self.inventory = getattr(entity, "inventory", None) if entity and not inventory else inventory
         
         self.entities = entities
         self.offset = offset
@@ -630,7 +634,7 @@ class InventoryEventHandler(AskUserEventHandler):
 
         self.button_highlight = self.menu_i if self.menu_i is not None else self.button_highlight
 
-        if event.sym == Key.G:
+        if event.sym == Key.G and hasattr(self, "on_items_selected"):
             return self.on_items_selected(self.inventory_entries)
         
         if event.sym in CONFIRM_KEYS and (self.menu_i is None or not self.inventory_entries

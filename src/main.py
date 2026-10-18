@@ -39,6 +39,60 @@ def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
         handler.engine.save_as(filename)
         print("Game saved.")
 
+def recover(handler, session):
+    """After an unexpected error: a handler that is safe to keep playing with (the game itself, or the main menu)."""
+    import input_handlers
+    import setup_game
+    engine = getattr(handler, "engine", None)
+    if engine is not None:
+        try:
+            if engine.player.is_alive:
+                safe = input_handlers.MainGameEventHandler(engine)
+                session.reset(safe)
+                return safe
+        except Exception:
+            traceback.print_exc()
+    safe = setup_game.MainMenu(session)
+    session.reset(safe)
+    return safe
+
+
+def process(handler, event, session):
+    """Feed one event to `handler` and return the handler to use next. Errors never escape: an `Impossible` is a message,
+    anything else is logged (stderr and the message log) and the game falls back to a safe screen."""
+    import input_handlers
+    try:
+        return handler.handle_events(event)
+    except (exceptions.QuitWithoutSaving, SystemExit):
+        raise
+    except exceptions.Impossible as exc:
+        engine = getattr(handler, "engine", None)
+        if engine is not None:
+            engine.message_log.add_message(exc.args[0] if exc.args else "You cannot do that.", color.impossible)
+        return handler
+    except Exception as exc:
+        traceback.print_exc()
+        engine = getattr(handler, "engine", None)
+        if engine is not None:
+            engine.message_log.add_message(f"Something went wrong ({type(exc).__name__}: {exc}); carrying on.", color.error)
+        return recover(handler, session)
+
+
+def render(handler, session):
+    """Draw `handler`; if drawing fails, log it and fall back to a screen that can be drawn. Returns the handler in use."""
+    try:
+        session.render(handler)
+        return handler
+    except Exception:
+        traceback.print_exc()
+        handler = recover(handler, session)
+        try:
+            session.render(handler)
+        except Exception:
+            traceback.print_exc()
+        return handler
+
+
 def run(handler: input_handlers.BaseEventHandler, session) -> None:
     """The main loop: handle input, redraw only when something happened, cap at `FPS`.
 
@@ -53,21 +107,12 @@ def run(handler: input_handlers.BaseEventHandler, session) -> None:
     try:
         while True:
             if dirty:
-                session.render(handler)
+                handler = render(handler, session)
                 dirty = False
 
-            try:
-                for event in session.display.poll():
-                    dirty = True
-                    handler = handler.handle_events(event)
-            except Exception:  # Handle exceptions in game.
-                traceback.print_exc()  # Print error to stderr.
+            for event in session.display.poll():
                 dirty = True
-                # Then print the error to the message log.
-                if isinstance(handler, input_handlers.EventHandler):
-                    handler.engine.message_log.add_message(
-                        traceback.format_exc(), color.error
-                    )
+                handler = process(handler, event, session)
 
             clock.tick(FPS)
     except exceptions.QuitWithoutSaving:

@@ -56,6 +56,9 @@ def apply(settings: Settings, session=None) -> None:
     import pygame
     if session is not None and session.display is not None and pygame.display.get_surface() is not None:
         if bool(pygame.display.is_fullscreen()) != settings.fullscreen:
-            pygame.display.toggle_fullscreen()
+            try:
+                pygame.display.toggle_fullscreen()
+            except pygame.error:   # e.g. the headless driver: the setting is kept, the window stays as it is
+                pass
     if pygame.mixer.get_init():
         pygame.mixer.music.set_volume(settings.effective("music"))
