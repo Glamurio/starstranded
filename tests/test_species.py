@@ -46,9 +46,9 @@ def test_plant_species_generation_matches_old_rules(category):
             assert s.name.startswith(s.fruit.species + " ")
             assert s.fruit.hunger_amount == s.fruit.thirst_amount == 10
     if category is PlantCategory.TREE:
-        assert all(s.blocks_movement and s.blocks_sight and s.growth_cycle == 10 and s.max_hp == 10 for s in rolled)
+        assert all(s.blocks_movement and s.blocks_sight and s.growth_cycle == 10 and s.max_hp == 30 for s in rolled)
     else:
-        assert all(not s.blocks_movement and not s.blocks_sight and s.growth_cycle == 5 and s.max_hp == 5 for s in rolled)
+        assert all(not s.blocks_movement and not s.blocks_sight and s.growth_cycle == 5 and s.max_hp == 8 for s in rolled)
 
 
 def test_plant_species_generation_is_reproducible_from_an_rng():

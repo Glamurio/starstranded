@@ -2,6 +2,15 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Combat: damage types, destructible plants
+- Attacks have a damage type (blunt, sharp, pierce; elemental types can be added in `damage.py`). Fists/natural attacks are
+  blunt (Selenites claw: sharp), the dagger and the new axe are sharp, the spear pierces. Targets scale damage per type
+  (`resistances`); trees barely notice blunt/pierce hits.
+- Bump into a tree or shrub while wielding a weapon to cut it down (trees: 30 HP, an axe needs ~5 hits, the starting dagger ~8).
+  A felled plant opens its tile and drops its fruit plus two branches. Bare hands still just bump.
+- New craftable **Axe** (3 branches; placeholder recipe until stone/metal exist).
+- Any unit can die at 0 HP now (before, only units with an AI could).
+
 ## `g.py` removed
 - The module of UI globals is replaced by an explicit `Session` object (`session.py`) reachable as `engine.session`; layout
   constants moved to `layout.py`. `main.run(handler, session)`, `setup_game.MainMenu(session)`, `new_game(player, session)`

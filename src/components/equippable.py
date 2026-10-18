@@ -32,6 +32,10 @@ class Equippable(Item):
     def defense_bonus(self) -> int:
         return self.kind.defense_bonus
 
+    @property
+    def damage_type(self):
+        return self.kind.damage_type
+
     def activate(self, user: Unit) -> None:
         """Invoke this items ability.
 
@@ -47,6 +51,10 @@ class Dagger(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
         Equippable.__init__(self, defs.DAGGER, parent)
 
+
+class Axe(Equippable):
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:
+        Equippable.__init__(self, defs.AXE, parent)
 
 class LeatherArmor(Equippable):
     def __init__(self, parent: Union[GameMap, Inventory, None] = None) -> None:

@@ -27,6 +27,13 @@ class Action:
         """Return the unit at this actions destination."""
         return self.engine.game_map.get_unit_at_location(*self.dest_xy)
 
+    @property
+    def target_plant(self) -> Optional[Entity]:
+        """Return the living plant at this actions destination (the one that blocks movement first)."""
+        plants = [e for e in self.engine.game_map.get_entities_at_location(*self.dest_xy)
+                  if e.category is EntityCategory.PLANT and not e.dead]
+        return next((p for p in plants if p.blocks_movement), plants[0] if plants else None)
+
     def perform(self) -> bool:
         """Perform this action with the objects needed to determine its scope.
 
@@ -164,10 +171,13 @@ class ActionWithDirection(Action):
 
 
 class MeleeAction(ActionWithDirection):
+    """Hit the unit (or, failing that, the plant) at the destination with the attacker's damage type."""
+
     def perform(self) -> None:
+        from damage import resolve
 
         attacker: Unit = self.entity
-        target: Unit = self.target_unit
+        target = self.target_unit or self.target_plant
 
         if not target:
             raise exceptions.Impossible("Nothing to attack.")
@@ -175,7 +185,8 @@ class MeleeAction(ActionWithDirection):
         if attacker == target:
             return
 
-        damage = attacker.power - target.defense
+        damage_type = attacker.damage_type
+        damage = resolve(attacker.power, getattr(target, "defense", 0), damage_type, target.resistances())
 
         attack_desc = f"{attacker.get_title()} attacks {target.get_title()}"
         if attacker is self.engine.player:
@@ -184,14 +195,14 @@ class MeleeAction(ActionWithDirection):
             attack_color = color.enemy_atk
         if damage > 0:
             self.engine.message_log.add_message(
-                f"{attack_desc} for {damage} hit points.", attack_color
+                f"{attack_desc} for {damage} {damage_type} damage.", attack_color
             )
             target.handle_health(-damage, attacker)
         else:
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
             )
-            
+
         self.engine.game_world.pass_time(unit=self.entity, time=1)
 
 class MovementAction(ActionWithDirection):
@@ -242,6 +253,11 @@ class BumpAction(ActionWithDirection):
         distance = max(abs(self.dest_x - self.entity.x), abs(self.dest_y - self.entity.y))  # Chebyshev distance.
 
         if self.target_unit and not self.target_unit == self.entity and self.target_unit.is_alive and distance <= 1:
+            return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
+
+        # A wielded weapon (an axe, say) lets you cut down a plant that is in the way; bare hands just bump.
+        plant = self.target_plant
+        if plant is not None and plant.blocks_movement and distance <= 1 and self.entity.equipment.weapon is not None:
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
 
         return MovementAction(self.entity, self.dest_x, self.dest_y, path).perform()

@@ -4,7 +4,7 @@ from typing import List, Dict, TYPE_CHECKING
 
 from components.inventory import Inventory
 from components.consumable import Consumable
-from components.equippable import Equippable
+from components.equippable import Axe, Equippable
 from equipment_types import EquipmentType
 from entity import Constructable
 import species as defs
@@ -151,6 +151,13 @@ RECIPES: List[Recipe] = [
         description="A sharpened branch. Better than fists.",
         ingredients={"Branch": 2},
         result_class=WoodenSpear,
+        is_placeable=False,
+    ),
+    Recipe(
+        name="Axe",
+        description="A crude wooden axe. Sharp enough to cut down trees.",
+        ingredients={"Branch": 3},
+        result_class=Axe,
         is_placeable=False,
     ),
     Recipe(

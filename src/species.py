@@ -14,6 +14,7 @@ from typing import Dict, Optional, Tuple, Union
 
 import color
 from atlas import COLUMNS as SHEET_COLUMNS
+from damage import DamageType, Resistances
 from equipment_types import EquipmentType
 from render_order import RenderOrder
 
@@ -75,6 +76,7 @@ class ItemKind(_Definition):
     hunger_amount: int = 0
     thirst_amount: int = 0
     equipment_type: Optional[EquipmentType] = None
+    damage_type: Optional[DamageType] = None  # weapons: what they deal (None: the wielder's natural type)
     power_bonus: int = 0
     defense_bonus: int = 0
     light_radius: int = 0
@@ -100,6 +102,8 @@ class UnitSpecies(_Definition):
     level_up_base: int = 0
     xp_given: int = 0
     ai: AIKind = AIKind.NONE
+    damage_type: DamageType = DamageType.BLUNT  # natural attack
+    resistances: Resistances = ()
     name_origin: Optional[str] = None  # namegen set for auto-generated names
     default_name: Optional[str] = None
     render_order: RenderOrder = RenderOrder.UNIT
@@ -115,6 +119,7 @@ class PlantSpecies(_Definition):
     color: RGB
     fruit: Optional[ItemKind] = None
     max_hp: int = 10
+    resistances: Resistances = ()
     growth_cycle: int = 10
     inventory_capacity: int = 10
     blocks_movement: bool = False
@@ -145,6 +150,7 @@ HUMAN = register(UnitSpecies(
 SELENITE = register(UnitSpecies(
     "selenite", "Selenite", sprite=(2, 37), corpse_sprite=(44, 11), color=color.light_blue,
     max_hp=10, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.HOSTILE, name_origin="selenite",
+    damage_type=DamageType.SHARP,
 ))
 RABBIT = register(UnitSpecies(
     "rabbit", "Rabbit", sprite=(3, 15), corpse_sprite=(44, 11), color=None,
@@ -155,11 +161,13 @@ RABBIT = register(UnitSpecies(
 MEAT = register(ItemKind("meat", "Meat", sprite=(1, 16), color=color.red, hunger_amount=10))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(15, 5), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 21), color=(0, 191, 255), material="Bronze",
-                           equipment_type=EquipmentType.WEAPON, power_bonus=2))
+                           equipment_type=EquipmentType.WEAPON, power_bonus=2, damage_type=DamageType.SHARP))
+AXE = register(ItemKind("axe", "Axe", sprite=(41, 21), color=(0x8B, 0x6B, 0x3D), material="Wooden",
+                        equipment_type=EquipmentType.WEAPON, power_bonus=4, damage_type=DamageType.SHARP))
 LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(31, 23), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
 WOODEN_SPEAR = register(ItemKind("wooden_spear", "Spear", sprite=(45, 21), color=(0x8B, 0x6B, 0x3D), material="Wooden",
-                                 equipment_type=EquipmentType.WEAPON, power_bonus=3))
+                                 equipment_type=EquipmentType.WEAPON, power_bonus=3, damage_type=DamageType.PIERCE))
 CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(7, 29), color=color.white,
                              lit_color=color.orange, light_radius=8))
 
@@ -175,6 +183,11 @@ def make_fruit_kind(rng: random.Random = random) -> ItemKind:
     name = rng.choice(color_names[get_color_group(fruit_color)]) + rng.choice(shape_names)
     return ItemKind(None, "Consumable", species=name, sprite=position, color=fruit_color, shade_sigma=10,
                     hunger_amount=10, thirst_amount=10)
+
+
+# Wood is cut, not bashed or poked: only sharp tools fell a tree quickly.
+TREE_RESISTANCES: Resistances = ((DamageType.BLUNT, 0.2), (DamageType.SHARP, 1.0), (DamageType.PIERCE, 0.3))
+SHRUB_RESISTANCES: Resistances = ((DamageType.BLUNT, 0.5), (DamageType.SHARP, 1.0), (DamageType.PIERCE, 0.5))
 
 
 def make_plant_species(category: PlantCategory, rng: random.Random = random) -> PlantSpecies:
@@ -193,11 +206,11 @@ def make_plant_species(category: PlantCategory, rng: random.Random = random) -> 
         name = f"{rng.choice(group)} {rng.choice(shape_names)}"
     if category is PlantCategory.TREE:
         return PlantSpecies(f"proc:tree:{name}", name, category, sprite=sprite, corpse_sprite=(13, 5), color=plant_color,
-                            fruit=fruit, max_hp=10, growth_cycle=10, blocks_movement=True, blocks_sight=True,
-                            render_order=RenderOrder.TREE)
+                            fruit=fruit, max_hp=30, growth_cycle=10, blocks_movement=True, blocks_sight=True,
+                            render_order=RenderOrder.TREE, resistances=TREE_RESISTANCES)
     return PlantSpecies(f"proc:shrub:{name}", name, category, sprite=sprite, corpse_sprite=(14, 4), color=plant_color,
-                        fruit=fruit, max_hp=5, growth_cycle=5, blocks_movement=False, blocks_sight=False,
-                        render_order=RenderOrder.SHRUB)
+                        fruit=fruit, max_hp=8, growth_cycle=5, blocks_movement=False, blocks_sight=False,
+                        render_order=RenderOrder.SHRUB, resistances=SHRUB_RESISTANCES)
 
 
 def _random_color(rng: random.Random, threshold: int = 30) -> RGB:

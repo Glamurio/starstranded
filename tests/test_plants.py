@@ -136,11 +136,15 @@ def test_a_full_plant_keeps_dropping_fruit_while_its_chunk_is_not_watched(small_
     assert len([i for i in e.game_map.items if i.parent is e.game_map]) >= 3
 
 
-def test_current_plant_die_swaps_in_roots_and_blocks_tile(small_world):
-    """Flagged in DECISIONS.md: a dead plant leaves an opaque, unwalkable roots tile."""
+def test_felled_plant_opens_its_tile_and_drops_its_goods(small_world):
     e = small_world()
+    before = {k: bool(e.game_map.tiles[k][3, 3]) for k in ("walkable", "transparent")}
     t = plant_at(e, Tree(), 3, 3)
+    assert not e.game_map.tiles["walkable"][3, 3]
+    t.inventory.add(Branch(t))
     t.die(e.player)
     tiles = e.game_map.tiles
-    assert not tiles["transparent"][3, 3] and not tiles["walkable"][3, 3]
-    assert t.ai is None and not t.blocks_movement
+    assert {k: bool(tiles[k][3, 3]) for k in before} == before
+    assert t.dead and t.parent is None and t not in e.game_map.entities
+    dropped = e.game_map.get_entities_at_location(3, 3)
+    assert len(dropped) == 3 and all(type(i).__name__ == "Branch" for i in dropped)

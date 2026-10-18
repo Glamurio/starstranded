@@ -404,3 +404,17 @@ The plan above was implemented as written, with these specifics and deviations:
   a module-level "current session" (that is just `g` again).
 - **Tests:** `conftest` makes engines built without a session share one headless window (`session.detached` is swapped; the
   default builds a window-less session), and `tests/ui_helpers.SESSION` is that window.
+
+
+## Combat core: damage types and destructible plants
+- **Model:** `damage.resolve(power, defense, type, resistances)`: flat defense first, then a per-type multiplier, min 1 if it gets
+  through, 0 if immune. Resistances live on the species definitions (`resistances`, tuples so definitions stay hashable);
+  armor only has flat defense for now. Alternative: separate armor values per type; deferred until there is more than leather.
+- **Attacker type:** wielded weapon's `damage_type`, else the species' natural one (`Unit.damage_type`).
+- **Plants:** tree 30 HP (blunt 0.2, sharp 1.0, pierce 0.3), shrub 8 HP (0.5/1.0/0.5). `MeleeAction` targets a unit, else a plant;
+  `BumpAction` attacks a *blocking* plant only when a weapon is wielded, so walking into trees with bare hands is not an attack.
+- **`Plant.die` fixed:** the old version (never reachable) swapped in an unwalkable roots tile. Now the plant is removed, the tile gets
+  back the walkable/transparent/dark values it had before the plant shaped it (`Plant._ground`), and fruit + 2 branches drop.
+- **Dying:** `handle_health` and the bulk starvation path use `is_alive` instead of "has an AI" (the player's dummy AI is no longer
+  load-bearing for that).
+- **Open:** no stump/log entity yet; no tool-power gating (e.g. a stone axe for hardwood); ranged attacks and elemental damage later.

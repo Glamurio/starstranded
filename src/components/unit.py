@@ -91,6 +91,15 @@ class Unit(Entity):
         else:
             return 0
 
+    @property
+    def damage_type(self):
+        """What this unit's hits deal: its wielded weapon's type, else its natural attack."""
+        weapon = self.equipment.weapon if self.equipment else None
+        return (weapon.damage_type if weapon is not None else None) or self.kind.damage_type
+
+    def resistances(self):
+        return self.kind.resistances
+
     def die(self, killer: Unit = None, quiet: bool = False) -> None:
         """Become a corpse (with two pieces of meat). `quiet`: no message (deaths in chunks the player cannot see)."""
         if self is self.engine.player:
@@ -133,7 +142,7 @@ class Unit(Entity):
 
     def handle_health(self, amount: int, entity: Optional[Entity]) -> None:
         self.hp = clamp((self.hp + amount), 0, self.max_hp)
-        if self.hp == 0 and self.ai:
+        if self.hp == 0 and self.is_alive:
             self.die(entity)
 
     def handle_hunger(self, amount: int) -> None:

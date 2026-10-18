@@ -41,6 +41,7 @@ class Plant(Entity):
         self.shade = get_gaussian_shade(self.color)
         self.mirrored = bool(random.getrandbits(1))
         self.dead = False
+        self._ground = None  # (walkable, transparent, dark) of the tile before this plant shaped it
         self.due: Optional[int] = None  # game time of the next completed growth cycle (simulation.PlantQueue)
         self.last_upkeep: Optional[int] = None  # game time of the last growth update (simulation.upkeep)
         self.ai = None  # plants have no per-turn behaviour: growth is event-driven (`simulation.PlantQueue`)
@@ -59,7 +60,10 @@ class Plant(Entity):
 
     def on_added_to_map(self, game_map: GameMap) -> None:
         """Plants shape their tile: blocking/opaque flags, and the plant sprite in the remembered (dark) view."""
-        dark = game_map.tile_at(self.x, self.y)['dark']
+        tile = game_map.tile_at(self.x, self.y)
+        dark = tile['dark']
+        if self._ground is None:  # remembered so a felled plant can give the tile back
+            self._ground = (bool(tile['walkable']), bool(tile['transparent']), dark.item())
         game_map.modify_tile(
             self.x, self.y,
             transparent=not self.blocks_sight,
@@ -98,13 +102,36 @@ class Plant(Entity):
         if self.fruit:
             self.inventory.add(Fruit(self.inventory, self.fruit))
 
-    def die(self, killer: Unit) -> None:
+    def resistances(self):
+        return self.kind.resistances
+
+    def handle_health(self, amount: int, attacker: Optional[Entity] = None) -> None:
+        self.hp = clamp(self.hp + amount, 0, self.max_hp)
+        if self.hp == 0 and not self.dead:
+            self.die(attacker)
+
+    def die(self, killer: Optional[Unit] = None) -> None:
+        """Felled: the plant leaves the world, its fruit and branches fall to the ground and the tile opens up."""
+        world = self.parent
         self.dead = True
-        self.blocks_movement = False
-        self.blocks_sight = False
-        self.ai = None
-        self.render_order = RenderOrder.CORPSE
-        self.parent.modify_tile(self.x, self.y, transparent=False, walkable=False, dark=roots.dark)
+        self.due = None
+        if world is None:
+            return
+        x, y = self.x, self.y
+        loot = list(self.inventory.items) + [Branch(self) for _ in range(2)]
+        world.remove_entity(self)
+        if self._ground is not None:
+            walkable, transparent, dark = self._ground
+            world.modify_tile(x, y, walkable=walkable, transparent=transparent, dark=dark)
+        for item in loot:
+            if item.parent is self.inventory:
+                self.inventory.items.remove(item)
+            item.parent = None
+            world.add_entity(item, x, y)
+        self.inventory.contents = self.inventory.items + self.inventory.placeholders
+        player = getattr(world.engine, "player", None)
+        if player is not None and world.is_visible(x, y):
+            world.engine.message_log.add_message(f"The {self.get_title()} is cut down.")
 
 
 class Tree(Plant):

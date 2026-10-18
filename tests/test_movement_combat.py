@@ -122,10 +122,10 @@ def test_enemy_turns_run_after_player_action(small_world):
     assert calls == [1]
 
 
-def test_unit_without_ai_does_not_die_at_zero_hp(small_world):
-    """Quirk (flagged in DECISIONS.md): handle_health requires a truthy ai to call die()."""
+def test_unit_without_ai_still_dies_at_zero_hp(small_world):
+    """Fixed: dying no longer depends on having an AI."""
     e = small_world()
     a = spawn_animal(e, 2, 1)
     a.ai = None
     a.handle_health(-5, e.player)
-    assert a.hp == 0 and a.is_alive
+    assert a.hp == 0 and not a.is_alive

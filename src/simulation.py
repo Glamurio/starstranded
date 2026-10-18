@@ -74,7 +74,7 @@ def _unit_upkeep(unit, last: int, now: int, elapsed: int) -> None:
     damage = hunger_damage + thirst_damage
     if damage:
         unit.hp = max(0, unit.hp - damage)
-        if unit.hp == 0 and unit.ai:
+        if unit.hp == 0 and unit.is_alive:
             unit.die(None, quiet=True)
 
 
