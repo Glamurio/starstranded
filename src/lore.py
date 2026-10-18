@@ -140,6 +140,19 @@ def species_name(run, kind) -> str:
     return f"{colour} {'furred ' if kind.hide is not None else ''}animal"
 
 
+def english_name(planet, title: str) -> Optional[str]:
+    """`title` with every culture name in it replaced by its plain-English meaning ("Brubaab hide" -> "hard hopper hide"),
+    or None when the planet speaks English or the title holds no foreign name (e.g. an unidentified "red furred animal")."""
+    if planet is None or not getattr(planet, "glosses", None):
+        return None
+    lowered = title.lower()
+    for name, gloss in sorted(planet.glosses, key=lambda p: -len(p[0])):
+        at = lowered.find(name.lower())
+        if at >= 0:
+            return title[:at] + gloss + title[at + len(name):]
+    return None
+
+
 def property_known(run, material: Material, prop: str) -> bool:
     """Has the player read this property of this material exactly (or is it standard issue)?"""
     if run is None or material.id.startswith(ALWAYS_KNOWN):

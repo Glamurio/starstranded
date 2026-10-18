@@ -172,6 +172,7 @@ class Planet:
     clay_id: str
     coal_id: str
     radioactive_id: str
+    glosses: Tuple[Tuple[str, str], ...] = ()                # name -> English meaning (empty for English names)
 
     def material(self, material_id: str) -> Material:
         return dict(self.materials)[material_id]
@@ -277,6 +278,7 @@ def generate_planet(seed: int, culture: str = "human") -> Planet:
         flora=tuple(flora), fauna=tuple(fauna), materials=tuple(materials.items()),
         stone_ids=tuple((k, tuple(v)) for k, v in stone_ids.items()), ore_ids=tuple(ore_ids),
         sand_id="sand:0", clay_id="clay:0", coal_id="coal:0", radioactive_id="ore:radioactive",
+        glosses=tuple(sorted(namer.glosses.items())) if culture != "human" else (),
     )
 
 

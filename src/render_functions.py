@@ -142,8 +142,10 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
             lines.append((f"and {len(things) - 5} more", Theme.DIM))
     if liquid:
         lines.append((liquid, Theme.TEXT))
+    import lore
+    english = lore.english_name(engine.game_world.planet, top.get_title()) if top is not None else None
     rows = sum(len(canvas.wrap(text, width - 2)) for text, _ in lines)
-    height = 2 + (5 if top is not None else 1) + rows + 1
+    height = 2 + (5 if top is not None else 1) + (1 if english else 0) + rows + 1
     bx = sx + 2 if sx + 2 + width <= 70 else sx - width - 1
     by = max(0, min(sy - 2, 40 - height))
     canvas.draw_frame(bx, by, width, height)
@@ -151,8 +153,12 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     if top is not None:
         widgets.sprite_slot(canvas, bx + (width - 4) // 2, row, top.sprite_id, top.color, getattr(top, "flipped", False))
         row += 4
-        canvas.print(bx + width // 2, row, top.get_title()[: canvas.chars(width) - 4], fg=Theme.TITLE, alignment=CENTER)
+        title = top.get_title()
+        canvas.print(bx + width // 2, row, title[: canvas.chars(width) - 4], fg=Theme.TITLE, alignment=CENTER)
         row += 1
+        if english:
+            canvas.print(bx + width // 2, row, english[: canvas.chars(width) - 4], fg=Theme.DIM, alignment=CENTER, italic=True)
+            row += 1
     for text, fg in lines:
         for part in canvas.wrap(text, width - 2):
             canvas.print(bx + width // 2, row, part, fg=fg, alignment=CENTER)

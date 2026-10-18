@@ -74,6 +74,13 @@ class Font:
         self.cell = sheet.get_width() // FONT_COLUMNS
         self._cache: Dict[Tuple[int, RGB], pygame.Surface] = {}
         self.ttf = ttf
+        self.ttf_italic = None
+        if ttf is not None:
+            try:
+                self.ttf_italic = pygame.font.Font(TEXT_FONT, TEXT_SIZE)
+                self.ttf_italic.set_italic(True)   # a slanted face for what is only a gloss (the English name of a name)
+            except (OSError, pygame.error):
+                self.ttf_italic = None
         self._text: Dict[Tuple[str, RGB], pygame.Surface] = {}
 
     @classmethod
@@ -102,13 +109,14 @@ class Font:
         """Pixel width of `text` on one line."""
         return self.ttf.size(text)[0] if self.ttf is not None else len(text) * CHAR_W
 
-    def text(self, text: str, fg: RGB = WHITE) -> pygame.Surface:
-        key = (text, tuple(fg))
+    def text(self, text: str, fg: RGB = WHITE, italic: bool = False) -> pygame.Surface:
+        key = (text, tuple(fg), italic)
         hit = self._text.get(key)
         if hit is None:
             if len(self._text) > 3000:
                 self._text.clear()
-            hit = self.ttf.render(text, True, fg)
+            face = self.ttf_italic if (italic and self.ttf_italic is not None) else self.ttf
+            hit = face.render(text, True, fg)
             self._text[key] = hit
         return hit
 
@@ -200,15 +208,16 @@ class Canvas:
         fg: RGB = WHITE,
         bg: Optional[RGB] = None,
         alignment: int = LEFT,
+        italic: bool = False,
     ) -> None:
         """Print `text` starting at cell (x, y); '\\n' starts a new line.
 
         With `alignment=CENTER` x is the middle of each line, with `RIGHT` its last column.
         """
         for row, line in enumerate(text.split("\n")):
-            self._print_line(x, y + row, line, fg, bg, alignment)
+            self._print_line(x, y + row, line, fg, bg, alignment, italic)
 
-    def _print_line(self, x: int, y: int, line: str, fg: RGB, bg: Optional[RGB], alignment: int) -> None:
+    def _print_line(self, x: int, y: int, line: str, fg: RGB, bg: Optional[RGB], alignment: int, italic: bool = False) -> None:
         """One line of text; `x` and `y` are cells, the text itself is set in pixels (12 px per character)."""
         if y < 0 or y >= self.height or not line:
             return
@@ -221,7 +230,7 @@ class Canvas:
         if bg is not None:
             self.surface.fill(bg, pygame.Rect(px, y * CELL, width, CELL))
         if line.strip():
-            surface = self.font.text(line, fg)
+            surface = self.font.text(line, fg, italic)
             self.surface.blit(surface, (px, y * CELL + (CELL - surface.get_height()) // 2))
 
     def print_big(self, x: int, y: int, text: str, fg: RGB = WHITE, size: int = 56) -> int:

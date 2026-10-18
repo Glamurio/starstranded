@@ -80,18 +80,6 @@ HUMAN: Dict[str, Tuple[str, ...]] = {
     "reed": ("reed", "cane"), "coat": ("coat", "pelt", "fur"), "hopper": ("hopper", "hare"), "runner": ("runner", "stalker"),
     "shell": ("shell", "back"), "wing": ("wing",), "horn": ("horn",), "root": ("root", "tuber"),
 }
-SELENITE: Dict[str, Tuple[str, ...]] = {
-    "spring": ("vaelu",), "hard": ("dorun",), "soft": ("miel",), "stout": ("ruvan",), "brittle": ("shiral",), "bind": ("tennu",),
-    "heavy": ("grovan",), "feather": ("selae",), "warm": ("calum",), "spark": ("zephi",), "heat": ("solun",),
-    "tinder": ("ignel",), "fuel": ("pyral",), "clear": ("lucen",), "glow": ("lumar",), "ray": ("radel",), "grit": ("abrun",),
-    "red": ("rubel",), "orange": ("aurel",), "yellow": ("solar",), "green": ("verun",), "teal": ("celun",), "blue": ("azur",),
-    "indigo": ("nocel",), "violet": ("violan",), "pink": ("rosel",), "brown": ("terran",), "white": ("albel",),
-    "black": ("noctar",), "grey": ("cinar",), "wood": ("ligna",), "tree": ("arbo",), "stone": ("petra",), "rock": ("saxum",),
-    "metal": ("ferra",), "fibre": ("filum",), "hide": ("pelle",), "bone": ("osan",), "clay": ("argil",), "sand": ("arena",),
-    "glass": ("vitra",), "crystal": ("crysta",), "coal": ("carbo",), "plant": ("flora",), "bush": ("frutex",),
-    "grass": ("herba",), "reed": ("calam",), "coat": ("vellus",), "hopper": ("salta",), "runner": ("curra",),
-    "shell": ("testa",), "wing": ("ala",), "horn": ("cornu",), "root": ("radix",),
-}
 MAU: Dict[str, Tuple[str, ...]] = {
     "spring": ("nehem",), "hard": ("khepesh",), "soft": ("neden",), "stout": ("aa",), "brittle": ("tjeser",), "bind": ("shenu",),
     "heavy": ("djeba",), "feather": ("shut",), "warm": ("khet-u",), "spark": ("sekhem",), "heat": ("hemet",),
@@ -104,6 +92,34 @@ MAU: Dict[str, Tuple[str, ...]] = {
     "grass": ("sekhu",), "reed": ("ges",), "coat": ("seshem",), "hopper": ("sepen",), "runner": ("maw",),
     "shell": ("nekhen",), "wing": ("djuw",), "horn": ("abu",), "root": ("khenu",),
 }
+
+
+def _selenite_lexicon(concepts: Iterable[str]) -> Dict[str, Tuple[str, ...]]:
+    """One word per concept, built ONLY from the syllable pools of `data/namegen/voyage_selenite.cfg` (Start + Middle + End,
+    the cfg's own `$s$m$e` rule), so every Selenite word obeys the syllable logic Pascal researched from Voyage: Journey to
+    the Moon. Deterministic per concept: a concept always has the same word."""
+    import namegen
+    name_set = namegen.find_set("selenite", namegen.load_name_sets())
+    pools = dict(name_set.syllables)
+    starts, middles, ends = (tuple(p.lower() for p in pools[k]) for k in ("s", "m", "e"))
+    words: Dict[str, Tuple[str, ...]] = {}
+    taken: Set[str] = set()
+    for concept in sorted(concepts):
+        rng = random.Random(hash_key("selenite:" + concept))
+        for _ in range(500):
+            word = rng.choice(starts) + rng.choice(middles) + rng.choice(ends)
+            if word in taken or namegen._tidy(word).lower() != word or any(bad in word for bad in name_set.illegal):
+                continue
+            taken.add(word)
+            words[concept] = (word,)
+            break
+        else:  # pragma: no cover - 500 draws out of 1 100+ combinations
+            raise RuntimeError(f"no Selenite word for {concept!r}")
+    return words
+
+
+SELENITE: Dict[str, Tuple[str, ...]] = {}
+
 CORPORATE_CODE: Dict[str, str] = {  # corporate catalogue style: stem + series code
     "spring": "Elast", "hard": "Dura", "soft": "Plia", "stout": "Robu", "brittle": "Frag", "bind": "Ligo", "heavy": "Mass",
     "feather": "Lite", "warm": "Therm", "spark": "Cond", "heat": "Calor", "tinder": "Ign", "fuel": "Pyro", "clear": "Lumi",
@@ -133,8 +149,12 @@ FAMILY_TYPICAL: Dict[str, Dict[str, float]] = {
     "sand": {"hardness": 5.5, "toughness": 1.5, "density": 4, "abrasivity": 6, "transparency": 3},
     "clay": {"hardness": 2, "toughness": 2.5, "tenacity": 2.5, "density": 4.5, "insulation": 3.5},
 }
-for _animal in ("animal", "furred", "armoured", "small_herbivore", "grazer", "predator", "crawler", "bird", "serpent"):
+FAMILY_TYPICAL["scaled"] = dict(FAMILY_TYPICAL["hide"], hardness=6, toughness=5, tenacity=2.5, density=4, insulation=2, flammability=0.8,
+                                combustibility=0.8)   # chitin and scale are naturally hard: "hard" is not remarkable for them
+for _animal in ("animal", "furred", "small_herbivore", "grazer", "predator", "bird"):
     FAMILY_TYPICAL[_animal] = FAMILY_TYPICAL["hide"]
+for _animal in ("armoured", "crawler", "serpent"):
+    FAMILY_TYPICAL[_animal] = FAMILY_TYPICAL["scaled"]
 for _plant in ("tree", "shrub", "grass", "fungus"):
     FAMILY_TYPICAL[_plant] = FAMILY_TYPICAL["wood"] if _plant == "tree" else FAMILY_TYPICAL["fiber"]
 NOUNLIKE_EPITHETS = {"spring", "spark", "glow", "grit", "ray", "bind", "heat", "tinder", "fuel"}
@@ -227,6 +247,7 @@ class Namer:
         self.seed = seed
         self.culture = culture
         self.used: Set[str] = set()
+        self.glosses: Dict[str, str] = {}   # name text -> plain English meaning (for non-English cultures)
 
     # ── public ──────────────────────────────────────────────────────────────────────────────────────
     def name(self, key: str, family: str, color: RGB, props: Optional[Mapping[str, float]] = None,
@@ -239,6 +260,7 @@ class Namer:
             candidate = self._compose(rng, traits, colour, nouns, attempt)
             if _norm(candidate.text) not in self.used and _well_formed(candidate.text):
                 self.used.add(_norm(candidate.text))
+                self.glosses[candidate.text] = candidate.gloss
                 return candidate
         # exhausted: add a catalogue qualifier (rare; keeps names unique)
         base = self._compose(rng, traits, colour, nouns, 0)
@@ -247,6 +269,7 @@ class Namer:
             serial += 1
         text = f"{base.text} {_roman(serial)}"
         self.used.add(_norm(text))
+        self.glosses[text] = base.gloss
         return Name(text, base.gloss, base.reasons)
 
     def fruit(self, key: str, color: RGB, shape: str) -> str:
@@ -259,6 +282,7 @@ class Namer:
             text = _tidy(text) if self.culture != "human" else f"{word} {shape}"
             if _norm(text) not in self.used:
                 self.used.add(_norm(text))
+                self.glosses[text] = f"{colour} {shape or 'fruit'}"
                 return text
         base = f"{word} {shape}".strip() if self.culture == "human" else f"{word}-{self._word(rng, 'plant')}"
         serial = 2
@@ -266,6 +290,7 @@ class Namer:
             serial += 1
         text = _tidy(f"{base} {_roman(serial)}")
         self.used.add(_norm(text))
+        self.glosses[text] = f"{colour} {shape or 'fruit'}"
         return text
 
     # ── internals ──────────────────────────────────────────────────────────────────────────────────
@@ -324,7 +349,7 @@ class Namer:
         if self.culture == "human":
             return a + b.lower()
         if self.culture == "selenite":
-            return a + b
+            return f"{a} {b}"   # each Selenite word keeps its own Start-Middle-End shape
         return f"{a}-{b}"
 
     def _corporate(self, rng: random.Random, epithet: Optional[str], colour: str, noun: str, reasons) -> Name:
@@ -384,3 +409,6 @@ def lower_first(text: str) -> str:
     if first in PROPER_WORDS or first.rstrip("'s") in PROPER_WORDS:
         return text
     return text[0].lower() + text[1:]
+
+
+SELENITE.update(_selenite_lexicon(MAU))
