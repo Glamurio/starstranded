@@ -102,7 +102,7 @@ class MainMenu(input_handlers.BaseEventHandler):
 
     buttons: dict
     button_height = 2
-    button_names = ["New Game", "Continue", "Settings", "Exit"]
+    button_names = ["New Game", "Continue", "Settings", "Sprite editor", "Exit"]
     button_highlight = button_names[menu_i]
 
     def on_init(self) -> None:
@@ -129,6 +129,9 @@ class MainMenu(input_handlers.BaseEventHandler):
                 return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
         elif self.button_highlight == 'Settings':
             return SettingsMenu(self.session, self)
+        elif self.button_highlight == 'Sprite editor':
+            import sprite_editor
+            return sprite_editor.SpriteEditor(self.session, self)
         elif self.button_highlight == 'Exit':
             raise SystemExit()
 

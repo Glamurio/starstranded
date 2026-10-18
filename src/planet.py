@@ -16,6 +16,7 @@ import random
 from dataclasses import dataclass
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
+import spriteconfig
 import numpy as np  # type: ignore
 
 import biomes
@@ -291,7 +292,8 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
     color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
     if template.key != "fungal_tree":
         color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04))
-    sprite = template.sprites[index % len(template.sprites)] if len(template.sprites) > 1 else template.sprites[0]
+    slot = index % len(template.sprites)
+    sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])
     if template.category is PlantCategory.TREE:
         ranges = dict(hardness=(3, 6), toughness=(4, 8), tenacity=(3, 6), density=(3, 7), elasticity=(2, 7), insulation=(3, 6),
                       thermal_conductivity=(1, 3), flammability=(5, 7.5), combustibility=(5, 7.5))
@@ -360,7 +362,8 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
         fuel = dict(burn_yield=round(5 + props["combustibility"] * 3, 1), burn_duration=max(1, int(props["combustibility"] // 2)))
     hide = add(Material(f"hide:{template.key}", f"{name.text} hide", family, color, **props, **fuel))
     return UnitSpecies(
-        f"planet:fauna:{template.key}", name.text, sprite=template.sprite, corpse_sprite=template.corpse_sprite, mirror=True, color=color,
+        f"planet:fauna:{template.key}", name.text, sprite=spriteconfig.get(f"fauna.{template.key}", template.sprite),
+        corpse_sprite=spriteconfig.get(f"fauna.{template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
         level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,
         habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity,

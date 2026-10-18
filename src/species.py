@@ -13,6 +13,7 @@ from enum import Enum, auto
 from typing import Dict, Optional, Tuple, Union
 
 import color
+import spriteconfig
 from atlas import COLUMNS as SHEET_COLUMNS
 from capabilities import Grant, grants
 from damage import DamageType, Resistances
@@ -159,7 +160,10 @@ _REGISTRIES = {"ItemKind": ITEM_KINDS, "UnitSpecies": UNIT_SPECIES, "PlantSpecie
 
 
 def register(definition):
-    registry = _REGISTRIES[type(definition).__name__]
+    kind = type(definition).__name__
+    registry = _REGISTRIES[kind]
+    if kind in ("ItemKind", "UnitSpecies") and definition.key is not None:
+        definition = spriteconfig.registered(definition, "item" if kind == "ItemKind" else "unit")   # data/sprites.json
     assert definition.key not in registry, f"duplicate key {definition.key!r}"
     registry[definition.key] = definition
     return definition

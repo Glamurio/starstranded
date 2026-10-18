@@ -50,7 +50,7 @@ def test_settings_menu_edits_and_saves(tmp_path, monkeypatch):
 
 def test_main_menu_has_settings_and_exit():
     menu = setup_game.MainMenu()
-    assert menu.button_names == ["New Game", "Continue", "Settings", "Exit"]
+    assert menu.button_names == ["New Game", "Continue", "Settings", "Sprite editor", "Exit"]
     menu.button_highlight = "Settings"
     assert isinstance(menu.resolve_menu(None), setup_game.SettingsMenu)
 

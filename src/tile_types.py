@@ -4,6 +4,7 @@ import numpy as np  # type: ignore
 import color
 import random
 
+import spriteconfig
 from atlas import NO_SPRITE, sprite_id
 from utilities import get_random_color, get_shade
 
@@ -86,6 +87,17 @@ class Tile(object):
         self.liquid = liquid
         self.depth = depth
         self.dtype = dtype
+
+    def set_sprite(self, pos: Tuple[int, int], variation: Optional[str] = None) -> None:
+        """Draw this tile (or one of its named variations) with another sheet cell; used by the sprite config and editor."""
+        if variation is not None:
+            self.variations = [(pos[0], pos[1], n) if n == variation else (c, r, n) for c, r, n in self.variations]
+            self.variation_ids = {n: sprite_id(c, r) for c, r, n in self.variations}
+            return
+        self.sprite_pos = pos
+        self.sprite = sprite_id(*pos)
+        self.dark = (self.sprite, False, self.dark_fg, self.dark_bg)
+        self.light = (self.sprite, False, self.light_fg, self.light_bg)
 
     def get_array(self) -> np.ndarray:
         """Helper function for returning individual tile types"""
@@ -222,3 +234,16 @@ cave_floor = Tile(
     light_bg=color.nigh_black,
     dtype=tile_dt
 )
+
+
+def _apply_sprite_config() -> None:
+    """Record every tile's default sprites and apply the overrides from data/sprites.json."""
+    for name, tile in list(globals().items()):
+        if not isinstance(tile, Tile):
+            continue
+        tile.set_sprite(spriteconfig.get(f"tile.{name}", tile.sprite_pos))
+        for column, row, variation in list(tile.variations):
+            tile.set_sprite(spriteconfig.get(f"tile.{name}.{variation}", (column, row)), variation)
+
+
+_apply_sprite_config()
