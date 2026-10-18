@@ -37,7 +37,9 @@ class Engine:
     game_map: GameMap
     game_world: GameWorld
 
-    def __init__(self, player: Unit, config: Optional[GameConfig] = None):
+    def __init__(self, player: Unit, config: Optional[GameConfig] = None, session=None):
+        import session as session_module
+        self.session = session or session_module.detached()
         self.config = config or DEFAULT_CONFIG
         self.message_log = MessageLog()
         self.mouse_location = Point(0, 0)

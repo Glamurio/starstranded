@@ -4,7 +4,7 @@ import os
 
 from typing import Callable, List, Optional, Tuple, TYPE_CHECKING, Union
 
-import g
+import layout
 import events
 from events import Key, Mod, MouseButton, Point
 from ui import CENTER
@@ -19,6 +19,7 @@ from components.equippable import Equippable
 if TYPE_CHECKING:
     from ui import Canvas
     from engine import Engine
+    from session import Session
     from components.unit import Unit
     from components.inventory import Inventory
     from crafting import Recipe
@@ -97,9 +98,16 @@ MainGameEventHandler will become the active handler.
 
 class BaseEventHandler(events.EventDispatch):
 
-    def __init__(self) -> None:
+    def __init__(self, session: Optional[Session] = None) -> None:
         super().__init__()
+        import session as session_module
+        self._session = session or session_module.detached()
         self.on_init()
+
+    @property
+    def session(self) -> Session:
+        """The UI session (window, canvas, handler stack); engine handlers use their engine's."""
+        return self._session
 
     def on_init(self):
         """Function that runs after init"""
@@ -149,15 +157,19 @@ class EventHandler(BaseEventHandler):
     def __init__(self, engine: Engine):
         self.engine = engine
 
+    @property
+    def session(self) -> Session:
+        return self.engine.session
+
     def reset_to_handler(self, handler: EventHandler):
         """Resets active handler to handler provided"""
-        g.handlers = [handler]
+        self.session.reset(handler)
 
     def resolve_handler(self) -> EventHandler:
         """Resolves and returns current handler and switches to the next in stack"""
-        handler = g.handlers.pop()
+        handler = self.session.handlers.pop()
 
-        if not len(g.handlers):
+        if not len(self.session.handlers):
             self.reset_to_handler(MainGameEventHandler(self.engine))
 
         return handler
@@ -168,7 +180,7 @@ class EventHandler(BaseEventHandler):
         action_or_state = self.dispatch(event)
 
         if isinstance(action_or_state, BaseEventHandler):
-            g.handlers.append(action_or_state) # Add handler to stack
+            self.session.push(action_or_state) # Add handler to stack
 
         if isinstance(action_or_state, actions.Action) and self.handle_action(action_or_state):
             # A valid action was performed.
@@ -178,11 +190,11 @@ class EventHandler(BaseEventHandler):
             elif self.engine.player.level.requires_level_up:
                 return LevelUpEventHandler(self.engine)
 
-            if not len(g.handlers):
+            if not len(self.session.handlers):
                 self.reset_to_handler(MainGameEventHandler(self.engine)) # Return to the main handler.
 
-        if len(g.handlers):
-            return g.handlers[-1] # Switch to most recent handler in stack
+        if len(self.session.handlers):
+            return self.session.handlers[-1] # Switch to most recent handler in stack
 
         return self
 
@@ -200,7 +212,7 @@ class EventHandler(BaseEventHandler):
             while repeat:
                 repeat = action.perform()
                 # time.sleep(0.05)
-                g.render(self)
+                self.session.render(self)
         except exceptions.Impossible as exc:
             self.engine.message_log.add_message(exc.args[0], color.impossible)
             return False  # Skip enemy turn on exceptions.
@@ -457,8 +469,8 @@ class InventoryEventHandler(AskUserEventHandler):
         Render an inventory menu, which displays the items in the inventory.
         """
         is_player = False
-        prev_index = g.handlers.index(self) - 1
-        parent = g.handlers[prev_index] if prev_index >= 0 else None
+        prev_index = self.session.handlers.index(self) - 1
+        parent = self.session.handlers[prev_index] if prev_index >= 0 else None
 
         if parent: 
             parent.on_render(canvas)
@@ -472,7 +484,7 @@ class InventoryEventHandler(AskUserEventHandler):
             is_player = True
             self.TITLE = f"Inventory"
 
-        self.console_x = g.screen_width_offset * (1 + self.offset)
+        self.console_x = layout.SIDE_PANEL_WIDTH * (1 + self.offset)
         self.console_y = 1 + self.offset
 
         if self.inventory:
@@ -638,7 +650,7 @@ class CraftingMenuHandler(AskUserEventHandler):
     def on_render(self, canvas: Canvas) -> None:
         super().on_render(canvas)
 
-        x = g.screen_width_offset
+        x = layout.SIDE_PANEL_WIDTH
         y = 1
         width = 36
         height = len(self.recipes) * 3 + 4

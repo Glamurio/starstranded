@@ -49,13 +49,13 @@ def test_out_of_bounds_returns_empty_list(small_world):
 
 def test_main_handler_renders_with_cursor_out_of_bounds(small_world):
     """The hover-path preview iterates get_path_to()'s result; it must not crash for [] ."""
-    import g
+    from ui_helpers import SESSION
     import input_handlers
     e = small_world()
     handler = input_handlers.MainGameEventHandler(e)
     handler.mouse_motion = True
     e.mouse_location = (99, 99)
-    g.draw(handler)
+    SESSION.draw(handler)
 
 
 def test_unexplored_terrain_is_treated_as_walkable(small_world):

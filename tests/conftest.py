@@ -1,8 +1,8 @@
 """Shared pytest setup.
 
-The game uses flat imports (``import g``) and loads assets relative to ``src/``,
+The game uses flat imports (``import session``) and loads assets relative to ``src/``,
 so tests put ``src`` on ``sys.path`` and run with ``src`` as the working directory.
-SDL must use the dummy video driver *before* pygame opens a window (``g.init`` below).
+SDL must use the dummy video driver *before* pygame opens a window (``ui_helpers`` below).
 """
 from __future__ import annotations
 
@@ -22,10 +22,11 @@ os.chdir(SRC)  # needed only while importing / initialising: assets are loaded r
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
-import g  # noqa: E402
+import session as session_module  # noqa: E402
 import setup_game  # noqa: E402,F401  (import first: resolves the circular import order)
+from ui_helpers import SESSION  # noqa: E402  (window + atlas + canvas on SDL's dummy driver)
 
-g.init(headless=True)  # window + atlas + canvas on SDL's dummy driver; tests draw on g.canvas
+session_module.detached = lambda: SESSION  # engines built by tests share the window
 
 os.chdir(_ORIGINAL_CWD)  # keep pytest's own path handling (testpaths, rootdir) unaffected
 
@@ -34,6 +35,11 @@ os.chdir(_ORIGINAL_CWD)  # keep pytest's own path handling (testpaths, rootdir) 
 def in_src_dir(monkeypatch):
     """Game code resolves assets and data/ relative to the working directory."""
     monkeypatch.chdir(SRC)
+
+
+@pytest.fixture(autouse=True)
+def fresh_handler_stack():
+    SESSION.handlers = []
 
 
 @pytest.fixture(autouse=True)

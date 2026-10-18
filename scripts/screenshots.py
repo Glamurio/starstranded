@@ -23,16 +23,20 @@ os.chdir(SRC)
 
 import numpy as np  # noqa: E402
 
-import g  # noqa: E402
+import session as session_module  # noqa: E402
 import input_handlers as ih  # noqa: E402
 import setup_game  # noqa: E402
 from events import Key, KeyDown, Mod, MouseButton, MouseButtonDown, MouseMotion, Point, TextInput  # noqa: E402
 
 
+UI = session_module.Session.create(headless=True)
+session_module.detached = lambda: UI  # every engine below draws on this window
+
+
 def shot(handler, name: str) -> None:
-    g.draw(handler)
+    UI.draw(handler)
     path = OUT / f"{name}.png"
-    g.display.save_screenshot(str(path))
+    UI.display.save_screenshot(str(path))
     print("saved", path)
 
 
@@ -45,10 +49,10 @@ def shot_zoom(handler, name: str, center, radius: int = 5, scale: int = 5) -> No
     import pygame
     from atlas import TILE
 
-    g.draw(handler)
+    UI.draw(handler)
     cx, cy = center
     area = pygame.Rect((cx - radius) * TILE, (cy - radius) * TILE, (2 * radius + 1) * TILE, (2 * radius + 1) * TILE)
-    crop = g.display.surface.subsurface(area.clip(g.display.surface.get_rect())).copy()
+    crop = UI.display.surface.subsurface(area.clip(UI.display.surface.get_rect())).copy()
     big = pygame.transform.scale(crop, (crop.get_width() * scale, crop.get_height() * scale))
     path = OUT / f"{name}.png"
     pygame.image.save(big, str(path))
@@ -88,7 +92,7 @@ def layering_shots() -> None:
 
     engine = flat_world()
     game = ih.MainGameEventHandler(engine)
-    g.handlers = [game]
+    UI.handlers = [game]
     gm = engine.game_map
     player = engine.player
     corpse(engine, player.x, player.y)
@@ -120,16 +124,15 @@ def layering_shots() -> None:
 
 
 def main() -> None:
-    g.init(headless=True)
     random.seed(7)
     np.random.seed(7)
 
-    menu = setup_game.MainMenu()
-    g.draw(menu)
+    menu = setup_game.MainMenu(UI)
+    UI.draw(menu)
     press(menu, Key.DOWN)
     shot(menu, "main_menu")
 
-    creation = setup_game.CharacterCreation()
+    creation = setup_game.CharacterCreation(UI)
     creation.player.set_name("")
     for ch in "Ardan":
         creation.handle_events(TextInput(ch))
@@ -137,7 +140,7 @@ def main() -> None:
 
     engine = setup_game.new_game(creation.player)
     game = ih.MainGameEventHandler(engine)
-    g.handlers = [game]
+    UI.handlers = [game]
     player = engine.player
     # a few turns so the message log has content
     for key in (Key.RIGHT, Key.RIGHT, Key.DOWN, Key.SPACE):
@@ -148,7 +151,7 @@ def main() -> None:
     shot(game, "in_game")
 
     inventory = press(game, Key.I)
-    g.draw(inventory)
+    UI.draw(inventory)
     press(inventory, Key.DOWN)
     shot(inventory, "inventory")
     press(inventory, Key.ESCAPE)
@@ -164,23 +167,23 @@ def main() -> None:
     engine.mouse_location = Point(player.x + 1, player.y)
     engine.update_fov()
     pickup = press(game, Key.G)
-    g.draw(pickup)
+    UI.draw(pickup)
     loot = press(pickup, Key.G)
-    g.draw(loot)
+    UI.draw(loot)
     press(loot, Key.DOWN)
     shot(loot, "loot_window")
-    g.handlers = [game]
+    UI.handlers = [game]
 
     area = ih.AreaRangedAttackHandler(engine, 2, lambda xy: None)
-    g.handlers = [game, area]
+    UI.handlers = [game, area]
     engine.mouse_location = Point(player.x + 4, player.y + 2)
     shot(area, "targeting_area")
-    g.handlers = [game]
+    UI.handlers = [game]
 
     look = press(game, Key.PERIOD)
     press(look, Key.RIGHT, Mod.LSHIFT)
     shot(look, "look")
-    g.handlers = [game]
+    UI.handlers = [game]
 
     shot(ih.HistoryViewer(engine), "history_viewer")
     shot(ih.CharacterScreenEventHandler(engine), "character_screen")

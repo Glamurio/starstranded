@@ -1,7 +1,7 @@
 """Inventory menu rendering: every entry gets its sprite as a list icon, tinted with the item's colour."""
 import numpy as np
 
-import g
+from ui_helpers import SESSION
 import input_handlers
 from components.consumable import Meat
 from render_helpers import cell, expected_sprite_cell
@@ -10,9 +10,9 @@ import color
 
 def render_inventory(e):
     handler = input_handlers.InventoryActivateHandler(e, e.player.inventory)
-    g.handlers = [input_handlers.MainGameEventHandler(e), handler]
-    g.draw(handler)
-    return g.canvas
+    SESSION.handlers = [input_handlers.MainGameEventHandler(e), handler]
+    SESSION.draw(handler)
+    return SESSION.canvas
 
 
 def test_inventory_renders_meat_icon_and_title(small_world):

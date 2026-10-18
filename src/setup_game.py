@@ -1,7 +1,6 @@
 """Handle the loading and initialization of game sessions."""
 from __future__ import annotations
 
-import g
 import exceptions
 import traceback
 from typing import TYPE_CHECKING, Optional
@@ -47,11 +46,11 @@ def create_player() -> Unit:
 
     return player
 
-def new_game(player: Unit) -> Engine:
+def new_game(player: Unit, session=None) -> Engine:
     """Return a brand new game session as an Engine instance."""
     from world import GameWorld
 
-    engine = Engine(player=player)
+    engine = Engine(player=player, session=session)
     engine.game_world = GameWorld(engine=engine)  # the game seed is drawn from `random`
     engine.game_world.generate_floor()  # floor 1: a chunked world around the start in chunk (0, 0)
     
@@ -65,10 +64,10 @@ SAVE_PATH = "savegame"
 """The save directory (relative to the working directory, i.e. src/)."""
 
 
-def load_game(path: str = SAVE_PATH) -> Engine:
+def load_game(path: str = SAVE_PATH, session=None) -> Engine:
     """Load a game saved with `Engine.save_as` (see `savegame.load_game`)."""
     import savegame
-    return savegame.load_game(path)
+    return savegame.load_game(path, session)
 
 
 class MainMenu(input_handlers.BaseEventHandler):
@@ -92,11 +91,11 @@ class MainMenu(input_handlers.BaseEventHandler):
         
         if self.button_highlight == 'New Game':
             # New Game
-            return CharacterCreation()
+            return CharacterCreation(self.session)
         elif self.button_highlight == 'Continue':
             # Continue Game
             try:
-                return input_handlers.MainGameEventHandler(load_game(SAVE_PATH))
+                return input_handlers.MainGameEventHandler(load_game(SAVE_PATH, self.session))
             except FileNotFoundError:
                 return input_handlers.PopupMessage(self, "No saved game to load.")
             except Exception as exc:
@@ -201,7 +200,7 @@ class CharacterCreation(input_handlers.BaseEventHandler):
 
     def on_init(self):
         self.player = create_player()  # a fresh player per visit (was one Player built at import and reused)
-        g.start_text_input()
+        self.session.start_text_input()
 
     def on_render(self, canvas: Canvas) -> None:
         from utilities import generate_name
@@ -237,14 +236,14 @@ class CharacterCreation(input_handlers.BaseEventHandler):
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[input_handlers.BaseEventHandler]:
         if event.sym == Key.RETURN:
-            g.stop_text_input()
-            game_handler = input_handlers.MainGameEventHandler(new_game(self.player))
-            g.handlers = [game_handler]
+            self.session.stop_text_input()
+            game_handler = input_handlers.MainGameEventHandler(new_game(self.player, self.session))
+            self.session.reset(game_handler)
             return game_handler
         elif event.sym == Key.BACKSPACE:
             name = self.player.name[:-1]
             self.player.set_name(name)
         elif event.sym == Key.ESCAPE:  # (not Q: it is a letter in a name)
-            g.stop_text_input()
-            return MainMenu()
+            self.session.stop_text_input()
+            return MainMenu(self.session)
             

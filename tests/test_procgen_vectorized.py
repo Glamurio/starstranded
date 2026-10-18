@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pytest
 
-import g
+from ui_helpers import SESSION
 import procgen
 import tile_types
 

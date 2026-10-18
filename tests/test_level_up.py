@@ -1,7 +1,7 @@
 """Level-up: Level.increase_* must modify the owning unit (they used to touch the Level itself and crash)."""
 import tcod
 
-import g
+from ui_helpers import SESSION
 import input_handlers
 
 
@@ -40,17 +40,17 @@ def test_level_up_screen_applies_choice_and_closes(small_world):
     p.level.current_xp = 400
     main = input_handlers.MainGameEventHandler(e)
     handler = input_handlers.LevelUpEventHandler(e)
-    g.handlers = [main, handler]
+    SESSION.handlers = [main, handler]
     mx = p.max_hp
     handler.ev_keydown(press(tcod.event.KeySym.A))
     assert p.max_hp == mx + 20
-    assert g.handlers == [main]
+    assert SESSION.handlers == [main]
 
 
 def test_level_up_screen_rejects_invalid_key(small_world):
     e = small_world()
     handler = input_handlers.LevelUpEventHandler(e)
-    g.handlers = [input_handlers.MainGameEventHandler(e), handler]
+    SESSION.handlers = [input_handlers.MainGameEventHandler(e), handler]
     handler.ev_keydown(press(tcod.event.KeySym.Z))
     assert any("Invalid entry" in m.plain_text for m in e.message_log.messages)
-    assert len(g.handlers) == 2
+    assert len(SESSION.handlers) == 2

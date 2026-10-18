@@ -18,7 +18,6 @@ except ModuleNotFoundError:
         "If plain pygame is installed, remove it first:  py -m pip uninstall pygame"
     )
 
-import g
 import color
 
 import exceptions
@@ -37,7 +36,7 @@ def save_game(handler: input_handlers.BaseEventHandler, filename: str) -> None:
         handler.engine.save_as(filename)
         print("Game saved.")
 
-def run(handler: input_handlers.BaseEventHandler, display) -> None:
+def run(handler: input_handlers.BaseEventHandler, session) -> None:
     """The main loop: handle input, redraw only when something happened, cap at `FPS`.
 
     Exceptions raised while handling an event are printed and shown in the message log. Quitting
@@ -51,11 +50,11 @@ def run(handler: input_handlers.BaseEventHandler, display) -> None:
     try:
         while True:
             if dirty:
-                g.render(handler)
+                session.render(handler)
                 dirty = False
 
             try:
-                for event in display.poll():
+                for event in session.display.poll():
                     dirty = True
                     handler = handler.handle_events(event)
             except Exception:  # Handle exceptions in game.
@@ -80,8 +79,10 @@ def run(handler: input_handlers.BaseEventHandler, display) -> None:
 def main() -> None:
     import setup_game
 
-    display = g.init()
-    run(setup_game.MainMenu(), display)
+    from session import Session
+
+    session = Session.create()
+    run(setup_game.MainMenu(session), session)
 
 
 if __name__ == "__main__":

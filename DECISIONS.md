@@ -392,3 +392,15 @@ The plan above was implemented as written, with these specifics and deviations:
   `get_entities_at_random` returns `[]` for an empty table. World generation therefore draws different random numbers
   than before (same seed, different monster layout), which nothing depends on.
 - The area/single-target handlers are kept: generic UI with their own tests, and ranged weapons will want them.
+
+
+## `g.py` replaced by `Session`
+- **What:** `session.Session(display, canvas)` owns the window, the canvas and the handler stack; `layout.py` holds the cell
+  constants. Engine handlers reach it through `engine.session`; the two engine-less handlers (`MainMenu`,
+  `CharacterCreation`) take it as a constructor argument and pass it on.
+- **Why on the Engine:** handlers, and items that open a placement screen (`Constructable.activate`), already have an engine and
+  nothing else in common; the save code never pickles the engine (references only), so the session is not saved.
+- **Alternative:** pass the session to every handler constructor (about 25 call sites and a lot of test churn for no gain), or keep
+  a module-level "current session" (that is just `g` again).
+- **Tests:** `conftest` makes engines built without a session share one headless window (`session.detached` is swapped; the
+  default builds a window-less session), and `tests/ui_helpers.SESSION` is that window.

@@ -9,8 +9,8 @@ import events
 def disp():
     d = display.Display(headless=True, window_size=(1920, 1080))
     yield d
-    import g
-    g.init(headless=True)  # the shared window the other tests draw on was replaced by this test
+    from ui_helpers import reopen
+    reopen()
 
 
 def test_fit_integer_scale_and_letterbox():

@@ -2,6 +2,11 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## `g.py` removed
+- The module of UI globals is replaced by an explicit `Session` object (`session.py`) reachable as `engine.session`; layout
+  constants moved to `layout.py`. `main.run(handler, session)`, `setup_game.MainMenu(session)`, `new_game(player, session)`
+  and `load_game(path, session)` take it. Not user-visible.
+
 ## Demo leftovers removed
 - Health potion, sword, chain mail and the confusion/fireball/lightning scrolls are gone (items, species entries, the
   confusion AI, the tutorial-era `entity_factories.py`). Worlds no longer scatter any ground items; the Selenite, dagger,

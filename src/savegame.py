@@ -223,7 +223,7 @@ def save_game(engine: Engine, directory: str) -> None:
             os.remove(path)
 
 
-def load_game(directory: str) -> Engine:
+def load_game(directory: str, session=None) -> Engine:
     """Load a game written by `save_game`. Raises `exceptions.IncompatibleSave` for other versions / old files,
     `FileNotFoundError` if there is no save."""
     from engine import Engine
@@ -244,7 +244,7 @@ def load_game(directory: str) -> Engine:
             f"Save file version {version} is not supported (this game uses version {SAVE_VERSION})."
         )
 
-    engine = Engine(player=None)
+    engine = Engine(player=None, session=session)
     world_shell = object.__new__(outer["world_class"])
     try:
         body = _Unpickler(io.BytesIO(outer["body"]), {("world",): world_shell, ("engine",): engine}, None).load()

@@ -278,8 +278,8 @@ class Constructable(Item):
         """Activating a constructable triggers placement."""
         # This will be handled by the input handler to let the player pick a tile
         from input_handlers import PlaceConstructableHandler
-        import g
-        g.handlers.append(PlaceConstructableHandler(user.game_map.engine, self))
+        engine = user.game_map.engine
+        engine.session.push(PlaceConstructableHandler(engine, self))
 
     def place_on_map(self, x: int, y: int, game_map) -> None:
         """Remove from inventory and place on the game map."""

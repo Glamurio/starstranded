@@ -2,7 +2,7 @@
 import numpy as np
 import pygame
 
-import g
+from ui_helpers import SESSION
 from atlas import TILE
 
 
@@ -24,7 +24,7 @@ def expected_sprite_cell(sprite, tint, flipped=False, bg=(0, 0, 0)):
     """What a cell looks like with `sprite` tinted by `tint` over `bg`."""
     surface = pygame.Surface((TILE, TILE))
     surface.fill(bg)
-    surface.blit(g.canvas.sprites.get(sprite, flipped, tint), (0, 0))
+    surface.blit(SESSION.canvas.sprites.get(sprite, flipped, tint), (0, 0))
     return pygame.surfarray.array3d(surface)
 
 
@@ -32,7 +32,7 @@ def expected_tile(entities, tile=None):
     """A visible floor cell with `entities` drawn over it in the given order (bottom first), as GameMap.render does."""
     import tile_types
     tile = tile or tile_types.floor
-    sprites = g.canvas.sprites
+    sprites = SESSION.canvas.sprites
     surface = sprites.get_on(tile.sprite, False, tuple(tile.light_fg), tuple(tile.light_bg)).copy()
     for entity in entities:
         surface.blit(sprites.get(entity.sprite_id, entity.flipped, entity.shade), (0, 0))
@@ -41,6 +41,6 @@ def expected_tile(entities, tile=None):
 
 def draw_map(engine):
     """Clear the canvas and draw just the map (no panels)."""
-    g.canvas.clear()
-    engine.game_map.render(g.canvas)
-    return g.canvas
+    SESSION.canvas.clear()
+    engine.game_map.render(SESSION.canvas)
+    return SESSION.canvas

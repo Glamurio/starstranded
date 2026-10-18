@@ -206,9 +206,9 @@ def bench_fov(repeat: int) -> dict:
 
 
 def bench_render(repeat: int) -> dict:
-    import g
     if PYGAME_API:
         return bench_render_pygame(repeat)
+    import g  # the old (tcod) API this branch benchmarks lives in the old checkout
     engine = scenario(units=50)
     handler = input_handlers.MainGameEventHandler(engine)
     g.handlers = [handler]
@@ -232,22 +232,23 @@ def bench_render_pygame(repeat: int) -> dict:
     """Phase 3+ rendering. `map_render` is the terrain + entity blits alone, `engine_render` adds the UI panels,
     `frame_no_present` is a full draw of the screen into the logical surface, `frame_with_present` also scales
     it to the (dummy-driver) window and flips."""
-    import g
-    g.init(headless=True)
+    import session as session_module
+    ui = session_module.Session.create(headless=True)
+    session_module.detached = lambda: ui  # the engine below shares this window
     engine = scenario(units=50)
     handler = input_handlers.MainGameEventHandler(engine)
-    g.handlers = [handler]
-    g.draw(handler)  # warm the sprite caches: steady-state frames are what matters
+    ui.handlers = [handler]
+    ui.draw(handler)  # warm the sprite caches: steady-state frames are what matters
 
     def map_only():
-        g.canvas.clear()
-        engine.game_map.render(g.canvas)
+        ui.canvas.clear()
+        engine.game_map.render(ui.canvas)
 
     return {
         "map_render": timed(map_only, repeat),
-        "engine_render": timed(lambda: (g.canvas.clear(), engine.render(g.canvas)), repeat),
-        "frame_no_present": timed(lambda: g.draw(handler), repeat),
-        "frame_with_present": timed(lambda: g.render(handler), repeat),
+        "engine_render": timed(lambda: (ui.canvas.clear(), engine.render(ui.canvas)), repeat),
+        "frame_no_present": timed(lambda: ui.draw(handler), repeat),
+        "frame_with_present": timed(lambda: ui.render(handler), repeat),
     }
 
 

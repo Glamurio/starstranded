@@ -22,7 +22,7 @@ savegame: chunk (de)serialisation (also used for unloading) and the save directo
 | Module | Responsibility |
 |---|---|
 | `main.py` | `run()` loop: poll events, redraw only after events, 60 FPS cap, save on exit/crash. |
-| `g.py` | Handler stack `g.handlers`, `g.display`, `g.canvas`, `g.init()`, `g.draw()`, `g.render()`. (Kept small; not extended.) |
+| `session.py`, `layout.py` | `Session`: window (`display`), `canvas` and the handler stack (`push`/`reset`/`draw`/`render`), created once by `main` and kept on `engine.session` (engines built without one get a detached, window-less session). Screen layout constants in cells live in `layout.py`. There are no UI globals. |
 | `display.py` / `events.py` | Window, 1920x1080 logical surface, integer/fractional scaling with letterbox, pixel → cell; internal events, `Key/Mod/MouseButton`, `EventDispatch`. |
 | `atlas.py` / `ui.py` | `SpriteAtlas` (Urizen sheet as white alpha mask, cached tinted/flipped variants); CP437 `Font` and `Canvas` (cell-grid text, frames, bars, sprites, highlights, dimming, badges). |
 | `input_handlers.py`, `setup_game.py` | All screens (main game, menus, inventory/loot, targeting, look, history, level-up, popups, crafting, placement, game over); `new_game`, `load_game`. Screen cells ↔ world tiles via `Engine.camera`. |

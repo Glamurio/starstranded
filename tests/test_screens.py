@@ -8,7 +8,7 @@ import pygame
 import pytest
 
 import exceptions
-import g
+from ui_helpers import SESSION
 import input_handlers as ih
 import setup_game
 from components.consumable import Meat
@@ -18,8 +18,8 @@ from render_helpers import cell
 
 
 def drawn(handler):
-    g.draw(handler)
-    return g.canvas
+    SESSION.draw(handler)
+    return SESSION.canvas
 
 
 def lit_pixels(canvas):
@@ -34,7 +34,7 @@ def press(handler, key, mod=0):
 def game(small_world):
     e = small_world(20, 14)
     handler = ih.MainGameEventHandler(e)
-    g.handlers = [handler]
+    SESSION.handlers = [handler]
     return e, handler
 
 
@@ -80,7 +80,7 @@ def test_new_game_leads_to_character_creation_and_into_the_game():
     creation = setup_game.CharacterCreation()
     started = press(creation, Key.RETURN)
     assert isinstance(started, ih.MainGameEventHandler)
-    assert g.handlers == [started]
+    assert SESSION.handlers == [started]
     assert lit_pixels(drawn(started)) > 1000
 
 
@@ -203,7 +203,7 @@ def test_targeting_handlers_report_the_selected_tile(game):
     e, handler = game
     picked = []
     single = ih.SingleRangedAttackHandler(e, picked.append)
-    g.handlers.append(single)
+    SESSION.handlers.append(single)
     single.handle_events(MouseButtonDown(Point(3, 3), MouseButton.LEFT))
     assert picked == [(3, 3)]
     area = ih.AreaRangedAttackHandler(e, 2, picked.append)
@@ -230,7 +230,7 @@ def test_history_viewer_scrolls_and_returns(game):
     press(viewer, Key.END)
     assert viewer.cursor == viewer.log_length - 1
     press(viewer, Key.A)  # any other key leaves
-    assert isinstance(g.handlers[-1], ih.MainGameEventHandler)
+    assert isinstance(SESSION.handlers[-1], ih.MainGameEventHandler)
 
 
 def test_character_screen_and_crafting_menu(game):
@@ -254,11 +254,11 @@ def test_level_up_screen_applies_the_choice(game):
     e.player.level.current_xp = e.player.level.experience_to_next_level + 1
     hp = e.player.max_hp
     screen = ih.LevelUpEventHandler(e)
-    g.handlers.append(screen)
+    SESSION.handlers.append(screen)
     assert lit_pixels(drawn(screen)) > 500
     assert press(screen, Key.X) is screen or True  # invalid entry only logs
     screen.handle_events(MouseButtonDown(Point(1, 1), MouseButton.LEFT))  # clicking does not dismiss
-    assert g.handlers[-1] is screen
+    assert SESSION.handlers[-1] is screen
     press(screen, Key.A)
     assert e.player.max_hp == hp + 20
 
@@ -297,7 +297,7 @@ def test_place_constructable_highlights_neighbours(game):
     fire = Campfire(e.player.inventory)
     e.player.inventory.add(fire)
     place = ih.PlaceConstructableHandler(e, fire)
-    g.handlers.append(place)
+    SESSION.handlers.append(place)
     canvas = drawn(place)
     px, py = e.player.x, e.player.y
     assert cell(canvas, px + 1, py).mean() > cell(canvas, px + 3, py).mean() + 50

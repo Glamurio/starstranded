@@ -3,7 +3,7 @@ safeguard caps piles of ground objects (one config flag)."""
 import numpy as np
 import pygame
 
-import g
+from ui_helpers import SESSION
 import render_order
 import render_functions
 from components.consumable import Meat
@@ -45,8 +45,8 @@ def test_every_entity_on_a_tile_is_drawn_in_layer_order(small_world):
     e.update_fov()
     draw_map(e)
     layered = [corpse, meat, shrub, unit, tree]
-    assert np.array_equal(cell(g.canvas, 5, 5), expected_tile(layered))
-    assert not np.array_equal(cell(g.canvas, 5, 5), expected_tile(list(reversed(layered))))
+    assert np.array_equal(cell(SESSION.canvas, 5, 5), expected_tile(layered))
+    assert not np.array_equal(cell(SESSION.canvas, 5, 5), expected_tile(list(reversed(layered))))
 
 
 def test_each_layer_keeps_its_own_tint_and_mirroring(small_world):
@@ -57,8 +57,8 @@ def test_each_layer_keeps_its_own_tint_and_mirroring(small_world):
     e.update_fov()
     draw_map(e)
     assert left.flipped is False and right.flipped is True
-    assert np.array_equal(cell(g.canvas, 6, 6), expected_tile([left]))
-    assert np.array_equal(cell(g.canvas, 7, 6), expected_tile([right]))
+    assert np.array_equal(cell(SESSION.canvas, 6, 6), expected_tile([left]))
+    assert np.array_equal(cell(SESSION.canvas, 7, 6), expected_tile([right]))
 
 
 def test_corpse_uses_the_corpse_sprite_unmirrored(small_world):
@@ -76,7 +76,7 @@ def test_entities_on_tiles_out_of_sight_are_not_drawn(small_world):
     e.game_map.visible[8, 8] = False
     e.game_map.explored[8, 8] = False
     draw_map(e)
-    assert not cell(g.canvas, 8, 8).any()
+    assert not cell(SESSION.canvas, 8, 8).any()
 
 
 # ── clutter safeguard ──────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ def test_safeguard_draws_only_the_top_two_ground_objects_and_a_marker(small_worl
     corpses, items = pile(e, 5, 5, items=4, corpses=1)
     assert e.game_map.hidden_ground_counts() == {(5, 5): 3}
     draw_map(e)
-    drawn = cell(g.canvas, 5, 5)
+    drawn = cell(SESSION.canvas, 5, 5)
     expected = expected_tile(items[-2:]).copy()
     # the stack marker covers the top-right quarter of the cell
     assert np.array_equal(drawn[:12], expected[:12])  # left half: exactly the top two items
@@ -113,7 +113,7 @@ def test_marker_is_drawn_only_on_piled_tiles(small_world):
     e.update_fov()
     draw_map(e)
     assert e.game_map.hidden_ground_counts() == {(5, 5): 1}
-    two = cell(g.canvas, 7, 5)
+    two = cell(SESSION.canvas, 7, 5)
     assert np.array_equal(two, expected_tile(e.game_map.stack_at(7, 5)[::-1]))  # exactly two: nothing hidden, no marker
 
 
@@ -123,7 +123,7 @@ def test_flag_off_draws_the_whole_pile(small_world):
     corpses, items = pile(e, 5, 5, items=4, corpses=1)
     assert e.game_map.hidden_ground_counts() == {}
     draw_map(e)
-    assert np.array_equal(cell(g.canvas, 5, 5), expected_tile(corpses + items))
+    assert np.array_equal(cell(SESSION.canvas, 5, 5), expected_tile(corpses + items))
 
 
 def test_units_are_never_hidden_by_the_safeguard(small_world):
@@ -132,10 +132,10 @@ def test_units_are_never_hidden_by_the_safeguard(small_world):
     unit = Animal(); unit.place(5, 5, e.game_map)
     e.update_fov()
     draw_map(e)
-    drawn = cell(g.canvas, 5, 5)
+    drawn = cell(SESSION.canvas, 5, 5)
     expected = expected_tile(items[-2:] + [unit])
     assert np.array_equal(drawn[:12], expected[:12])
-    opaque = pygame.surfarray.array_alpha(g.canvas.sprites.get(unit.sprite_id, unit.flipped, unit.shade)) > 0
+    opaque = pygame.surfarray.array_alpha(SESSION.canvas.sprites.get(unit.sprite_id, unit.flipped, unit.shade)) > 0
     opaque[12:, :12] = False  # the stack marker covers the top-right quarter of the cell
     assert opaque.any()
     assert np.array_equal(drawn[opaque], expected_tile([unit])[opaque])  # the unit's own pixels win over the pile
@@ -149,7 +149,7 @@ def test_player_standing_on_a_corpse_and_item_shows_all_three(small_world):
     meat = meat_at(e, p.x, p.y)
     e.update_fov()
     draw_map(e)
-    assert np.array_equal(cell(g.canvas, p.x, p.y), expected_tile([corpse, meat, p]))
+    assert np.array_equal(cell(SESSION.canvas, p.x, p.y), expected_tile([corpse, meat, p]))
 
 
 def test_animal_standing_on_a_corpse_and_item_shows_all_three(small_world):
@@ -160,7 +160,7 @@ def test_animal_standing_on_a_corpse_and_item_shows_all_three(small_world):
     animal = Animal(); animal.place(6, 6, m)
     e.update_fov()
     draw_map(e)
-    assert np.array_equal(cell(g.canvas, 6, 6), expected_tile([corpse, meat, animal]))
+    assert np.array_equal(cell(SESSION.canvas, 6, 6), expected_tile([corpse, meat, animal]))
 
 
 # ── names: the stack, topmost first ────────────────────────────────────────────────
@@ -193,9 +193,9 @@ def test_long_stack_names_are_cut_with_an_ellipsis(small_world):
         meat_at(e, 5, 5)
     e.update_fov()
     e.mouse_location = (5, 5)
-    g.canvas.clear()
-    render_functions.render_names_at_mouse_location(g.canvas, 21, 40, e, width=20)
-    drawn_columns = [x for x in range(21, 60) if cell(g.canvas, x, 40).any()]
+    SESSION.canvas.clear()
+    render_functions.render_names_at_mouse_location(SESSION.canvas, 21, 40, e, width=20)
+    drawn_columns = [x for x in range(21, 60) if cell(SESSION.canvas, x, 40).any()]
     assert drawn_columns and max(drawn_columns) <= 21 + 19
 
 
@@ -207,6 +207,6 @@ def test_pickup_lists_the_stack_topmost_first(small_world):
     meat = meat_at(e, 2, 1)
     e.mouse_location = Point(2, 1)
     handler = ih.PickupHandler(e)
-    g.handlers = [ih.MainGameEventHandler(e), handler]
+    SESSION.handlers = [ih.MainGameEventHandler(e), handler]
     loot = handler.on_tile_selected(e.game_map.stack_at(2, 1))
     assert loot.entities == [meat, corpse]
