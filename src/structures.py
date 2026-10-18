@@ -294,7 +294,7 @@ def free_tile_near(world, x: int, y: int, rng, radius_min: int = 0, radius_max: 
     return None
 
 
-def place_crash_site(world, spawn: Tuple[int, int], master: int, engine_run=None) -> Dict[str, Tuple[int, int]]:
+def place_crash_site(world, spawn: Tuple[int, int], master: int) -> Dict[str, Tuple[int, int]]:
     """Ship, cargo pod and wreckage around the spawn point: the ship 4-6 tiles away, the pod beside it, pieces scattered."""
     rng = random.Random(mix_seed(master, 808))
     taken = {spawn}

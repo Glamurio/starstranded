@@ -213,6 +213,9 @@ class Unit(Entity):
             if killer is self.engine.player and self.kind.key:
                 kills = self.engine.game_world.run.kills
                 kills[self.kind.key] = kills.get(self.kind.key, 0) + 1
+                if self.kind.key.startswith("planet:fauna:"):
+                    import sponsors
+                    sponsors.native_killed(self.engine.game_world.run, self.engine)
 
     def heal(self, amount: int) -> int:
         if self.hp == self.max_hp:

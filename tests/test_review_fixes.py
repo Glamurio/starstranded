@@ -200,3 +200,14 @@ def test_empty_inventory_enter_does_not_crash():
     engine.player.inventory.contents.clear()
     handler = ih.InventoryActivateHandler(engine, engine.player.inventory)
     assert press(handler, Key.RETURN) in (None, handler)
+
+
+def test_killing_natives_moves_reputation_by_each_boards_leaning():
+    import factions
+    engine = new_game()
+    run = engine.game_world.run
+    before = dict(run.reputation)
+    for _ in range(factions.NATIVE_KILLS_PER_REACTION):
+        sponsors.native_killed(run, engine)
+    for faction in factions.FACTIONS:
+        assert run.reputation.get(faction, 0) == before.get(faction, 0) + factions.reaction_to_harming_natives(faction)

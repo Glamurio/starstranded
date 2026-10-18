@@ -211,6 +211,24 @@ def offer_contracts(seed: int, sponsor: str, completed: int, how_many: int = 3, 
     return offers
 
 
+def native_killed(run, engine=None) -> None:
+    """The player killed a native creature. Every few kills the sponsors' boards react: hawks approve, doves are upset
+    (one point of reputation each), so clearing the planet pleases some sponsors and costs you with others."""
+    count = run.flags["native_kills"] = int(run.flags.get("native_kills", 0)) + 1
+    if count % factions.NATIVE_KILLS_PER_REACTION:
+        return
+    for faction in factions.FACTIONS:
+        lean = factions.reaction_to_harming_natives(faction)
+        run.reputation[faction] = max(-MAX_REPUTATION, min(MAX_REPUTATION, run.reputation.get(faction, 0) + lean))
+    if engine is not None:
+        engine.message_log.add_message("Your kills are noted: some boards approve, others do not.", color_gray())
+
+
+def color_gray():
+    import color
+    return color.impossible
+
+
 def knowledge_count(run) -> int:
     """How many catalogue entries (species and materials the player has learned something about)."""
     return sum(1 for subject in run.knowledge.to_dict() if subject.startswith(("species:", "material:")))

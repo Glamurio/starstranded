@@ -84,3 +84,6 @@ def spillover(faction: str, amount: int) -> Dict[str, int]:
 def reaction_to_harming_natives(faction: str) -> int:
     """+1: this faction's board approves of clearing natives, -1: it is upset."""
     return DIVISIONS[faction].leaning
+
+
+NATIVE_KILLS_PER_REACTION = 5
