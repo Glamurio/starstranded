@@ -51,6 +51,8 @@ FAMILY_NOUNS: Dict[str, Tuple[str, ...]] = {
     # organisms
     "tree": ("tree", "wood"), "shrub": ("bush", "plant"), "grass": ("grass", "reed"), "fungus": ("plant",),
     "animal": ("hopper", "runner"), "furred": ("coat", "runner"), "armoured": ("shell", "runner"),
+    "small_herbivore": ("hopper", "coat"), "grazer": ("runner", "horn"), "predator": ("runner", "coat"),
+    "crawler": ("shell", "runner"), "bird": ("wing", "runner"), "serpent": ("runner", "hide"), "fruit": ("plant",),
 }
 
 CONCEPT_GLOSS = {c: c for c in list(COLOR_CONCEPTS) + list(NOUN_CONCEPTS) + list(TRAIT_CONCEPTS.values())}
@@ -118,6 +120,26 @@ BASELINE = 5.0
 SALIENT_DEVIATION = 2.5
 PRESENT_MIN = 4.0
 
+# What is *ordinary* for a family: a trait is remarkable only relative to it (every wood burns; a wood that burns
+# poorly is remarkable). Properties not listed default to BASELINE, or to 0 for the "absent unless present" ones.
+FAMILY_TYPICAL: Dict[str, Dict[str, float]] = {
+    "wood": {"hardness": 4.5, "toughness": 6, "tenacity": 4.5, "density": 5, "elasticity": 4.5, "insulation": 4.5, "flammability": 6.2, "combustibility": 6.2, "thermal_conductivity": 2},
+    "fiber": {"hardness": 2, "toughness": 3, "tenacity": 6.5, "density": 2, "elasticity": 4, "insulation": 3, "flammability": 7, "combustibility": 3.2},
+    "hide": {"hardness": 1.2, "toughness": 3, "tenacity": 4, "density": 1.5, "insulation": 6.5, "flammability": 6.5, "combustibility": 4, "thermal_conductivity": 1.2},
+    "stone": {"hardness": 6, "toughness": 4.5, "tenacity": 1.5, "density": 6.5, "abrasivity": 4, "insulation": 3, "thermal_conductivity": 4},
+    "metal": {"hardness": 4.5, "toughness": 6, "tenacity": 6, "density": 8, "electrical_conductivity": 5, "thermal_conductivity": 6},
+    "crystal": {"hardness": 8, "toughness": 3, "density": 5, "transparency": 6, "thermal_conductivity": 4},
+    "fuel": {"hardness": 2.5, "toughness": 2.5, "density": 3.5, "flammability": 4, "combustibility": 9},
+    "sand": {"hardness": 5.5, "toughness": 1.5, "density": 4, "abrasivity": 6, "transparency": 3},
+    "clay": {"hardness": 2, "toughness": 2.5, "tenacity": 2.5, "density": 4.5, "insulation": 3.5},
+}
+for _animal in ("animal", "furred", "armoured", "small_herbivore", "grazer", "predator", "crawler", "bird", "serpent"):
+    FAMILY_TYPICAL[_animal] = FAMILY_TYPICAL["hide"]
+for _plant in ("tree", "shrub", "grass", "fungus"):
+    FAMILY_TYPICAL[_plant] = FAMILY_TYPICAL["wood"] if _plant == "tree" else FAMILY_TYPICAL["fiber"]
+NOUNLIKE_EPITHETS = {"spring", "spark", "glow", "grit", "ray", "bind", "heat", "tinder", "fuel"}
+"""Epithets that can stand alone as a noun ("Indigo Spring", "Red Grit"); adjectives always need a noun."""
+
 
 @dataclass(frozen=True)
 class Name:
@@ -146,18 +168,22 @@ def hue_name(color: RGB) -> str:
     return "red"
 
 
-def salient_traits(props: Mapping[str, float], limit: int = 2) -> List[Tuple[str, str, float]]:
-    """The most remarkable properties as (property, "high"/"low", salience), strongest first. Only traits that have a word."""
+def salient_traits(props: Mapping[str, float], limit: int = 2, family: Optional[str] = None) -> List[Tuple[str, str, float]]:
+    """The most remarkable properties as (property, "high"/"low", salience), strongest first, measured against what is
+    ordinary for the family. Only traits that have a word."""
+    typical = FAMILY_TYPICAL.get(family or "", {})
     found = []
     for prop, value in props.items():
-        if prop in ABSENT_TYPICAL:
+        ordinary = typical.get(prop, 0.0 if prop in ABSENT_TYPICAL else BASELINE)
+        deviation = value - ordinary
+        if ordinary == 0.0 and prop in ABSENT_TYPICAL:
             if value >= PRESENT_MIN and (prop, "high") in TRAIT_CONCEPTS:
                 found.append((prop, "high", value - PRESENT_MIN + 1))
             continue
-        if value >= BASELINE + SALIENT_DEVIATION and (prop, "high") in TRAIT_CONCEPTS:
-            found.append((prop, "high", value - BASELINE))
-        elif value <= BASELINE - SALIENT_DEVIATION and (prop, "low") in TRAIT_CONCEPTS:
-            found.append((prop, "low", BASELINE - value))
+        if deviation >= SALIENT_DEVIATION and (prop, "high") in TRAIT_CONCEPTS:
+            found.append((prop, "high", deviation))
+        elif deviation <= -SALIENT_DEVIATION and (prop, "low") in TRAIT_CONCEPTS:
+            found.append((prop, "low", -deviation))
     found.sort(key=lambda t: (-t[2], t[0]))
     return found[:limit]
 
@@ -184,7 +210,7 @@ class Namer:
     def name(self, key: str, family: str, color: RGB, props: Optional[Mapping[str, float]] = None,
              habitat: Optional[str] = None) -> Name:
         rng = random.Random(mix_seed(self.seed, hash_key(key)))
-        traits = salient_traits(props or {})
+        traits = salient_traits(props or {}, family=family)
         colour = hue_name(color)
         nouns = FAMILY_NOUNS.get(family, ("plant",))
         for attempt in range(12):
@@ -201,6 +227,25 @@ class Namer:
         self.used.add(_norm(text))
         return Name(text, base.gloss, base.reasons)
 
+    def fruit(self, key: str, color: RGB, shape: str) -> str:
+        """A fruit's name: its colour word and its shape ("Azure pear"); other cultures name the colour and "plant fruit"."""
+        rng = random.Random(mix_seed(self.seed, hash_key(key)))
+        colour = hue_name(color)
+        for _ in range(8):
+            word = self._word(rng, colour)
+            text = f"{word} {shape}" if self.culture == "human" and shape else f"{word}-{self._word(rng, 'plant')}"
+            text = _tidy(text) if self.culture != "human" else f"{word} {shape}"
+            if _norm(text) not in self.used:
+                self.used.add(_norm(text))
+                return text
+        base = f"{word} {shape}".strip() if self.culture == "human" else f"{word}-{self._word(rng, 'plant')}"
+        serial = 2
+        while _norm(f"{base} {_roman(serial)}") in self.used:
+            serial += 1
+        text = _tidy(f"{base} {_roman(serial)}")
+        self.used.add(_norm(text))
+        return text
+
     # ── internals ──────────────────────────────────────────────────────────────────────────────────
     def _word(self, rng: random.Random, concept: str) -> str:
         return rng.choice(_TABLE[self.culture][concept]) if self.culture in _TABLE else concept
@@ -213,12 +258,16 @@ class Namer:
         reasons = tuple((t[0], t[1]) for t in traits[:1])
         patterns = ["compound", "spaced"] if epithet else ["colour_noun"]
         if epithet:
-            patterns += ["colour_epithet", "epithet_noun"]
+            patterns += ["epithet_noun"]
+            if epithet in NOUNLIKE_EPITHETS:
+                patterns += ["colour_epithet"]
         if second is not None and attempt >= 2:
             patterns.append("two_traits")
-        pattern = rng.choice(patterns) if attempt < 6 else rng.choice(["colour_epithet", "colour_noun", "epithet_noun", "two_traits"] if second else ["colour_noun"])
+        pattern = rng.choice(patterns) if attempt < 6 else rng.choice(["colour_noun", "epithet_noun", "two_traits"] if second else ["colour_noun"])
         if pattern in ("epithet_noun", "compound", "colour_epithet") and epithet is None:
             pattern = "colour_noun"
+        if pattern == "colour_epithet" and epithet not in NOUNLIKE_EPITHETS:
+            pattern = "epithet_noun"
         if pattern == "two_traits" and second is None:
             pattern = "compound"
         gloss: str

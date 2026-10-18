@@ -100,6 +100,7 @@ class Material:
     burn_duration: int = 0        # turns one unit burns
     is_amorphous: bool = False
     melting_point: int = 0        # degrees C; 0 = cannot be melted
+    refines_to: str = ""          # id of the material a furnace turns it into (an ore -> its metal)
 
     def __post_init__(self):
         assert self.id and self.name, "a material needs an id and a name"
@@ -210,6 +211,14 @@ def melt_and_cool(material: Material) -> Material:
             color=tuple(int(c * 0.6 + 255 * 0.4) for c in material.color))
     return material.replace(id=material.id + "+cast", tenacity=clamp10(material.tenacity + 1),
                             toughness=clamp10(material.toughness + 1))
+
+
+def fire_clay(material: Material) -> Material:
+    """Fire a clay in a kiln: it comes out as hard, heat-resistant ceramic (bricks, pots)."""
+    return material.replace(id=material.id + "+fired", name=material.name + " ceramic", family=Family.CERAMIC,
+                            hardness=clamp10(material.hardness + 3), toughness=clamp10(material.toughness + 1),
+                            density=clamp10(material.density + 1), insulation=clamp10(material.insulation + 1),
+                            tenacity=0.0, color=tuple(int(c * 0.85 + 30) for c in material.color))
 
 
 # ── structures ──────────────────────────────────────────────────────────────────────────────────────────

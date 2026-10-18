@@ -14,8 +14,11 @@ from typing import Dict, Optional, Tuple, Union
 
 import color
 from atlas import COLUMNS as SHEET_COLUMNS
+from capabilities import Grant
 from damage import DamageType, Resistances
+from ecology import Habitat
 from equipment_types import EquipmentType
+from materials import Material
 from render_order import RenderOrder
 
 RGB = Tuple[int, int, int]
@@ -87,6 +90,7 @@ class ItemKind(_Definition):
     defense_bonus: int = 0
     light_radius: int = 0
     lit_color: Optional[RGB] = None
+    toxicity: int = 0  # turns of poison when eaten (hidden until identified or suffered)
 
 
 @dataclass(frozen=True)
@@ -115,6 +119,10 @@ class UnitSpecies(_Definition):
     name_origin: Optional[str] = None  # namegen set for auto-generated names
     default_name: Optional[str] = None
     render_order: RenderOrder = RenderOrder.UNIT
+    habitat: Optional[Habitat] = None  # where it lives (planet species); None: placed by the old spawn tables
+    hide: Optional[Material] = None    # what its skin/fur/shell is made of (drops as hide when it dies)
+    grants: Tuple[Grant, ...] = ()     # innate tags (see capabilities)
+    rarity: float = 1.0                # relative abundance where it can live
 
 
 @dataclass(frozen=True)
@@ -134,6 +142,10 @@ class PlantSpecies(_Definition):
     blocks_sight: bool = False
     render_order: RenderOrder = RenderOrder.TREE
     mirror: bool = True
+    habitat: Optional[Habitat] = None
+    material: Optional[Material] = None  # what its wood (or stem) is made of
+    fiber: Optional[Material] = None     # fibre/vines it yields when cut (shrubs)
+    rarity: float = 1.0
 
 
 Definition = Union[ItemKind, UnitSpecies, PlantSpecies]

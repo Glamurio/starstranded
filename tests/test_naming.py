@@ -50,7 +50,7 @@ def test_reasons_are_true_of_the_properties():
             if direction == "high":
                 assert props[prop] >= 4
             else:
-                assert props[prop] <= 2.5
+                assert props[prop] <= 3.5
 
 
 def test_a_planet_of_names_is_unique_and_well_formed():
@@ -75,7 +75,7 @@ def test_cultures_produce_different_names_for_the_same_thing():
 
 def test_gloss_explains_the_name():
     n = Namer(1, "mau").name("x", "wood", (200, 50, 50), {"elasticity": 9})
-    assert "wood" in n.gloss or "tree" in n.gloss
+    assert "spring" in n.gloss and n.reasons == (("elasticity", "high"),)
 
 
 def test_provisional_description_hides_the_name():

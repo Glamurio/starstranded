@@ -94,3 +94,9 @@ def test_composition_rules_and_colour():
 
 def test_every_property_has_a_reading_rule():
     assert set(m.PROPERTY_KEYS) == set(m.PROPERTY_READING)
+
+
+def test_clay_fires_into_ceramic():
+    clay = Material("c", "Red clay", Family.CLAY, (170, 90, 60), hardness=2, toughness=3, tenacity=3, density=4, insulation=3)
+    brick = m.fire_clay(clay)
+    assert brick.family is Family.CERAMIC and brick.hardness == 5 and brick.insulation == 4 and brick.tenacity == 0
