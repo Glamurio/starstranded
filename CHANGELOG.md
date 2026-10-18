@@ -182,3 +182,15 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - Items are made of planet materials; crafting is property-based (`recipes.py`, `crafting.py`, `items.py`), with a requirement-by-
   requirement crafting screen, tools/stations/skills/heat, derived properties, dull-until-sharpened edges, furnaces, fuel and
   sparks, built walls, mining (`X` dig, bump a rock face with a pickaxe, `T` sharpen), hide and fibre drops.
+
+## UI overhaul and fixes (branch gameplay-core)
+- **Windows, not walls of glyphs.** TrueType text (DejaVu Sans Mono) in framed windows with tab row and `[key] action` hint bar; every
+  screen rebuilt (inventory, character, recipes, codex, log, help, map, pod, ending, main menu, settings, character creation, HUD).
+  Tab cycles the five main screens. Hover tooltip for the thing under the mouse. The map scrolls by chunk-aligned pages.
+- **Crafting** is contextual: only what you can make here and now is listed (Space shows everything you know); recipes you work out
+  from nearby materials are announced. Crafted items take their material's name and colour; names follow what you have learned.
+- **Corpses** are the creature lying on its side, with bones. Colour groups shade strictly within their group. Plant background removed.
+- **Sprite config + editor:** `src/data/sprites.json` overrides sprite cells; "Sprite editor" in the main menu edits them in-game.
+- **Errors never close the game:** every handler/render error is logged, shown in the message log and the game carries on. Fixed the
+  wreck-grab crash and the survey-kit error. Targeting screens (place, scan, fire) now close after use instead of staying open.
+- Tests: 648 (UI, live names, sprite config/editor, fuzzed clicking, and a keypress-only campfire playthrough on three seeds).
