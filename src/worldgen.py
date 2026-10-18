@@ -10,15 +10,14 @@ the same entities (only uids differ).
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import random
-import struct
 from typing import Iterator, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np  # type: ignore
 import tcod
 
 import shafts
+from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the long-standing import path)
 import tile_types
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chunk_origin
 from species import PlantCategory, PlantSpecies, make_plant_species
@@ -37,12 +36,6 @@ brightness on purpose: a stark light/dark edge clashes with the land."""
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 HEIGHT_LIMITS = (-1.1, -0.3, 0.3, 1.1)  # water | floor | wall (values outside stay wall, as before)
-
-
-def mix_seed(*values: int) -> int:
-    """A stable 63-bit seed from ints (negative ones fine), identical across processes and platforms."""
-    digest = hashlib.blake2b(struct.pack(f"<{len(values)}q", *values), digest_size=8).digest()
-    return int.from_bytes(digest, "little") >> 1
 
 
 @contextlib.contextmanager
