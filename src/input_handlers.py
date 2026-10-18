@@ -1072,6 +1072,10 @@ class MainGameEventHandler(EventHandler):
             return actions.TrackAction(player)    # use the tracker
         elif key == Key.S:
             return SingleRangedAttackHandler(self.engine, lambda xy: actions.ScanAction(player, *xy))  # scanner
+        elif key == Key.H:
+            return HelpHandler(self.engine)
+        elif key == Key.M:
+            return NavigationHandler(self.engine)   # where things are
         elif key == Key.O:
             return CodexHandler(self.engine)      # what you have learned
 
@@ -1216,7 +1220,7 @@ class PlaceConstructableHandler(SelectIndexHandler):
 
 def __getattr__(name):
     """`input_handlers.PodHandler` and `EndingHandler` live in `screens` (they import this module)."""
-    if name in ("PodHandler", "EndingHandler"):
+    if name in ("PodHandler", "EndingHandler", "NavigationHandler", "HelpHandler"):
         import screens
         return getattr(screens, name)
     raise AttributeError(name)

@@ -103,3 +103,27 @@ def test_codex_handler_renders_and_pages():
     handler = input_handlers.CodexHandler(engine)
     pages = handler.pages()
     assert [c for c, _ in pages][:2] == ["Materials", "Creatures"]
+
+
+def test_navigation_lists_ship_and_pod_with_bearings():
+    import screens
+    engine = new_game()
+    lines = screens.navigation_lines(engine)
+    assert any(l.startswith("Your ship:") for l in lines)
+    assert any(l.startswith("Sponsor cargo pod:") for l in lines)
+    assert screens.bearing(3, -2) == "3 east, 2 north"
+    assert screens.bearing(0, 0) == "here"
+    from ui_helpers import SESSION
+    import input_handlers
+    SESSION.draw(input_handlers.NavigationHandler(engine))
+
+
+def test_help_screen_renders_and_lists_new_keys():
+    import input_handlers
+    import screens
+    from ui_helpers import SESSION
+    engine = new_game()
+    SESSION.draw(input_handlers.HelpHandler(engine))
+    text = " ".join(k + w for k, w in screens.CONTROLS)
+    for word in ("scan", "sleep", "pistol", "navigation"):
+        assert word in text

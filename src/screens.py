@@ -147,3 +147,69 @@ class EndingHandler(EventHandler):
             elif os.path.exists(path):
                 os.remove(path)
         raise exceptions.QuitWithoutSaving()
+
+
+def bearing(dx: int, dy: int) -> str:
+    """Words for an offset: '12 east, 5 north' (y grows downward)."""
+    parts = []
+    if dx:
+        parts.append(f"{abs(dx)} {'east' if dx > 0 else 'west'}")
+    if dy:
+        parts.append(f"{abs(dy)} {'south' if dy > 0 else 'north'}")
+    return ", ".join(parts) or "here"
+
+
+def navigation_lines(engine) -> list:
+    """Where the places you know of are, relative to you: the crash site, the cargo pod and ruins you have found."""
+    player, run = engine.player, engine.game_world.run
+    lines = [f"You are at {player.x}, {player.y} (layer {engine.game_world.current_z})", ""]
+    places = []
+    if run.wreck:
+        places.append(("Your ship", run.wreck))
+    if run.pod:
+        places.append(("Sponsor cargo pod", run.pod))
+    for index, at in sorted((run.flags.get("sites") or {}).items()):
+        if run.knowledge.is_known(f"ruin:{index}"):
+            places.append((f"Precursor ruin {index + 1}", at))
+    for name, (x, y) in places:
+        lines.append(f"{name}: {bearing(x - player.x, y - player.y)}")
+    return lines
+
+
+class NavigationHandler(AskUserEventHandler):
+    """The navigation screen (M): your position and the way to the places you know."""
+
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
+        lines = navigation_lines(self.engine)
+        canvas.draw_frame(x=layout.SIDE_PANEL_WIDTH, y=2, width=60, height=len(lines) + 4, title="Navigation", clear=True,
+                          fg=color.menu_text, bg=color.nigh_black)
+        for i, line in enumerate(lines):
+            canvas.print(layout.SIDE_PANEL_WIDTH + 2, 4 + i, line, fg=color.menu_text)
+
+
+CONTROLS = (
+    ("Arrows / numpad", "move (Shift/Ctrl move the look cursor further)"),
+    ("Space", "wait a turn"),
+    ("G / I / D", "pick up / use inventory / drop"),
+    ("R", "craft (a recipe is a set of material roles; names stay provisional until you learn them)"),
+    ("F", "use what is next to you: ship, wreck, cargo pod, ruin, gate, beacon"),
+    ("X / T", "dig the ground / sharpen your tool"),
+    ("S", "scan a visible tile or creature (O: codex of what you know)"),
+    ("Z", "sleep in a bed (Casual mode saves there)"),
+    ("P / K", "fire the pistol at a target / use the bounty tracker"),
+    ("M / C / V", "navigation / character / message history"),
+    ("L, <, >", "take stairs"),
+    ("H", "this help"),
+)
+
+
+class HelpHandler(AskUserEventHandler):
+    """The key list (H)."""
+
+    def on_render(self, canvas: Canvas) -> None:
+        super().on_render(canvas)
+        canvas.draw_frame(x=2, y=2, width=76, height=len(CONTROLS) + 6, title="Controls", clear=True, fg=color.menu_text,
+                          bg=color.nigh_black)
+        for i, (keys, what) in enumerate(CONTROLS):
+            canvas.print(4, 4 + i, f"{keys:<16}{what}"[:72], fg=color.menu_text)
