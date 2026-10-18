@@ -362,6 +362,6 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     return UnitSpecies(
         f"planet:fauna:{template.key}", name.text, sprite=template.sprite, corpse_sprite=template.corpse_sprite, mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
-        level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=True, damage_type=template.damage_type,
+        level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,
         habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity,
     )

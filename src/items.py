@@ -40,8 +40,8 @@ DEFAULT_LEATHER = Material(
 def noun_title(name: str, noun: str) -> str:
     """"Rustore ore" is just "Rustore ore"; "Dunstone" + "Stone" is "Dunstone"."""
     if name.lower().endswith(noun.lower()):
-        return name[0].upper() + name[1:]
-    return f"{name[0].upper() + name[1:]} {noun.lower()}"
+        return name
+    return f"{name} {noun.lower()}"
 
 
 class Stuff(Item):
@@ -123,6 +123,10 @@ class Made(Composite, Item):
         if self.kind is defs.BEACON:
             import endings
             return endings.activate_beacon(user, self)
+        if self.kind is defs.SURVEY_KIT:   # a hand scanner: pick a tile to read
+            import actions
+            import input_handlers
+            return input_handlers.SingleRangedAttackHandler(user.engine, lambda xy: actions.ScanAction(user, *xy))
         raise exceptions.Impossible(f"{self.get_title()} is a component; it is used by what it is built into.")
 
 

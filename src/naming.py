@@ -370,3 +370,17 @@ def _well_formed(text: str) -> bool:
         return False
     lowered = text.lower().replace("-", " ").split()
     return len(set(lowered)) == len(lowered)  # no repeated words ("Wood Wood")
+
+
+PROPER_WORDS = ("Human", "Selenite", "Mau", "Selenites", "Harmonic", "Egyptian")
+
+
+def lower_first(text: str) -> str:
+    """Everyday things are written in lower case ("hide", "ration pack"); people, races and invented names keep their capital.
+    A text that names someone ("Jon, the human") is left alone."""
+    if not text or ", the " in text:
+        return text
+    first = text.split(" ", 1)[0]
+    if first in PROPER_WORDS or first.rstrip("'s") in PROPER_WORDS:
+        return text
+    return text[0].lower() + text[1:]

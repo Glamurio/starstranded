@@ -57,7 +57,7 @@ class Leather(Stuff):
         self.material = source_species or None
 
     def get_title(self, exclude_attributes: bool = False) -> str:
-        return f"{self.material} Leather" if self.material else "Leather"
+        return f"{self.material} leather" if self.material else "leather"
 
 
 def make_piece(kind: defs.ItemKind, substance: Material, parent=None) -> Stuff:
@@ -70,20 +70,29 @@ def make_piece(kind: defs.ItemKind, substance: Material, parent=None) -> Stuff:
 # ─── Crafted: Flask (carries liquid) ─────────────────────────────────
 
 class Flask(Item):
-    """A leather flask: three sips of one liquid. What the liquid really is stays unknown until it is drunk."""
+    """A flask made of hide: three sips of one liquid. What the liquid really is stays unknown until it is drunk. It takes
+    its name and colour from the hide (a "blue leather flask"), and the name updates when the hide's name is learned."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, substance: Optional[Material] = None):
         Item.__init__(self, defs.FLASK)
         self.parent = parent
+        self.substance: Material = substance or DEFAULT_LEATHER
+        self.material = self.substance.name
+        self.color = self.shade = self.substance.color
         self.liquid: int = 0  # liquids.LiquidKind of the contents (0 = empty)
         self.sips: int = 0
         self.boiled: bool = False
 
     def get_title(self, exclude_attributes: bool = False) -> str:
+        import lore
+        name = lore.material_name(lore.run_of(self), self.substance)
+        if name.lower().endswith(" hide"):
+            name = name[:-5]
+        base = f"{name} leather flask" if not name.lower().endswith("leather") else f"{name} flask"
         if not self.sips:
-            return "Leather flask (empty)"
+            return f"{base} (empty)"
         what = "boiled liquid" if self.boiled else "liquid"
-        return f"Leather flask ({what}, {self.sips} sip{'s' if self.sips != 1 else ''})"
+        return f"{base} ({what}, {self.sips} sip{'s' if self.sips != 1 else ''})"
 
     def activate(self, user):
         from actions import UseFlaskAction
@@ -591,7 +600,7 @@ def _build(recipe: Recipe, plan: Plan, unit, consumed) -> List[Item]:
     elif b == "wall":
         item = BuiltWall(kind, *args, parent=inventory)
     elif b == "flask":
-        item = Flask(inventory)
+        item = Flask(inventory, plan.parts.get("hide"))
     elif b == "process":
         return _process(recipe, plan, unit)
     else:

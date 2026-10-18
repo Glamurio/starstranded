@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import naming
+
 import itertools
 import math
 from enum import Enum, auto
@@ -279,7 +281,9 @@ class Item(Entity):
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        material_type = f'{self.material} {self.object_type}' if self.material else self.object_type
+        noun = naming.lower_first(self.object_type)
+        material = naming.lower_first(self.material) if self.material and getattr(self.kind, 'key', None) and not isinstance(self.material, bool) and self.material in ('Bronze', 'Wooden', 'Leather', 'Iron', 'Steel') else self.material
+        material_type = f'{material} {noun}' if material else noun
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         return f'{self.name}, the {description}' if self.name else description
 
@@ -311,6 +315,8 @@ class Constructable(Item):
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         attributes = [] if exclude_attributes else self.attributes
-        material_type = f'{self.material} {self.object_type}' if self.material else self.object_type
+        noun = naming.lower_first(self.object_type)
+        material = naming.lower_first(self.material) if self.material and getattr(self.kind, 'key', None) and not isinstance(self.material, bool) and self.material in ('Bronze', 'Wooden', 'Leather', 'Iron', 'Steel') else self.material
+        material_type = f'{material} {noun}' if material else noun
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         return f'{self.name}, the {description}' if self.name else description

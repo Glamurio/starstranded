@@ -5,6 +5,7 @@ from entity import Entity, EntityCategory
 from render_order import RenderOrder
 
 import color
+import naming
 from components.ai import HostileAI, PassiveAI
 from components.inventory import Inventory
 from components.equipment import Equipment
@@ -193,8 +194,8 @@ class Unit(Entity):
         self.is_alive = False
         self.render_order = RenderOrder.CORPSE
 
-        self.inventory.add(Meat(self.species, self.inventory))
-        self.inventory.add(Meat(self.species, self.inventory))
+        self.inventory.add(Meat(self.species, self.inventory, self.kind))
+        self.inventory.add(Meat(self.species, self.inventory, self.kind))
         if self.kind.leather:
             from crafting import Leather
             self.inventory.add(Leather(self.species, self.inventory))
@@ -284,8 +285,8 @@ class Unit(Entity):
         attributes = [] if exclude_attributes else self.attributes
         description = f'{" ".join(attributes)} {self.species}' if attributes else self.species
         if not self.is_alive:
-            return f'remains of {self.name}' if self.name else f'{self.species} remains'
-        return f'{self.name}, the {description}' if self.name else description
+            return f'remains of {self.name}' if self.name else naming.lower_first(f'{self.species} remains')
+        return f'{self.name}, the {description}' if self.name else (description if self.kind.key.startswith("planet:") else naming.lower_first(description))
 
 
 class Player(Unit):

@@ -244,8 +244,8 @@ def test_grabbing_a_wreck_or_using_a_component_is_a_message_not_an_error():
         main.render(inv, SESSION)
         kit_index = next(i for i, item in enumerate(inv.inventory_entries) if "survey" in item.kind.key)
         inv.menu_i = kit_index
-        main.process(inv, KeyDown(Key.RETURN, 0), SESSION)                 # a component: "used by what it is built into"
+        opened = main.process(inv, KeyDown(Key.RETURN, 0), SESSION)        # the survey kit is a hand scanner
+        assert isinstance(opened, ih.SingleRangedAttackHandler)
     finally:
         main.traceback.print_exc = orig
     assert not errors, errors[0]
-    assert any("component" in m.plain_text or "survey" in m.plain_text for m in engine.message_log.messages)

@@ -66,10 +66,23 @@ class FoodConsumable(Consumable):
 class Meat(FoodConsumable):
     nutrition = "meat"
 
-    def __init__(self, material: str, parent: Union[GameMap, Inventory, None] = None):
+    def __init__(self, material: str, parent: Union[GameMap, Inventory, None] = None, source=None):
         FoodConsumable.__init__(self, defs.MEAT)
-        self.material = material  # which creature it came from
+        self._material = material  # which creature it came from
+        self.source = source       # that creature's kind: the name is looked up live, so it updates once the species is learned
         self.parent = parent
+
+    @property
+    def material(self) -> str:
+        key = getattr(self.source, "key", None)
+        if isinstance(key, str) and key.startswith("planet:"):
+            import lore
+            return lore.species_name(lore.run_of(self), self.source)
+        return self._material
+
+    @material.setter
+    def material(self, value) -> None:
+        self._material = value
 
 
 class Ration(FoodConsumable):
@@ -92,4 +105,5 @@ class Fruit(FoodConsumable):
         attributes = [] if exclude_attributes else self.attributes
         material_type = f'{self.material} {self.species}' if self.material else self.species
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
-        return f'{self.name}, the {description}' if self.name else description
+        import naming
+        return f'{self.name}, the {description}' if self.name else (naming.lower_first(description) if self.kind.key else description)
