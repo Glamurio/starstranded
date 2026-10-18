@@ -1,4 +1,5 @@
 from __future__ import annotations
+from entity import EntityCategory
 
 from typing import List, TYPE_CHECKING
 
@@ -34,11 +35,29 @@ class Inventory(BaseComponent):
                 raise exceptions.Impossible("Your Inventory is full.")
             return
 
+        source_plant = getattr(item.parent, "parent", None) if item.parent is not self else None
         if item.parent is not None:
             item.parent.remove_entity(item)  # map or inventory (possibly this one)
 
         self.add(item)
+        if source_plant is not None and getattr(source_plant, "category", None) is EntityCategory.PLANT:
+            self._harvest_bonus(item, source_plant)
         # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
+
+    def _harvest_bonus(self, item: Item, plant) -> None:
+        """Race modifiers on harvesting: `crop_yield` adds extra pieces (a deterministic remainder is carried, so 1.5
+        means every second harvest gives one more), `crop_growth` marks the plant as tended so it grows faster."""
+        unit = self.parent
+        if not getattr(unit, "kind", None) or not getattr(unit.kind, "grants", None):
+            return
+        caps = unit.capabilities
+        plant.growth_bonus = max(plant.growth_bonus, caps.stat("crop_growth") - 1.0)
+        unit.yield_debt = getattr(unit, "yield_debt", 0.0) + caps.stat("crop_yield") - 1.0
+        while unit.yield_debt >= 1.0 - 1e-9 and not self.is_full():
+            unit.yield_debt -= 1.0
+            from components.consumable import Fruit
+            extra = type(item)(self, item.kind) if isinstance(item, Fruit) else plant.yield_piece()
+            self.add(extra)
 
     def drop(self, item: Item, target_xy: tuple[int, int]) -> None:
         """

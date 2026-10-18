@@ -94,6 +94,9 @@ class Engine:
         if origin is not self.player:  # creatures do not wade through acid (the player cannot tell it from other liquid)
             cost[world.region("liquid", rect) == 3] = 0
 
+        if getattr(origin, "avoids_liquid", False):  # liquid-averse units path around every liquid tile
+            cost[world.region("liquid", rect) != 0] = 0
+
         graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
         pathfinder = tcod.path.Pathfinder(graph)
         pathfinder.add_root((origin.x - x0, origin.y - y0))

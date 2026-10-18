@@ -59,6 +59,7 @@ class Unit(Entity):
         self.skills: SkillSet = SkillSet()                 # trained skill levels (race + background + practice)
         self.skill_practice: dict = {}                     # Skill -> practice points toward the next level
         self.extra_grants: tuple = ()                      # tags from background, sponsor gear, statuses
+        self.move_debt: float = 0.0                        # fractional turns carried between steps (move_speed)
         ai_class = _AI_FOR_KIND.get(species.ai)
         self.ai = ai_class(self) if ai_class else None
 
@@ -71,6 +72,33 @@ class Unit(Entity):
         if armor is not None:
             found += [Grant(tag) for tag in getattr(armor, "worn_tags", ())]
         return CapabilitySet(found)
+
+    def step_turns(self, dark: bool = False) -> int:
+        """Whole turns the next step takes. `move_speed` 2.0 = every second step is free; 0.5 = each takes two turns.
+        The remainder is carried in `move_debt`, so the long-run speed is exact and nothing is random."""
+        speed = self.capabilities.stat("move_speed", dark=dark)
+        self.move_debt += 1.0 / speed
+        turns = int(self.move_debt + 1e-9)
+        self.move_debt -= turns
+        return turns
+
+    @property
+    def avoids_liquid(self) -> bool:
+        return self.capabilities.has("liquid_averse")
+
+    def refuses_liquid(self, x: int, y: int) -> bool:
+        """True if a voluntary step onto (x, y) is refused: liquid terrain and a `liquid_averse` unit (knockback and
+        falling do not go through here, so they are allowed)."""
+        if not self.kind.grants or not self.avoids_liquid:
+            return False
+        tile = self.game_map.tile_at(x, y)
+        return tile is not None and int(tile["liquid"]) != 0
+
+    def damage_multiplier(self, damage_type) -> float:
+        """Extra multiplier from tags (frail exoskeleton: blunt) on top of species `resistances`."""
+        if damage_type is None:
+            return 1.0
+        return self.capabilities.stat(f"damage_taken_{damage_type.value}")
 
     def practice(self, skill, points: int = 1) -> bool:
         """Use a skill: enough practice raises it one level (thresholds in `skills.PRACTICE_NEEDED`). True on a level-up."""
@@ -116,10 +144,11 @@ class Unit(Entity):
 
     @property
     def power_bonus(self) -> int:
-        if self.equipment:
-            return self.equipment.power_bonus
-        else:
-            return 0
+        bonus = self.equipment.power_bonus if self.equipment else 0
+        weapon = self.equipment.weapon if self.equipment else None
+        if weapon is None and self.kind.grants:
+            bonus += int(self.capabilities.stat("unarmed_damage"))  # claws
+        return bonus
 
     @property
     def damage_type(self):
@@ -138,6 +167,8 @@ class Unit(Entity):
         """Can this unit digest `item` (a food: plant matter for herbivores, meat for carnivores, both for omnivores)?"""
         from species import Diet
         nutrition = getattr(item, "nutrition", None)
+        if nutrition == "ration":
+            return True  # processed food: every race can digest it
         if nutrition == "meat":
             return self.diet is not Diet.HERBIVORE
         if nutrition == "plant":
@@ -251,8 +282,10 @@ class Unit(Entity):
 class Player(Unit):
     object_type = "Player"
 
-    def __init__(self, name: Optional[str] = None):
-        Unit.__init__(self, HUMAN, name)
+    def __init__(self, name: Optional[str] = None, species: UnitSpecies = HUMAN):
+        Unit.__init__(self, species, name)
+        self.background: Optional[str] = None
+        self.sponsor: Optional[str] = None
 
 
 class Selenite(Unit):

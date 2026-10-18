@@ -54,6 +54,23 @@ def ambient_radius(world: World, now: int, config: GameConfig) -> int:
     return min(config.fov_radius, int(round(radius)))
 
 
+DARK_RADIUS = 10
+"""Ambient view radius at or below which the surroundings count as dark (night, caves) for the `dark` context."""
+
+
+def is_dark_at(engine) -> bool:
+    """True if the player stands where the light is too low to see by: the ambient view radius is short and no light
+    source reaches the player. Drives the `dark` condition of capability effects (Human night aversion)."""
+    world, player = engine.game_map, engine.player
+    if ambient_radius(world, engine.game_world.current_time, engine.config) > DARK_RADIUS:
+        return False
+    rect = (player.x - 8, player.y - 8, 17, 17)
+    for source in light_sources(world, rect):
+        if max(abs(source.x - player.x), abs(source.y - player.y)) <= source.light_radius:
+            return False
+    return True
+
+
 def darkness(world: World, now: int, config: GameConfig) -> float:
     """0 (bright) to 1 (night), for shading the map."""
     return 1.0 - (daylight(now, config) if world.has_sky else 0.0)
@@ -83,7 +100,11 @@ def compute_visibility(engine: Engine) -> Tuple[np.ndarray, np.ndarray]:
     def fov(point, radius):
         return tcod.map.compute_fov(transparent, point, radius=radius, algorithm=libtcodpy.FOV_SYMMETRIC_SHADOWCAST)
 
-    ambient = fov(origin, ambient_radius(world, now, config))
+    radius = ambient_radius(world, now, config)
+    vision = player.capabilities.magnitude("darkvision") if player.kind.grants else 0.0
+    if vision > radius:  # darkvision sees as far at night as by day, up to its range
+        radius = min(config.fov_radius, int(vision))
+    ambient = fov(origin, radius)
     lit = np.zeros_like(ambient)
     for source in light_sources(world, window.rect):
         lit |= fov((source.x - ox, source.y - oy), source.light_radius)

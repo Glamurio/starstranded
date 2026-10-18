@@ -77,11 +77,18 @@ class Plant(Entity):
         """Growth steps (one per `simulation.GROWTH_PERIOD` turns) until the next cycle completes."""
         return int(self.avg_cycle) + 1 - self.growth
 
+    growth_bonus = 0.0  # extra growth per step once a `crop_growth` unit has tended (harvested) this plant
+    growth_carry = 0.0
+
     def handle_growth(self):
         """One growth step; when the cycle completes a branch and a fruit are added (see `complete_cycle`)."""
         if not self.fruit:
             return
         self.growth += 1
+        self.growth_carry += self.growth_bonus
+        if self.growth_carry >= 1.0:
+            self.growth_carry -= 1.0
+            self.growth += 1
         if self.growth > self.avg_cycle:
             self.growth = 0
             self.complete_cycle()

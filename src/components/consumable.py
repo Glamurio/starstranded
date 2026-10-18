@@ -70,6 +70,15 @@ class Meat(FoodConsumable):
         self.parent = parent
 
 
+class Ration(FoodConsumable):
+    """Processed food from a sponsor's supply crate: any race digests it."""
+    nutrition = "ration"
+
+    def __init__(self, parent: Union[GameMap, Inventory, None] = None):
+        FoodConsumable.__init__(self, defs.RATION)
+        self.parent = parent
+
+
 class Fruit(FoodConsumable):
     def __init__(self, parent: Union[GameMap, Inventory, None] = None, kind: Optional[ItemKind] = None):
         """`kind` is the fruit kind of the plant that grew it; without one a random fruit is rolled."""

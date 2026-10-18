@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple, TYPE_CHECKING
 import color
 import exceptions
+import lighting
 from entity import EntityCategory
 from materials import Material, attack_factor
 
@@ -210,6 +211,8 @@ class MeleeAction(ActionWithDirection):
         damage_type = attacker.damage_type
         damage = resolve(attacker.power, getattr(target, "defense", 0), damage_type, target.resistances())
         damage = material_damage(attacker, target, damage, damage_type)
+        if damage > 0 and hasattr(target, "damage_multiplier"):
+            damage = max(1, round(damage * target.damage_multiplier(damage_type)))
 
         attack_desc = f"{attacker.get_title()} attacks {target.get_title()}"
         if attacker is self.engine.player:
@@ -249,9 +252,15 @@ class MovementAction(ActionWithDirection):
 
         if not self.engine.can_move(self.dest_x, self.dest_y):
             raise exceptions.Impossible("That way is blocked.")
+        if self.entity.refuses_liquid(self.dest_x, self.dest_y):
+            raise exceptions.Impossible(f"{self.entity.get_title()} will not wade into the liquid.")
 
         self.entity.move(self.dest_x, self.dest_y)
-        self.engine.game_world.pass_time(unit=self.entity, time=1)
+        turns = self.entity.step_turns(dark=self.entity is self.engine.player and lighting.is_dark_at(self.engine))
+        if turns:
+            self.engine.game_world.pass_time(unit=self.entity, time=turns)
+        elif self.entity is self.engine.player:
+            self.engine.update_fov()  # a free step still moves the view
 
         if not self.entity == self.engine.player:
             return

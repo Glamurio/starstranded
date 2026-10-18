@@ -207,3 +207,18 @@ def station_tags(unit, radius: int = 2) -> Iterable[str]:
                 station = getattr(thing, "station", None)
                 if station:
                     yield station
+
+
+class Ammo(Item):
+    """A stack of pistol rounds (one inventory slot): firing uses one."""
+
+    def __init__(self, parent=None, rounds: int = 12):
+        Item.__init__(self, defs.AMMO)
+        self.parent = parent
+        self.rounds = rounds
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        return f"{self.kind.object_type} ({self.rounds})"
+
+    def activate(self, user) -> None:
+        raise exceptions.Impossible("Rounds are loaded by firing the pistol ('V').")
