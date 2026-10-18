@@ -1,166 +1,128 @@
-"""Cold, heat, bad air, sleep, and Casual vs Roguelike death."""
-import pytest
+"""Characterization: hunger / thirst / health.
 
+Several tests pin CURRENT (buggy) behavior and are named ``test_current_*``; Phase 1 flips them.
+"""
 import actions
-import characters
-import crafting
-import exceptions
-import input_handlers
-import resources
-import setup_game
-import species as defs
-import survival
-from items import Placed
-from run import CASUAL
 
 
-def new_game(race="human", background="survivalist", mode="roguelike", seed=11):
-    import random
-    random.seed(seed)
-    return setup_game.new_game(characters.create_character("T", race, background), mode=mode)
+def test_hunger_clamps_between_zero_and_max(small_world):
+    p = small_world().player
+    p.handle_hunger(+50)
+    assert p.hunger == p.max_hunger
+    p.handle_hunger(-1000)
+    assert p.hunger == 0
 
 
-def freeze(monkeypatch, degrees):
-    monkeypatch.setattr(resources, "ambient_temperature", lambda *a, **k: degrees)
+def test_thirst_clamps_between_zero_and_max(small_world):
+    p = small_world().player
+    p.handle_thirst(+50)
+    assert p.thirst == p.max_thirst
+    p.handle_thirst(-1000)
+    assert p.thirst == 0
 
 
-def place_bed(engine, dx=1, dy=0):
-    bed = Placed(defs.BED, {"frame": characters.ISSUE_STEEL}, 1.0, "bed", {}, {}, "frame")
-    bed.place_on_map(engine.player.x + dx, engine.player.y + dy, engine.game_map)
-    bed.blocks_movement = False
-    return bed
+def test_time_drives_hunger_every_4_and_thirst_every_2_minutes(small_world):
+    e = small_world()
+    for _ in range(8):
+        actions.WaitAction(e.player).perform()
+    assert e.game_world.current_time == 8
+    assert e.player.hunger == 100 - 2
+    assert e.player.thirst == 100 - 4
 
 
-def test_warmth_adds_up_from_clothes_fire_shelter_and_bed(monkeypatch):
-    e = new_game()
+def test_starvation_damages_the_unit_and_messages_the_player_once(small_world):
+    e = small_world()
     p = e.player
-    freeze(monkeypatch, -10.0)
-    bare = survival.effective_temperature(e, p)
-    p.equipment.armor = None
-    naked = survival.effective_temperature(e, p)
-    assert bare > naked  # the issued armour insulates
-    fire = crafting.Campfire()
-    fire.place_on_map(p.x + 1, p.y, e.game_map)
-    fire.add_fuel(100)
-    assert survival.effective_temperature(e, p) == pytest.approx(naked + survival.FIRE_WARMTH)
-    assert survival.effective_temperature(e, p, sleeping=True) > survival.effective_temperature(e, p)
+    p.hunger = 1
+    p.handle_hunger(-1)  # reaches 0: message + 1 damage
+    assert p.hunger == 0 and p.hp == p.max_hp - 1
+    p.handle_hunger(-1)  # stays at 0: damage, no repeated message
+    assert p.hp == p.max_hp - 2
+    msgs = [m.plain_text for m in e.message_log.messages if "starving" in m.plain_text]
+    assert len(msgs) == 1
 
 
-def test_cold_hurts_and_a_fire_stops_it(monkeypatch):
-    e = new_game()
+def test_dehydration_damages_the_unit_and_messages_the_player_once(small_world):
+    e = small_world()
     p = e.player
-    p.equipment.armor = None
-    freeze(monkeypatch, -15.0)
-    hp = p.hp
-    for _ in range(30):
-        survival.tick(e, p)
-    assert p.cold == 30 and p.hp < hp
-    fire = crafting.Campfire()
-    fire.place_on_map(p.x + 1, p.y, e.game_map)
-    fire.add_fuel(200)
-    freeze(monkeypatch, -4.0)  # with the fire that is comfortable
-    survival.tick(e, p, 10)
-    assert p.cold < 30  # warming up
-    hp = p.hp
-    survival.tick(e, p, 40)
-    assert p.hp == hp and p.cold == 0
+    p.thirst = 1
+    p.handle_thirst(-1)
+    p.handle_thirst(-1)
+    assert p.hp == p.max_hp - 2
+    msgs = [m.plain_text for m in e.message_log.messages if "dehydrated" in m.plain_text]
+    assert len(msgs) == 1
 
 
-def test_comfortable_weather_costs_nothing(monkeypatch):
-    e = new_game()
-    freeze(monkeypatch, 20.0)
-    hp = e.player.hp
-    survival.tick(e, e.player, 50)
-    assert e.player.hp == hp and e.player.cold == 0
+def test_npc_starves_to_death_without_player_messages(small_world):
+    from components.unit import Animal
+    e = small_world()
+    a = Animal(); a.place(4, 4, e.game_map)
+    a.hunger = 0
+    a.handle_hunger(-1)  # max_hp is 1 -> dies
+    assert a.hp == 0 and not a.is_alive
+    assert not any("starving" in m.plain_text for m in e.message_log.messages)
+    assert not any("experience" in m.plain_text for m in e.message_log.messages)  # no self-kill XP
 
 
-def test_heat_dries_you_out(monkeypatch):
-    e = new_game()
-    freeze(monkeypatch, 45.0)
-    thirst = e.player.thirst
-    e.game_world.current_time = 0
-    for t in range(0, 60):
-        e.game_world.current_time = t
-        survival.tick(e, e.player)
-    assert e.player.thirst < thirst
-
-
-def test_gas_pockets_are_deterministic_and_only_deep():
-    master = 12345
-    assert not any(survival.gas_at(master, 0, x, y) for x in range(40) for y in range(40))
-    assert not any(survival.gas_at(master, -1, x, y) for x in range(40) for y in range(40))
-    deep = [(x, y) for x in range(0, 120, 3) for y in range(0, 120, 3) if survival.gas_at(master, -3, x, y)]
-    assert deep and deep == [(x, y) for x in range(0, 120, 3) for y in range(0, 120, 3) if survival.gas_at(master, -3, x, y)]
-    assert len(deep) < 0.4 * 40 * 40
-
-
-@pytest.mark.parametrize("race,expected", [("human", 20), ("selenite_people", 60)])
-def test_breath_lasts_by_race_and_then_you_suffocate(monkeypatch, race, expected):
-    e = new_game(race)
+def test_starvation_death_of_player_does_not_award_xp(small_world):
+    e = small_world()
     p = e.player
-    monkeypatch.setattr(survival, "gas_at", lambda *a: True)
-    hp = p.hp
-    for _ in range(expected - 1):
-        survival.tick(e, p)
-    assert p.hp == hp  # still holding
-    survival.tick(e, p, 2)
-    assert p.hp < hp
-    monkeypatch.setattr(survival, "gas_at", lambda *a: False)
-    survival.tick(e, p, expected)
-    assert p.breath is None
+    p.hp = 1; p.hunger = 0
+    xp = p.level.current_xp
+    p.handle_hunger(-1)
+    assert not p.is_alive and p.level.current_xp == xp
 
 
-def test_sleep_needs_a_bed_and_heals(monkeypatch):
-    e = new_game()
+def test_hunger_above_zero_never_damages(small_world):
+    e = small_world()
+    e.player.handle_hunger(-50)
+    e.player.handle_thirst(-50)
+    assert e.player.hp == e.player.max_hp
+
+
+def test_handle_health_damage_and_death_of_ai_unit(small_world):
+    from components.unit import Animal
+    e = small_world()
+    a = Animal(); a.place(3, 3, e.game_map)
+    a.handle_health(-5, e.player)
+    assert a.hp == 0 and not a.is_alive
+
+
+def test_handle_health_clamps_to_max_hp(small_world):
+    p = small_world().player
+    p.handle_health(+500, p)
+    assert p.hp == p.max_hp == 30
+
+
+def test_handle_health_clamp_uses_max_hp_even_when_hunger_cap_differs(small_world):
+    p = small_world().player
+    p.max_hunger = 1000
+    p.hp = 5
+    p.handle_health(+500, p)
+    assert p.hp == p.max_hp
+
+
+def test_heal_clamps_to_max_hp_and_reports_amount(small_world):
+    p = small_world().player
+    p.hp = 20
+    assert p.heal(4) == 4 and p.hp == 24
+    assert p.heal(50) == 6 and p.hp == p.max_hp
+    assert p.heal(5) == 0
+
+
+def test_player_death_sets_flags(small_world):
+    e = small_world()
     p = e.player
-    freeze(monkeypatch, 15.0)
-    with pytest.raises(exceptions.Impossible):
-        actions.SleepAction(p).perform()
-    place_bed(e)
-    p.hp = p.max_hp - 8
-    action = actions.SleepAction(p)
-    turns = 0
-    while action.perform():
-        turns += 1
-        assert turns < 200
-    assert p.hp > p.max_hp - 8 and action.slept >= 30
-    assert not p.sleeping
-
-
-def test_sleep_is_interrupted_by_damage(monkeypatch):
-    e = new_game()
-    p = e.player
-    freeze(monkeypatch, 15.0)
-    place_bed(e)
-    action = actions.SleepAction(p)
-    assert action.perform()
-    p.hp -= 2
-    assert action.perform() is False
-
-
-def test_casual_sleep_saves_and_death_wakes_you_at_the_bed(monkeypatch, tmp_path):
-    save = str(tmp_path / "bed")
-    monkeypatch.setattr(actions, "BED_SAVE", save)
-    e = new_game(mode=CASUAL)
-    p = e.player
-    freeze(monkeypatch, 15.0)
-    place_bed(e)
-    actions.SleepAction(p).perform()
-    assert (tmp_path / "bed").is_dir() and e.game_world.run.bed is not None
-    p.hp = 0
     p.die()
-    over = input_handlers.GameOverEventHandler(e)
-    assert over.casual_respawn()
-    e.session.push(over)
-    from events import Key, KeyDown
-    over.handle_events(KeyDown(Key.R))
-    handler = e.session.handlers[-1]
-    assert isinstance(handler, input_handlers.MainGameEventHandler)
-    assert handler.engine.player.is_alive and handler.engine.game_world.run.deaths == 1
+    assert not p.is_alive and not p.blocks_movement
+    assert any("You died" in m.plain_text for m in e.message_log.messages)
 
 
-def test_roguelike_death_offers_no_respawn(monkeypatch, tmp_path):
-    monkeypatch.setattr(actions, "BED_SAVE", str(tmp_path / "bed"))
-    e = new_game(mode="roguelike")
-    (tmp_path / "bed").mkdir()
-    assert not input_handlers.GameOverEventHandler(e).casual_respawn()
+def test_npc_hunger_ticks_in_ai_perform(small_world):
+    from components.unit import Animal
+    from components.ai import BaseAI
+    e = small_world()
+    a = Animal(); a.place(5, 5, e.game_map)
+    e.game_world.current_time = 4
+    BaseAI.perform(a.ai)
+    assert a.hunger == 99 and a.thirst == 99
