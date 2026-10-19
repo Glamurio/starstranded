@@ -535,7 +535,7 @@ class UseFlaskAction(Action):
             if kind is liquids.LiquidKind.TOXIC:
                 user.apply_poison(liquids.POISON_TOXIC)
                 log.add_message("You feel terribly sick.", color.enemy_atk)
-            elif kind is liquids.LiquidKind.IMPURE and not flask.boiled:
+            elif kind in (liquids.LiquidKind.IMPURE, liquids.LiquidKind.HOT) and not flask.boiled:
                 user.apply_poison(liquids.POISON_RAW)
                 log.add_message("You feel sick.", color.enemy_atk)
             else:

@@ -108,6 +108,13 @@ def continent(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -
     return land - POND_DEPTH * smooth(1.0 - np.hypot(xs, ys / 0.7) / POND_RADIUS)
 
 
+def range_potential(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
+    """Where a range would stand, whatever lies there: 0..1 along the ridge lines of the range zones."""
+    ridge = _shifted(noise, 7, RANGE_SCALE, x0, y0, width, height, step)
+    zone = smooth((_shifted(noise, 8, RANGE_MASK_SCALE, x0, y0, width, height, step) - 0.02) / 0.22)
+    return smooth(1.0 - np.abs(ridge) / RIDGE_HALF_WIDTH) ** 1.4 * zone
+
+
 def ranges(noise, x0: int, y0: int, width: int, height: int, c: np.ndarray, free: bool = True, step: int = 1) -> np.ndarray:
     """0..1 mountain mass: high on the ridge lines of the range zones, 0 in the sea and at the landing site."""
     ridge = _shifted(noise, 7, RANGE_SCALE, x0, y0, width, height, step)
@@ -128,7 +135,7 @@ def basin_height(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray
     """The height that decides where water stands: continent and ranges plus only the slow part of the local noise, so shores are
     smooth lines and not a spray of single wet tiles."""
     c = continent(noise, x0, y0, width, height)
-    return c + MOUNTAIN_HEIGHT * ranges(noise, x0, y0, width, height, c) + 0.22 * noise.sample(0, 0.05, x0, y0, width, height)
+    return (c + MOUNTAIN_HEIGHT * ranges(noise, x0, y0, width, height, c) + 0.22 * noise.sample(0, 0.05, x0, y0, width, height))
 
 
 def smooth_elevation(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:

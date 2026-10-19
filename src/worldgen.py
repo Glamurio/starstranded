@@ -37,6 +37,7 @@ SHALLOW_COLOR = (92, 150, 186)
 DEEP_COLOR = (58, 104, 148)
 """Liquid has exactly two colours, the same everywhere: shallow (depth 1) and deep (depth 2 and 3). They are close in
 brightness on purpose: a stark light/dark edge clashes with the land."""
+HOT_COLOR = (120, 185, 175)
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 OUTCROP_ABOVE = 0.28
@@ -134,6 +135,7 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
     kinds = np.asfortranarray(kinds)
     kinds[dilate(kinds == 0)] = 0
     kinds[hydrology.water_mask(noise, x0, y0, width, height)] = 0      # rivers, springs, estuaries and lakes at river ends
+    kinds[hydrology.hot_spring_mask(noise, x0, y0, width, height)] = 0
     return kinds
 
 
@@ -307,6 +309,8 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     landscape = replace_variations(tile_types.water, landscape, pw, ph)
     landscape = replace_variations(tile_types.wall, landscape, pw, ph)
     _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
+    hot = hydrology.hot_spring_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0)
+    landscape["liquid"][hot] = 4      # liquids.LiquidKind.HOT
 
     # Climate: the biome tints the open ground and decides how thickly it is vegetated.
     import biomes
@@ -327,6 +331,8 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     area = (x0 - m, y0 - m, pw, ph)
     _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground)
+    for layer, scale in (("light", 1.0), ("dark", 0.5)):     # hot springs are a paler, greener blue
+        landscape[layer]["fg"][hot] = (np.array(HOT_COLOR, dtype=float) * scale).astype(np.uint8)
     # (ground cover never goes under a tree: a tree and a tuft of grass would share a tile)
     _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
     interior = (slice(m, m + width), slice(m, m + height))

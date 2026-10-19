@@ -8,6 +8,7 @@ needs tests (science gear, later) or the brute-force way.
 - `IMPURE`: unsafe to drink as it is; boiling it makes it safe.
 - `TOXIC`: poisonous; boiling does not help.
 - `ACIDIC`: burns whoever wades through it (and their clothes) and eats through a flask that is dipped into it.
+- `HOT`: a hot spring in volcanic country; scalds whoever wades through it, and like impure liquid it wants boiling before it is drunk.
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ class LiquidKind(enum.IntEnum):
     IMPURE = 1
     TOXIC = 2
     ACIDIC = 3
+    HOT = 4
 
 
 DEPTH_NAMES = {1: "shallow", 2: "deep", 3: "very deep"}
@@ -34,6 +36,7 @@ POISON_RAW = 6
 POISON_TOXIC = 25
 """Turns of poison from toxic liquid, boiled or not: enough to kill an unlucky player."""
 ACID_WADE_DAMAGE = 3
+HOT_WADE_DAMAGE = 1
 ARMOR_BURN_CHANCE = 0.4
 SIP_THIRST = 40
 FLASK_SIPS = 3
@@ -66,10 +69,18 @@ def nearest_liquid(world: World, x: int, y: int, radius: int = 1) -> Optional[tu
 def on_enter(unit: Unit, world: World) -> None:
     """Called after a unit stepped onto (x, y): acidic liquid burns it, and maybe what it wears."""
     tile = world.tile_at(unit.x, unit.y)
-    if tile is None or int(tile["liquid"]) != LiquidKind.ACIDIC:
+    if tile is None or int(tile["liquid"]) not in (LiquidKind.ACIDIC, LiquidKind.HOT):
         return
     import debug
     if debug.protects(unit):
+        return
+    if int(tile["liquid"]) == LiquidKind.HOT:
+        unit.hp = max(0, unit.hp - HOT_WADE_DAMAGE)
+        if world.is_visible(unit.x, unit.y):
+            world.engine.message_log.add_message(
+                f"{'You are' if unit is world.engine.player else unit.get_title() + ' is'} scalded by the hot water!", (255, 170, 60))
+        if unit.hp == 0 and unit.is_alive:
+            unit.die(None)
         return
     visible = world.is_visible(unit.x, unit.y)
     unit.hp = max(0, unit.hp - ACID_WADE_DAMAGE)

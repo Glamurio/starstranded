@@ -92,3 +92,63 @@ def test_the_landing_chunk_has_no_river():
     for seed in SEEDS + (2, 3, 11, 99):
         noise = worldgen.TerrainNoise(seed)
         assert not hydrology.water_mask(noise, 0, 0, 70, 40).any(), seed
+
+
+# ── fjords ──────────────────────────────────────────────────────────────────────────────────────────────
+def test_fjords_are_drowned_valleys_that_reach_the_sea_through_mountains():
+    found = 0
+    for seed in (3, 5, 12345, 7, 8):
+        noise = worldgen.TerrainNoise(seed)
+        system = hydrology.system_for(noise)
+        for river in system.rivers_near(-1000, -600, 2000, 1200):
+            if river.fjord_from < 0:
+                continue
+            found += 1
+            assert river.end == "sea"
+            assert len(river.nodes) - river.fjord_from >= hydrology.FJORD_MIN_NODES + hydrology.RUN_ON
+            ix, iy = river.nodes[river.fjord_from]
+            assert relief.range_potential(noise, ix * hydrology.NODE, iy * hydrology.NODE, 1, 1)[0, 0] >= hydrology.FJORD_MIN_RANGE
+            mx, my = river.nodes[(river.fjord_from + len(river.nodes)) // 2]
+            wet = hydrology.water_mask(noise, mx * hydrology.NODE - 10, my * hydrology.NODE - 10, 21, 21)
+            assert wet.sum() >= 100, "a fjord is wide"
+    assert found >= 3
+
+
+# ── hot springs ─────────────────────────────────────────────────────────────────────────────────────────
+def test_hot_springs_lie_in_volcanic_country_and_are_real_pools():
+    import landmarks
+    seen = 0
+    for seed in (1, 5, 99):
+        noise = worldgen.TerrainNoise(seed)
+        system = hydrology.system_for(noise)
+        for i in range(-16, 16):
+            for j in range(-10, 10):
+                site = system.hot_site(i, j)
+                if site is None:
+                    continue
+                seen += 1
+                x, y, radius = site
+                env = worldgen.environment_for(noise, int(x), int(y), 1, 1, np.ones((1, 1), dtype=np.int8))
+                assert landmarks.key_of(int(env["landmark"][0, 0])) == "volcanic_mountains"
+                pool = hydrology.hot_spring_mask(noise, int(x) - 8, int(y) - 8, 17, 17)
+                assert pool.sum() >= 12
+    assert seen >= 3
+
+
+def test_hot_spring_tiles_are_hot_liquid_and_scald_waders(new_engine):
+    import liquids
+    from components.unit import Unit
+    from test_turn_flow import quiet_corridor
+    noise = worldgen.TerrainNoise(5)
+    mask = hydrology.hot_spring_mask(noise, -1000, -600, 2000, 1200)
+    assert mask.any()
+    x0, y0 = np.argwhere(mask)[0]
+    tiles, _ = worldgen.generate_terrain(noise, int(x0) - 1000 - 10, int(y0) - 600 - 10, 70, 40)
+    assert (tiles["liquid"] == int(liquids.LiquidKind.HOT)).any()
+    quiet_corridor(new_engine)
+    engine, world = new_engine, new_engine.game_map
+    x, y = engine.player.x + 1, engine.player.y
+    world.modify_tile(x, y, walkable=True, liquid=int(liquids.LiquidKind.HOT), depth=1)
+    hp = engine.player.hp
+    engine.player.move(x, y)
+    assert engine.player.hp == hp - liquids.HOT_WADE_DAMAGE

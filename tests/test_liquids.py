@@ -58,11 +58,11 @@ def test_kinds_are_whole_numbers_between_impure_and_acidic():
     kinds = set()
     for tiles in _chunks(5, [(x, y) for x in range(-3, 4) for y in range(-3, 4)]).values():
         kinds.update(np.unique(tiles["liquid"]).tolist())
-    assert kinds <= {0, 1, 2, 3} and {1} <= kinds
+    assert kinds <= {0, 1, 2, 3, 4} and {1} <= kinds
 
 
 def test_describe_never_names_the_kind():
-    for kind in (1, 2, 3):
+    for kind in (1, 2, 3, 4):
         assert liquids.describe(_liquid_tile(kind, 1)) == "Liquid, shallow"
     assert liquids.describe(tile_types.floor.get_array()) is None
 

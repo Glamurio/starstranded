@@ -50,7 +50,11 @@ CATCHMENT_NODES = 12
 """Every this many nodes of course count as one more tributary for the width (a river gathers water along its way)."""
 BASE_WIDTH, WIDTH_PER_ROOT, MAX_WIDTH, FORD_WIDTH = 1.7, 0.95, 5.6, 2.0
 REACH = MAX_NODES * NODE
-
+FJORD_MAX_NODES, FJORD_MIN_NODES, FJORD_MIN_RANGE, FJORD_MAX_RISE, FJORD_WIDTH = 14, 3, 0.10, 1.3, 8.5
+"""A river that meets the sea through a range has its last stretch (at most 14 nodes, at least 3, where the height is still
+within 1.3 of the sea) drowned into a fjord 8.5 tiles wide."""
+HOT_CELL, HOT_CHANCE, HOT_STRENGTH = 36, 0.6, 0.45
+"""Hot springs: one candidate per 36x36 tiles, kept where the volcanic landmark is at least this strong."""
 DIRECTIONS = ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1))
 
 
@@ -61,6 +65,7 @@ class River:
     end: str                     # "sea": reaches the sea | "lake": ends in a lake
     source: str                  # "spring" | "thaw"
     box: Tuple[int, int, int, int]   # tile bounding box x0, y0, x1, y1 (with a margin)
+    fjord_from: int = -1         # index of the first node of the drowned valley (a fjord) at the mouth, or -1
 
     @property
     def start_tile(self) -> Tuple[int, int]:
@@ -76,6 +81,7 @@ class RiverSystem:
         self._blocks: Dict[Tuple[int, int], np.ndarray] = {}
         self._cells: Dict[Tuple[int, int], Optional[River]] = {}
         self._jitter: Dict[Node, Tuple[float, float]] = {}
+        self._hot: Dict[Tuple[int, int], Optional[Tuple[float, float, float]]] = {}
 
     # ── the field rivers flow over ──────────────────────────────────────────────────────────────────────
     def height(self, ix: int, iy: int) -> float:
@@ -152,7 +158,42 @@ class RiverSystem:
         cold = self.noise.temperature(int(sx), int(sy), 1, 1)[0, 0] - relief.LAPSE * max(high - relief.SNOWLINE, 0.0)
         xs, ys = [n[0] * NODE for n in nodes], [n[1] * NODE for n in nodes]
         box = (min(xs) - 16, min(ys) - 16, max(xs) + 16, max(ys) + 16)
-        return River((i, j), nodes, end, "thaw" if cold < -0.30 else "spring", box)
+        river = River((i, j), nodes, end, "thaw" if cold < -0.30 else "spring", box)
+        if end == "sea":
+            river.fjord_from = self._fjord_start(nodes)
+        return river
+
+    def _fjord_start(self, nodes: List[Node]) -> int:
+        """Where a river valley that reaches the sea through mountains starts to be drowned (a fjord), or -1."""
+        shore = len(nodes) - RUN_ON - 1
+        first = shore
+        while first > 0 and shore - first < FJORD_MAX_NODES:
+            ix, iy = nodes[first - 1]
+            potential = float(relief.range_potential(self.noise, ix * NODE, iy * NODE, 1, 1)[0, 0])
+            if potential < FJORD_MIN_RANGE or self.height(ix, iy) > relief.SEA_LEVEL + FJORD_MAX_RISE:
+                break
+            first -= 1
+        return first if shore - first + 1 >= FJORD_MIN_NODES else -1
+
+    def hot_site(self, i: int, j: int) -> Optional[Tuple[float, float, float]]:
+        """`(x, y, radius)` of the hot spring of lattice cell (i, j), if it has one: only deep inside volcanic country."""
+        key = (i, j)
+        if key not in self._hot:
+            self._hot[key] = self._make_hot(i, j)
+        return self._hot[key]
+
+    def _make_hot(self, i: int, j: int) -> Optional[Tuple[float, float, float]]:
+        rng = random.Random(mix_seed(self.seed, i, j, 6161))
+        if rng.random() > HOT_CHANCE:
+            return None
+        x, y = (i + rng.random()) * HOT_CELL, (j + rng.random()) * HOT_CELL
+        radius = 2.4 + 1.4 * rng.random()
+        import landmarks
+        import worldgen
+        env = worldgen.environment_for(self.noise, int(x), int(y), 1, 1, np.ones((1, 1), dtype=np.int8))
+        if landmarks.key_of(int(env["landmark"][0, 0])) != "volcanic_mountains" or float(env["landmark_strength"][0, 0]) < HOT_STRENGTH:
+            return None
+        return x, y, radius
 
     def rivers_near(self, x0: int, y0: int, width: int, height: int) -> List[River]:
         """Every river whose course may touch the tile rectangle."""
@@ -239,7 +280,9 @@ def water_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
             w = river_width(flow[node] + run[node] / CATCHMENT_NODES)
             if mix_seed(system.seed, node[0], node[1], 5353) % FORD_EVERY == 0:
                 w = min(w, FORD_WIDTH)                  # a place to wade across
-            if river.end == "sea" and k >= len(nodes) - RUN_ON - 2:
+            if river.fjord_from >= 0 and k >= river.fjord_from:
+                w = FJORD_WIDTH * min(1.0, (k - river.fjord_from + 1) / 3)      # a drowned valley, easing in
+            elif river.end == "sea" and k >= len(nodes) - RUN_ON - 2:
                 w = max(w, 3.2) * 1.3                    # the mouth opens out
             widths.append(w)
         widths[0] = 1.4
@@ -254,4 +297,21 @@ def water_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         for centre, radius in (((pts[0, 0], pts[0, 1]), 2.6), ((pts[-1, 0], pts[-1, 1]), end_radius)):
             if x0 - 12 < centre[0] < x0 + width + 12 and y0 - 12 < centre[1] < y0 + height + 12:
                 _stamp(mask, x0, y0, np.array([centre]), np.array([radius]))
+    return mask
+
+
+def hot_spring_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+    """Tiles of the rectangle covered by a hot spring: small irregular pools (three overlapping discs) deep in volcanic country."""
+    system = system_for(noise)
+    mask = np.zeros((width, height), dtype=bool)
+    for i in range((x0 - 8) // HOT_CELL, (x0 + width + 8) // HOT_CELL + 1):
+        for j in range((y0 - 8) // HOT_CELL, (y0 + height + 8) // HOT_CELL + 1):
+            site = system.hot_site(i, j)
+            if site is None:
+                continue
+            x, y, radius = site
+            h = mix_seed(system.seed, i, j, 6262)
+            dx, dy = ((h >> 4) % 100) / 100 * radius - radius / 2, ((h >> 12) % 100) / 100 * radius - radius / 2
+            centres = np.array([[x, y], [x + dx, y + dy], [x - dy, y + dx]])
+            _stamp(mask, x0, y0, centres, np.array([radius, radius * 0.75, radius * 0.65]))
     return mask
