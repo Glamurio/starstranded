@@ -58,8 +58,19 @@ def describe(game_map, x: int, y: int) -> Optional[str]:
         return None
     label = label_of(tile)
     if label is None:
-        return None
+        return _cave_name(game_map, tile, x, y)
     if bool(tile["open"]):
         note = below(game_map, x, y)
         return f"{label} ({note})" if note else label
     return label
+
+
+def _cave_name(game_map, tile, x: int, y: int) -> Optional[str]:
+    """In the caves the plain floor and rock are named after the underground biome there ("Ice cave"); nothing elsewhere."""
+    if game_map.z >= 0:
+        return None
+    game_world = getattr(getattr(game_map, "engine", None), "game_world", None)
+    if game_world is None:
+        return None
+    import underground
+    return underground.UBIOMES[underground.biome_at(game_world.master_seed, game_map.z, x, y)].name

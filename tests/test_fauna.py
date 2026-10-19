@@ -6,7 +6,7 @@ import pytest
 import landmarks
 import species as defs
 from components.unit import Unit
-from planet import FAUNA_TEMPLATES, LANDMARK_FAUNA, generate_planet, landmark_variants
+from planet import CAVE_FAUNA, FAUNA_TEMPLATES, LANDMARK_FAUNA, generate_planet, landmark_variants
 from species import AIKind
 
 
@@ -38,7 +38,7 @@ def test_every_landmark_has_variants_of_baselines_living_only_there():
 def test_variants_are_generated_species_with_their_own_names(culture):
     planet = generate_planet(5, culture)
     by = _by_key(planet)
-    assert len(planet.fauna) == len(FAUNA_TEMPLATES) + len(landmark_variants())
+    assert len(planet.fauna) == len(FAUNA_TEMPLATES) + len(landmark_variants()) + len(CAVE_FAUNA)
     grazer, meadow = by["grazer"], by["grazer.flowering_meadow"]
     assert meadow.habitat.landmarks == ("flowering_meadow",) and not grazer.habitat.landmarks
     assert meadow.ai is grazer.ai and meadow.name and meadow.name != grazer.name

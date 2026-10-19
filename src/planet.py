@@ -203,6 +203,7 @@ class FaunaTemplate:
     radius: int = 8
     base: str = ""                   # for a landmark variant: the key of the baseline template it was generated from
     tint: Optional[Tuple[int, int, int]] = None   # pulls the rolled colour towards this one (a variant takes on its landmark)
+    underground: bool = False        # lives in the caves only (placed by `underground`, never by the surface spawner; no habitat)
 
 
 FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
@@ -225,6 +226,21 @@ FAUNA_FORMS: Dict[str, Tuple[str, ...]] = {
     "hunter": ("hound", "jackal"), "stalker": ("cat", "lynx"), "scuttler": ("crab", "scuttler"), "webspinner": ("spider",),
     "serpent": ("snake", "serpent", "viper"), "flitter": ("bird", "finch", "swift"),
 }
+
+CAVE_FAUNA: Tuple[FaunaTemplate, ...] = (
+    # creatures of the caves (see `underground.UBIOMES` for where each lives); the planet rolls their colours and names like any other
+    FaunaTemplate("cave_beetle", (0, 19), Habitat(), Diet.HERBIVORE, AIKind.PASSIVE, 7, 2, defense=1, rarity=1.0, name_family="crawler", xp=15, hide_kind="chitin", underground=True),
+    FaunaTemplate("cave_moth", (1, 19), Habitat(), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.0, name_family="crawler", xp=8, hide_kind="chitin", underground=True),
+    FaunaTemplate("cave_slug", (10, 18), Habitat(), Diet.HERBIVORE, AIKind.PASSIVE, 11, 2, rarity=1.0, name_family="animal", xp=20, hide_kind="skin", underground=True),
+    FaunaTemplate("cave_bat", (6, 18), Habitat(), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=1.0, name_family="animal", xp=25, hide_kind="skin",
+                  damage_type=DamageType.SHARP, underground=True),
+    FaunaTemplate("cave_worm", (3, 19), Habitat(), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=1.0, name_family="serpent", xp=35, hide_kind="skin",
+                  damage_type=DamageType.PIERCE, underground=True),
+    FaunaTemplate("cave_crab", (13, 18), Habitat(), Diet.OMNIVORE, AIKind.PASSIVE, 12, 4, defense=2, rarity=1.0, name_family="crawler", xp=30, hide_kind="chitin",
+                  underground=True),
+)
+FAUNA_FORMS.update({"cave_beetle": ("beetle",), "cave_moth": ("moth",), "cave_slug": ("slug",), "cave_bat": ("bat",), "cave_worm": ("worm",),
+                    "cave_crab": ("crab", "rock crab")})
 
 # A landmark's own animals are not hand-written: they are the baseline creatures above, generated again for the landmark through the
 # same pipeline (`_make_fauna`) with the landmark's traits applied, so a "meadow grazer" is a grazer that grew up in a meadow.
@@ -334,9 +350,17 @@ class Planet:
         return pool, weights
 
     def fauna_weights(self, env: Mapping[str, object]) -> Tuple[List[UnitSpecies], np.ndarray]:
-        pool = list(self.fauna)
+        pool = [s for s in self.fauna if s.habitat is not None]        # (the cave creatures live below, see `cave_fauna`)
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
         return pool, weights
+
+
+    def cave_fauna(self, biome_key: str) -> Tuple[List[UnitSpecies], List[float]]:
+        """The creatures that live in an underground biome and their relative weights (empty when none do)."""
+        import underground
+        by_key = {s.key.split(":")[-1]: s for s in self.fauna}
+        found = [(by_key[k], w) for k, w in underground.UBIOMES[biome_key].fauna if k in by_key]
+        return [s for s, _ in found], [w for _, w in found]
 
 
 CULTURE_NAME_SET = {"human": "survey", "selenite": "selenite", "mau": "mau", "corporate": "survey"}
@@ -409,7 +433,7 @@ def generate_planet(seed: int, culture: str = "human") -> Planet:
 
     # fauna
     fauna: List[UnitSpecies] = []
-    for template in FAUNA_TEMPLATES + landmark_variants():
+    for template in FAUNA_TEMPLATES + landmark_variants() + CAVE_FAUNA:
         fauna.append(_make_fauna(rng, namer, add, template))
 
     return Planet(
@@ -542,5 +566,5 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
         corpse_sprite=spriteconfig.get(f"fauna.{template.base or template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
         level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,
-        habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity, covering=template.hide_kind,
+        habitat=None if template.underground else template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity, covering=template.hide_kind,
     )

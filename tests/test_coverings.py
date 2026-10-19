@@ -8,7 +8,7 @@ from planet import generate_planet
 
 EXPECTED = {"hopper": "fur", "grazer": "fur", "strider": "fur", "hunter": "fur", "stalker": "fur",
             "flitter": "feather", "webspinner": "chitin", "scuttler": "chitin", "serpent": "scale", "rooter": "skin",
-            }
+            "cave_beetle": "chitin", "cave_moth": "chitin", "cave_slug": "skin", "cave_bat": "skin", "cave_worm": "skin", "cave_crab": "chitin"}
 
 
 @pytest.mark.parametrize("culture", ["human", "selenite", "mau"])

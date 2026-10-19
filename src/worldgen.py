@@ -766,11 +766,12 @@ class CaveSource:
         return Chunk(key, self.terrain(key).copy())
 
     def populate(self, world: World, chunk: Chunk) -> None:
-        from procgen import cave_enemy_chances, place_entities
-        now = world.engine.game_world.current_time if getattr(world.engine, "game_world", None) else 0
+        import underground
+        game_world = getattr(world.engine, "game_world", None)
+        now = game_world.current_time if game_world else 0
         before = set(chunk.entities)
         with seeded_rng(mix_seed(self.floor_seed, chunk.key[0], chunk.key[1], 1)):
-            place_entities(world, self.floor, area=(chunk.x0, chunk.y0, CHUNK_W, CHUNK_H), enemies=cave_enemy_chances)
+            underground.populate(world, chunk, self.floor, self.master_seed, self.z, getattr(game_world, "planet", None))
         for entity in chunk.entities:
             if entity not in before:
                 entity.last_upkeep = now

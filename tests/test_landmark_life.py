@@ -25,7 +25,7 @@ def env_of(landmark: str, strength: float = 1.0):
 
 
 def own(p, key):
-    return [s for s in list(p.flora) + list(p.fauna) if s.habitat.landmarks == (key,)]
+    return [s for s in list(p.flora) + list(p.fauna) if s.habitat is not None and s.habitat.landmarks == (key,)]
 
 
 def test_every_landmark_has_its_own_plants_and_animals(p):
