@@ -1,0 +1,3 @@
+See the project copy "completion-report-2026-10-19.md"; summary below.
+
+Branch `readability` merged into `main` (84e34ab), 946 tests passing across six groups. Changes: lake colours and border blending, colour-true creature and plant names, map icons, fauna balance, walkable routes, biome-aware crossfading music, underground biomes with cave fauna, wildlife persistence and breeding, farms built of entities (fences, timber walls, crops), quieter ground cover. Blind findability stayed 3/10. Known gaps: unverified music mapping, ~110 ms chunk load, no hazards in caves, tufts not re-reviewed. Details in DECISIONS.md and docs/readability/.
