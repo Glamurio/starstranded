@@ -75,6 +75,10 @@
   100,
   1
  ],
+ "item.piece_feather": [
+  9,
+  21
+ ],
  "item.piece_fiber": [
   2,
   27
@@ -158,6 +162,10 @@
  "item.wreckage": [
   19,
   6
+ ],
+ "tile.bridge": [
+  11,
+  40
  ],
  "unit.selenite": [
   118,
