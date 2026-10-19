@@ -207,7 +207,7 @@ class FaunaTemplate:
 
 FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.15, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=3.0, name_family="small_herbivore", xp=10),
-    FaunaTemplate("grazer", (4, 18), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
+    FaunaTemplate("grazer", (1, 20), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
     FaunaTemplate("strider", (5, 18), Habitat((0.0, 0.9), (-0.5, 0.2)), Diet.HERBIVORE, AIKind.PASSIVE, 11, 3, rarity=1.0, name_family="grazer", xp=30),
     FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.PASSIVE, 10, 3, rarity=1.0, name_family="animal", xp=35, hide_kind="skin"),
     FaunaTemplate("hunter", (10, 20), Habitat((-0.9, 0.5), (-0.5, 1.0), fertility=(0.1, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 16, 6, rarity=0.5, name_family="predator", damage_type=DamageType.SHARP, xp=40),
@@ -218,6 +218,13 @@ FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10, hide_kind="feather"),
     # landmark fauna: found only inside their landmark
 )
+
+FAUNA_FORMS: Dict[str, Tuple[str, ...]] = {
+    # the everyday words for the animal each sprite draws (the first is the plainest); the colour word comes from the tint it is drawn with
+    "hopper": ("hare", "rabbit"), "grazer": ("deer", "goat"), "strider": ("horse", "stag"), "rooter": ("boar", "hog"),
+    "hunter": ("hound", "jackal"), "stalker": ("cat", "lynx"), "scuttler": ("crab", "scuttler"), "webspinner": ("spider",),
+    "serpent": ("snake", "serpent", "viper"), "flitter": ("bird", "finch", "swift"),
+}
 
 # A landmark's own animals are not hand-written: they are the baseline creatures above, generated again for the landmark through the
 # same pipeline (`_make_fauna`) with the landmark's traits applied, so a "meadow grazer" is a grazer that grew up in a meadow.
@@ -519,7 +526,11 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     if template.hide_kind == "fur" and rng.random() < 0.3:
         _, notable = rng.choice(FUR_NOTABLE)
         props.update(_roll(rng, notable))
-    name = namer.name(f"fauna:{template.key}", template.name_family, color, props)
+    forms = FAUNA_FORMS.get(template.base or template.key)
+    if forms:       # named for what the picture shows ("sage cat"), not for a family word that may not fit the sprite
+        name = namer.organism(f"fauna:{template.key}", forms, color, props, template.name_family)
+    else:
+        name = namer.name(f"fauna:{template.key}", template.name_family, color, props)
     fuel = {}
     if props.get("combustibility", 0) > 0 and props.get("flammability", 0) > 0:
         fuel = dict(burn_yield=round(5 + props["combustibility"] * 3, 1), burn_duration=max(1, int(props["combustibility"] // 2)))

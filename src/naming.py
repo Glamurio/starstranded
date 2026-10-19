@@ -21,6 +21,7 @@ import random
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
+import colornames
 from seeds import mix_seed
 
 RGB = Tuple[int, int, int]
@@ -68,9 +69,9 @@ HUMAN: Dict[str, Tuple[str, ...]] = {
     "spark": ("Spark", "Volt", "Static"), "heat": ("Sun", "Hot", "Kiln"), "tinder": ("Tinder", "Kindle", "Flare"),
     "fuel": ("Burn", "Cinder", "Blaze"), "clear": ("Clear", "Lucid", "Glassy"), "glow": ("Glow", "Ember", "Lume"),
     "ray": ("Ray", "Halo", "Radiant"), "grit": ("Grit", "Scour", "Whet"),
-    "red": ("Red", "Scarlet", "Crimson", "Ruby", "Cardinal", "Madder"), "orange": ("Orange", "Amber", "Copper", "Rust", "Ochre", "Tangerine"),
+    "red": ("Red", "Scarlet", "Crimson", "Ruby", "Cardinal", "Madder", "Maroon", "Wine"), "orange": ("Orange", "Amber", "Copper", "Rust", "Ochre", "Tangerine"),
     "yellow": ("Yellow", "Gold", "Straw", "Saffron", "Citrine", "Mustard"), "green": ("Green", "Moss", "Lichen", "Jade", "Sage", "Olive", "Emerald", "Viridian"),
-    "teal": ("Teal", "Verdigris", "Aqua", "Turquoise", "Lagoon"), "blue": ("Blue", "Azure", "Cobalt", "Sky", "Cerulean", "Sapphire"),
+    "teal": ("Teal", "Verdigris", "Aqua", "Turquoise", "Lagoon"), "blue": ("Blue", "Azure", "Cobalt", "Sky", "Cerulean", "Sapphire", "Navy"),
     "indigo": ("Indigo", "Midnight", "Navy", "Dusk", "Ink"), "violet": ("Violet", "Lilac", "Plum", "Orchid", "Amethyst", "Mauve"), "pink": ("Pink", "Rose", "Blush", "Coral", "Peach", "Carnation"),
     "brown": ("Brown", "Umber", "Chestnut", "Russet", "Sepia", "Bronze"), "white": ("White", "Pale", "Ivory", "Snow", "Pearl", "Chalk"),
     "black": ("Black", "Soot", "Ebony", "Jet"), "grey": ("Grey", "Ash", "Slate", "Dun", "Smoke", "Pewter"),
@@ -193,8 +194,8 @@ def hue_name(color: RGB) -> str:
         return "brown"
     if s < 0.35 and v < 0.7 and 15 <= deg < 50:
         return "brown"
-    for limit, name in ((15, "red"), (40, "orange"), (68, "yellow"), (165, "green"), (195, "teal"), (255, "blue"),
-                        (285, "indigo"), (320, "violet"), (345, "pink"), (361, "red")):
+    for limit, name in ((15, "red"), (40, "orange"), (68, "yellow"), (165, "green"), (195, "teal"), (245, "blue"),
+                        (268, "indigo"), (318, "violet"), (345, "pink"), (361, "red")):
         if deg < limit:
             return name
     return "red"
@@ -314,7 +315,7 @@ class Namer:
         rng = random.Random(mix_seed(self.seed, hash_key(key)))
         colour = hue_name(color)
         traits = salient_traits(props or {}, limit=1, family=family)
-        palette = [w.lower() for w in HUMAN[colour]]
+        palette = colornames.nearest(color, 2)           # the actual colour, by name: the nearest two of a table of web colour names
         trait_words = [w.lower() for w in HUMAN[TRAIT_CONCEPTS[(traits[0][0], traits[0][1])]]] if traits else []
         for attempt in range(48):
             form = forms[attempt % len(forms)] if attempt < 2 * len(forms) else rng.choice(forms)
@@ -355,7 +356,7 @@ class Namer:
         rng = random.Random(mix_seed(self.seed, hash_key(key)))
         colour = hue_name(color)
         for _ in range(8):
-            word = self._word(rng, colour)
+            word = ((colornames.nearest(color, 3) + [coined(rng)])[_] if _ < 4 else coined(rng)) if self.culture == "human" else self._word(rng, colour)
             text = f"{word} {shape}" if self.culture == "human" and shape else f"{word}-{self._word(rng, 'plant')}"
             text = _plain(self.culture, _tidy(text) if self.culture != "human" else f"{word} {shape}")
             if _norm(text) not in self.used:
