@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 import decals
+import lore
 import worldgen
 from planet import generate_planet
 from species import PlantCategory
@@ -83,6 +84,10 @@ def test_picking_a_flower_gives_its_bloom_and_it_regrows(small_world):
     flower.place(5, 5, e.game_map)
     assert len(flower.inventory.items) == 1
     bloom = flower.inventory.items[0]
+    assert bloom.get_title().lower() in (species.fruit.species.lower(), lore.fruit_name(lore.run_of(bloom), species.fruit))   # (until scanned: "pink bloom")
+    if lore.run_of(bloom) is not None:
+        from knowledge import Know
+        lore.run_of(bloom).knowledge.learn(lore.fruit_subject(species.fruit), "name", Know.FULL)
     assert bloom.get_title().lower() == species.fruit.species.lower()
     flower.inventory.items.clear()
     flower.complete_cycle()
