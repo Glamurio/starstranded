@@ -7,7 +7,10 @@ import species as defs
 from planet import generate_planet
 
 EXPECTED = {"hopper": "fur", "grazer": "fur", "strider": "fur", "hunter": "fur", "stalker": "fur",
-            "flitter": "feather", "webspinner": "chitin", "scuttler": "chitin", "serpent": "scale", "rooter": "skin"}
+            "flitter": "feather", "webspinner": "chitin", "scuttler": "chitin", "serpent": "scale", "rooter": "skin",
+            # landmark animals
+            "sporehopper": "skin", "dune_burrower": "chitin", "shardback": "chitin", "ember_beetle": "chitin",
+            "carrion_hound": "fur", "meadow_grazer": "fur", "bloom_flitter": "feather"}
 
 
 @pytest.mark.parametrize("culture", ["human", "selenite", "mau"])

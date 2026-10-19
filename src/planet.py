@@ -119,6 +119,21 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
                   variants=2, rarity=2.0, fruit_chance=1.0, max_hp=2, growth_cycle=8, name_family="flower",
                   color_range=((200, 90, 40), (255, 220, 110))),
     FloraTemplate("thorns", PlantCategory.SHRUB, ((106, 0),), Habitat((-1.0, 1.0), (-1.0, 0.3), fertility=(0.0, 0.8)), variants=1, rarity=1.5, fruit_chance=0.5, max_hp=8, growth_cycle=5, name_family="shrub"),
+    # landmark flora: these live only inside their landmark (`Habitat.landmarks`); the climate habitat is just a sanity bound
+    FloraTemplate("spore_bush", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("mushroom_forest",)), variants=2, rarity=4.0, max_hp=8, growth_cycle=5,
+                  name_family="fungus", color_range=((130, 70, 150), (230, 150, 210))),
+    FloraTemplate("barrel_cactus", PlantCategory.SHRUB, ((106, 0),), Habitat(landmarks=("cactus_desert",)), variants=2, rarity=4.0, fruit_chance=0.6, max_hp=10,
+                  growth_cycle=6, name_family="shrub", color_range=((60, 130, 70), (150, 180, 90))),
+    FloraTemplate("shard_bush", PlantCategory.SHRUB, ((106, 0),), Habitat(landmarks=("crystal_badlands",)), variants=2, rarity=4.0, fruit_chance=0.2, max_hp=12,
+                  growth_cycle=8, name_family="shrub", color_range=((110, 140, 190), (190, 220, 245))),
+    FloraTemplate("ash_shrub", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("volcanic_mountains",)), variants=1, rarity=4.0, fruit_chance=0.1, max_hp=10,
+                  growth_cycle=9, name_family="shrub", color_range=((60, 55, 55), (120, 85, 70))),
+    FloraTemplate("dead_tree", PlantCategory.TREE, ((2, 8),), Habitat(landmarks=("decayed_land",)), variants=1, rarity=5.0, fruit_chance=0.0, max_hp=16, growth_cycle=14,
+                  name_family="tree", color_range=((70, 62, 58), (115, 105, 98)), wood_bias=(("hardness", -1.5), ("toughness", -1.5), ("flammability", 1.5))),
+    FloraTemplate("meadow_bloom", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat(landmarks=("flowering_meadow",)),
+                  variants=4, rarity=9.0, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower", color_range=((200, 90, 140), (255, 250, 210))),
+    FloraTemplate("crystal_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(landmarks=("crystal_badlands",)),
+                  variants=2, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=9, name_family="flower", color_range=((120, 150, 230), (220, 235, 255))),
 )
 
 TREE_RESIST = ()  # damage to plants now comes from their material (see damage.py / materials.attack_factor)
@@ -156,6 +171,14 @@ FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.HOSTILE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
     FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 6, 3, rarity=0.9, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
     FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10, hide_kind="feather"),
+    # landmark fauna: found only inside their landmark
+    FaunaTemplate("sporehopper", (3, 20), Habitat(landmarks=("mushroom_forest",)), Diet.HERBIVORE, AIKind.PASSIVE, 3, 2, rarity=5.0, name_family="small_herbivore", xp=12, hide_kind="skin"),
+    FaunaTemplate("dune_burrower", (2, 19), Habitat(landmarks=("cactus_desert",)), Diet.CARNIVORE, AIKind.HOSTILE, 8, 4, defense=1, rarity=3.0, name_family="crawler", damage_type=DamageType.PIERCE, xp=35, hide_kind="chitin"),
+    FaunaTemplate("shardback", (7, 18), Habitat(landmarks=("crystal_badlands",)), Diet.HERBIVORE, AIKind.PASSIVE, 12, 3, defense=3, rarity=4.0, name_family="crawler", xp=30, hide_kind="chitin"),
+    FaunaTemplate("ember_beetle", (2, 19), Habitat(landmarks=("volcanic_mountains",)), Diet.CARNIVORE, AIKind.HOSTILE, 9, 4, defense=2, rarity=3.0, name_family="crawler", xp=40, hide_kind="chitin"),
+    FaunaTemplate("carrion_hound", (10, 20), Habitat(landmarks=("decayed_land",)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 4, rarity=3.0, name_family="predator", damage_type=DamageType.SHARP, xp=45),
+    FaunaTemplate("meadow_grazer", (4, 18), Habitat(landmarks=("flowering_meadow",)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=4.0, name_family="grazer", xp=22),
+    FaunaTemplate("bloom_flitter", (5, 20), Habitat(landmarks=("flowering_meadow",)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=4.0, name_family="bird", xp=10, hide_kind="feather"),
 )
 
 COVERING_RANGES = {   # property ranges of each body covering's material

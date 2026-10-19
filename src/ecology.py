@@ -65,5 +65,5 @@ def suitability(habitat: Habitat, env: Env):
     if habitat.landmarks:
         from landmarks import LANDMARK_INDEX
         allowed = np.array([LANDMARK_INDEX[k] for k in habitat.landmarks])
-        weight = weight * np.isin(np.asarray(env.get("landmark", 0)), allowed)
+        weight = weight * np.isin(np.asarray(env.get("landmark", 0)), allowed) * np.asarray(env.get("landmark_strength", 1.0))
     return weight

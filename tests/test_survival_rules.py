@@ -20,6 +20,12 @@ def new_game(race="human", background="survivalist", mode="roguelike", seed=11):
     return setup_game.new_game(characters.create_character("T", race, background), mode=mode)
 
 
+def calm(engine):
+    """Remove every creature but the player: the world is random and a wanderer must not turn up in a rule test."""
+    for unit in [u for u in engine.game_map.units if u is not engine.player]:
+        engine.game_map.remove_entity(unit)
+
+
 def freeze(monkeypatch, degrees):
     monkeypatch.setattr(resources, "ambient_temperature", lambda *a, **k: degrees)
 
@@ -115,8 +121,7 @@ def test_sleep_needs_a_bed_and_heals(monkeypatch):
     p = e.player
     freeze(monkeypatch, 15.0)
     monkeypatch.setattr(actions.SleepAction, "_enemy_in_view", lambda self: False)  # the world is random: no wanderers
-    for unit in [u for u in e.game_map.units if u is not p]:    # (and none that walks up and bites while we sleep)
-        e.game_map.remove_entity(unit)
+    calm(e)
     with pytest.raises(exceptions.Impossible):
         actions.SleepAction(p).perform()
     place_bed(e)
@@ -132,6 +137,7 @@ def test_sleep_needs_a_bed_and_heals(monkeypatch):
 
 def test_sleep_is_interrupted_by_damage(monkeypatch):
     e = new_game()
+    calm(e)
     p = e.player
     freeze(monkeypatch, 15.0)
     place_bed(e)
@@ -145,6 +151,7 @@ def test_casual_sleep_saves_and_death_wakes_you_at_the_bed(monkeypatch, tmp_path
     save = str(tmp_path / "bed")
     monkeypatch.setattr(actions, "BED_SAVE", save)
     e = new_game(mode=CASUAL)
+    calm(e)
     p = e.player
     freeze(monkeypatch, 15.0)
     place_bed(e)
