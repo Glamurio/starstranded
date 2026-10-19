@@ -75,9 +75,10 @@ class Inventory(BaseComponent):
         if self.parent is self.engine.player:  # plants drop fruit too; only the player's own drops are announced
             self.engine.message_log.add_message(f"You dropped {item.get_title()}.")
 
-    def add(self, item: Item, placeholder: bool = False) -> None:
+    def add(self, item: Item, placeholder: bool = False, force: bool = False) -> None:
+        """Put `item` in. A full pack refuses (the player gets a message) unless `force`: a corpse keeps its parts."""
         self.contents = self.items + self.placeholders
-        if self.is_full():
+        if self.is_full() and not force:
             if self.parent == self.engine.player:
                 raise exceptions.Impossible("Your Inventory is full.")
             return

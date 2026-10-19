@@ -194,18 +194,18 @@ class Unit(Entity):
         self.is_alive = False
         self.render_order = RenderOrder.CORPSE
 
-        self.inventory.add(Meat(self.species, self.inventory, self.kind))
-        self.inventory.add(Meat(self.species, self.inventory, self.kind))
+        self.inventory.add(Meat(self.species, self.inventory, self.kind), force=True)
+        self.inventory.add(Meat(self.species, self.inventory, self.kind), force=True)
         if self.game_map is not None:
             import decals
             decals.spill(self.game_map, self.x, self.y, self.kind.blood_color, self.kind.blood_name)
         if self.kind.leather:
             from crafting import Leather
-            self.inventory.add(Leather(self.species, self.inventory))
+            self.inventory.add(Leather(self.species, self.inventory), force=True)
         if self.kind.hide is not None:
             from items import Stuff
             import species as defs
-            self.inventory.add(Stuff(defs.COVERINGS.get(self.kind.covering, (defs.PIECE_HIDE,))[0], self.kind.hide, self.inventory))
+            self.inventory.add(Stuff(defs.COVERINGS.get(self.kind.covering, (defs.PIECE_HIDE,))[0], self.kind.hide, self.inventory), force=True)
 
 
         seen = self is self.engine.player or self.game_map is None or self.game_map.is_visible(self.x, self.y)
