@@ -272,6 +272,9 @@ class MovementAction(ActionWithDirection):
         if not self.entity == self.engine.player:
             return
 
+        import debug
+        if debug.is_god(self.engine):
+            return bool(self.path)        # God Mode: nothing is an enemy
         # Move player until an enemy is visible (an enemy = a unit with a hostile AI)
         for enemy in self.engine.game_map.actors:
             if enemy is self.entity or enemy.category is not EntityCategory.UNIT:
@@ -816,6 +819,9 @@ class SleepAction(Action):
         return None
 
     def _enemy_in_view(self) -> bool:
+        import debug
+        if debug.is_god(self.engine):
+            return False
         e = self.entity
         for other in self.engine.game_map.actors:
             if other is e or other.category is not EntityCategory.UNIT or not other.is_alive or not other.ai or not other.ai.is_hostile:

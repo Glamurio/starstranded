@@ -2,7 +2,7 @@
 
 Switch the tools on with `python main.py --debug` (or the environment variable STARSTRANDED_DEBUG=1). In a debug run:
 
-- F10 toggles God Mode: no damage, hunger, thirst, cold or poison; walking is not stopped by walls, water or things in the way
+- F10 toggles God Mode: no damage, hunger, thirst, cold or poison; walking is not stopped by walls, water or things in the way; the whole loaded window is in view; no creature notices the player
   (terrain and chunks are generated and loaded exactly as in an ordinary run);
 - with God Mode on, Ctrl + a move key jumps 10 tiles and Alt + a move key jumps one whole chunk;
 - a click on the map walks in a straight line to that tile, through anything.

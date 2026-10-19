@@ -46,9 +46,18 @@ def is_hungry(unit: Unit) -> bool:
     return unit.hunger <= SEEK_THRESHOLD or unit.thirst <= SEEK_THRESHOLD
 
 
+def ignores_player(unit: Entity, other: Entity) -> bool:
+    """God Mode: no creature notices, hunts or flees from the player."""
+    import debug
+    engine = getattr(unit, "engine", None)
+    return other is getattr(engine, "player", None) and debug.is_god(engine)
+
+
 def preys_on(hunter: Entity, other: Entity) -> bool:
     """Does `hunter` hunt `other`? Meat eaters (carnivores and omnivores, the player included) hunt living
     herbivores."""
+    if ignores_player(hunter, other):
+        return False
     return (other is not hunter and other.category is EntityCategory.UNIT and other.is_alive
             and hunter.category is EntityCategory.UNIT and hunter.is_alive
             and hunter.diet in (Diet.CARNIVORE, Diet.OMNIVORE) and other.diet is Diet.HERBIVORE)
@@ -164,6 +173,9 @@ def _hunt_player(unit, ai, cheap, reach: int) -> bool:
     from actions import MeleeAction
     engine = ai.engine
     target = engine.player
+    if ignores_player(unit, target):
+        ai.path = []
+        return False
     distance = max(abs(target.x - unit.x), abs(target.y - unit.y))
     if distance <= 1:
         MeleeAction(unit, target.x, target.y).perform()

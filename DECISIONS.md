@@ -719,3 +719,6 @@ The plan above was implemented as written, with these specifics and deviations:
 
 ## Trees hold their goods
 - A full plant lets an item fall with a 3% chance per growth cycle (`Plant.SHED_CHANCE`), onto a free neighbouring tile that is walkable, dry and not a staircase. Before, it dropped one every cycle and the tile check only looked at entities, so branches landed inside rock. Felling a tree still drops everything under it.
+
+## God Mode: full sight, nobody notices you
+- `lighting.compute_visibility` returns the whole loaded window as seen and lit in God Mode. `behavior.ignores_player` makes `preys_on`, `_hunt_player` and so `find_threat` skip the player, so creatures neither hunt nor flee; click-walks no longer stop for hostiles, stairs followers and combat music ignore them as well.

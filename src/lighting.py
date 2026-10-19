@@ -92,6 +92,10 @@ def compute_visibility(engine: Engine) -> Tuple[np.ndarray, np.ndarray]:
     config = engine.config
     now = engine.game_world.current_time
     window = world.window.ensure()
+    import debug
+    if debug.is_god(engine):          # God Mode sees the whole loaded window, in full light, through walls
+        everything = window.in_bounds.copy()
+        return everything, everything.copy()
     ox, oy = window.origin
     transparent = window.transparent & window.in_bounds
     player = engine.player

@@ -111,3 +111,61 @@ def test_god_mode_does_not_change_the_terrain_that_gets_generated(debug_run):
         assert np.array_equal(chunk.tiles, other.tiles), k
         assert sorted(e.kind.key for e in chunk.entities if e is not jumped.player) == \
             sorted(e.kind.key for e in other.entities if e is not plain.player), k
+
+
+def _beast_next_to_player(engine, distance=3):
+    from components.ai import HostileAI
+    from components.unit import Unit
+    from species import AIKind
+    kind = next(k for k in engine.game_world.planet.fauna if k and k.ai is AIKind.HOSTILE)
+    for unit in list(engine.game_map.units):
+        if unit is not engine.player:
+            engine.game_map.remove_entity(unit)
+    beast = Unit(kind)
+    beast.place(engine.player.x + distance, engine.player.y, engine.game_map)
+    beast.ai = HostileAI(beast)
+    return beast
+
+
+def test_god_mode_sees_the_whole_loaded_window(new_engine, debug_run):
+    world = new_engine.game_map
+    new_engine.update_fov()
+    normal = int(world.window.visible.sum())
+    debug.toggle_god(new_engine)
+    new_engine.update_fov()
+    window = world.window
+    assert window.visible.sum() > normal and window.visible[window.in_bounds].all()
+
+
+def test_creatures_ignore_a_god_mode_player(new_engine, debug_run):
+    import behavior
+    beast = _beast_next_to_player(new_engine, 1)
+    hp = new_engine.player.hp
+    debug.toggle_god(new_engine)
+    for _ in range(5):
+        beast.ai.perform()
+    assert new_engine.player.hp == hp
+    assert not behavior.preys_on(beast, new_engine.player)
+    import music
+    new_engine.update_fov()
+    assert music.context_for(new_engine, music.load_manifest()).threat is None
+    debug.toggle_god(new_engine)
+    new_engine.update_fov()
+    assert music.context_for(new_engine, music.load_manifest()).threat == "wildlife"
+    for _ in range(10):
+        beast.ai.perform()
+    assert new_engine.player.hp < hp        # (and with God Mode off it is hunted again)
+
+
+def test_click_walking_in_god_mode_does_not_stop_for_hostiles(new_engine, debug_run):
+    quiet_corridor(new_engine, 12)
+    beast = _beast_next_to_player(new_engine, 5)
+    player = new_engine.player
+    debug.toggle_god(new_engine)
+    new_engine.update_fov()
+    handler = handler_for(new_engine)
+    x = player.x
+    for _ in range(12):
+        if not handler.handle_action(actions.BumpAction(player, x + 9, player.y)):
+            break
+    assert player.x == x + 9

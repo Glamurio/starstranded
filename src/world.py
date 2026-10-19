@@ -819,8 +819,11 @@ class GameWorld:
     def followers(self, world: World) -> list:
         """Living hostile creatures close enough to the player to follow him down (or up) a staircase."""
         import behavior
+        import debug
         player = self.engine.player
         found = []
+        if debug.is_god(self.engine):
+            return found
         for chunk in list(world.chunks.values()):
             for entity in chunk.actors:
                 if (entity is player or entity.category is not EntityCategory.UNIT or not entity.is_alive

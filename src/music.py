@@ -415,7 +415,8 @@ def context_for(engine, manifest: dict) -> Context:
             landmark = landmarks.LANDMARKS[landmark].music or ""
     rank = {c: i for i, c in enumerate(manifest["combat"]["priority"])}
     best: Optional[str] = None
-    for unit in world.actors:
+    import debug
+    for unit in ([] if debug.is_god(engine) else world.actors):      # (God Mode: nobody is a threat)
         if unit is player or unit.category is not EntityCategory.UNIT or not unit.is_alive or not unit.ai or not unit.ai.is_hostile:
             continue
         if max(abs(unit.x - player.x), abs(unit.y - player.y)) > THREAT_RADIUS or not engine.can_see(player.x, player.y, unit.x, unit.y, THREAT_RADIUS):
