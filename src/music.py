@@ -12,7 +12,8 @@ What plays is decided by three things, in this order of priority (the *priority 
    strength `landmark_enter` and left below `landmark_leave`, so walking along an edge does not flap. A track that belongs to the
    wanted pool is never interrupted or restarted; a track from another pool is replaced (fade out, fade in) only once the wanted
    pool has been steady for `switch_delay` seconds, and a track that ends is followed by one of the wanted pool.
-3. **Ambient** - everywhere else, including ordinary terrain of any biome: the `ambient` pool.
+3. **Biome** - the pool the manifest's `biomes` table gives the biome the player stands in (forest, plains, cold, wet, dry), if it has tracks.
+4. **Ambient** - everywhere else: the `ambient` pool, which is the fallback of everything above it.
 
 Tracks are picked by weight and never repeat the one just played (when the pool has another). Everything is data: `data/music.json`
 names the pools, tracks (paths below the music folder; the folder is not part of the repository), weights, fades and timings.
@@ -58,6 +59,7 @@ class Context:
     landmark: str = ""
     strength: float = 0.0
     threat: Optional[str] = None
+    biome: str = ""
 
 
 # ── manifest ─────────────────────────────────────────────────────────────────────────────────────────
@@ -117,9 +119,16 @@ def pick(tracks: List[Track], last: Optional[str], rng: random.Random) -> Option
 class Backend:
     """What the director plays through."""
 
-    def play(self, path: str, start: float = 0.0) -> bool:
-        """Start `path` (a full path) `start` seconds in; False when it cannot be played."""
+    crossfades = False
+    """True when `play(..., fade_in)` lets what plays now fade out while the new track fades in (two tracks at once)."""
+
+    def play(self, path: str, start: float = 0.0, fade_in: float = 0.0) -> bool:
+        """Start `path` (a full path) `start` seconds in; False when it cannot be played. A crossfading backend takes
+        `fade_in` seconds to bring it in while the track before it fades out; the others ignore it."""
         return False
+
+    def update(self) -> None:
+        """Called by the director every update (a crossfading backend moves its fades along here)."""
 
     def stop(self) -> None:
         pass
@@ -142,7 +151,7 @@ class PygameBackend(Backend):
             pygame.mixer.init()
         self.mixer = pygame.mixer
 
-    def play(self, path: str, start: float = 0.0) -> bool:
+    def play(self, path: str, start: float = 0.0, fade_in: float = 0.0) -> bool:
         try:
             self.mixer.music.load(path)
             self.mixer.music.play(start=start)
@@ -160,10 +169,95 @@ class PygameBackend(Backend):
         return bool(self.mixer.music.get_busy())
 
 
+class CrossfadeBackend(Backend):
+    """Plays whole tracks as mixer Sounds on their own channels, so one can fade out while the next fades in (the streaming
+    `mixer.music` can only hold one). A track is decoded on a worker thread (a few tenths of a second, about 45 MB) and starts when
+    ready; until then what plays carries on. Only the track playing and those still fading out are kept in memory."""
+
+    crossfades = True
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic):
+        import pygame
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+        self.pygame = pygame
+        self.clock = clock
+        self.volume = 1.0
+        self.current: Optional[dict] = None          # {"channel", "sound", "level"}
+        self.leaving: List[dict] = []                # tracks fading out: {"channel", "sound", "level", "from", "since", "seconds"}
+        self._loading: Optional[dict] = None         # {"thread", "result", "fade", "start"}
+        self._fade_in: Optional[Tuple[float, float]] = None      # (since, seconds) of the current track
+
+    def play(self, path: str, start: float = 0.0, fade_in: float = 0.0) -> bool:
+        import threading
+        job = {"result": None, "fade": fade_in, "start": start}
+
+        def load() -> None:
+            try:
+                sound = self.pygame.mixer.Sound(path)
+                if start > 0.5:                                  # (a Sound cannot seek: cut the start off)
+                    import numpy as np
+                    samples = self.pygame.sndarray.array(sound)
+                    sound = self.pygame.sndarray.make_sound(np.ascontiguousarray(samples[int(start * self.pygame.mixer.get_init()[0]):]))
+                job["result"] = sound
+            except Exception:
+                job["result"] = False
+        job["thread"] = threading.Thread(target=load, daemon=True)
+        self._loading = job
+        job["thread"].start()
+        return True
+
+    def update(self) -> None:
+        now = self.clock()
+        job = self._loading
+        if job is not None and job["result"] is not None:
+            self._loading = None
+            if job["result"] is not False and len(job["result"].get_raw()) > 0:
+                self._begin(job["result"], job["fade"], now)
+        if self.current is not None and self._fade_in is not None:
+            since, seconds = self._fade_in
+            self.current["level"] = min((now - since) / seconds, 1.0) if seconds > 0 else 1.0
+            if self.current["level"] >= 1.0:
+                self._fade_in = None
+        for old in list(self.leaving):
+            old["level"] = max(0.0, old["from"] * (1.0 - (now - old["since"]) / old["seconds"])) if old["seconds"] > 0 else 0.0
+            if old["level"] <= 0.0 or not old["channel"].get_busy():
+                old["channel"].stop()
+                self.leaving.remove(old)
+        for entry in ([self.current] if self.current else []) + self.leaving:
+            entry["channel"].set_volume(max(0.0, min(1.0, self.volume * entry["level"])))
+
+    def _begin(self, sound, fade: float, now: float) -> None:
+        mixer = self.pygame.mixer
+        used = {e["channel"] for e in self.leaving} | ({self.current["channel"]} if self.current else set())
+        channel = mixer.find_channel(force=False) if mixer.get_num_channels() else None
+        if channel is None or channel in used:
+            channel = next((mixer.Channel(i) for i in range(mixer.get_num_channels()) if mixer.Channel(i) not in used), mixer.Channel(0))
+        if self.current is not None:
+            self.leaving.append({**self.current, "from": self.current["level"], "since": now, "seconds": max(fade, 0.05)})
+        self.current = {"channel": channel, "sound": sound, "level": 0.0 if fade > 0 else 1.0}
+        self._fade_in = (now, fade) if fade > 0 else None
+        channel.set_volume(0.0 if fade > 0 else self.volume)
+        channel.play(sound)
+
+    def stop(self) -> None:
+        self._loading = None
+        for entry in ([self.current] if self.current else []) + self.leaving:
+            entry["channel"].stop()
+        self.current, self.leaving, self._fade_in = None, [], None
+
+    def set_volume(self, volume: float) -> None:
+        self.volume = max(0.0, min(1.0, volume))
+
+    def busy(self) -> bool:
+        """Something is playing, or is about to (still being decoded) - the same as `mixer.music.get_busy` for the director."""
+        return self._loading is not None or (self.current is not None and bool(self.current["channel"].get_busy()))
+
+
 def make_backend() -> Backend:
-    """The pygame mixer if it can be started, else a backend that plays nothing."""
+    """The crossfading mixer backend if the pygame mixer can be started, else a backend that plays nothing."""
     try:
-        return PygameBackend()
+        return CrossfadeBackend()
     except Exception:
         return NullBackend()
 
@@ -207,6 +301,8 @@ class MusicDirector:
         self.playing: Optional[_Playing] = None
         self.last: Optional[str] = None                  # the track played last (never picked again straight away)
         self.landmark = ""                               # the landmark pool wanted (with hysteresis)
+        self._wanted = "ambient"                          # the exploration pool wanted at the last update
+        self.biome = ""                                  # the biome pool wanted (the track only changes once it has been steady, see switch_delay)
         self.mismatch_since: Optional[float] = None      # since when the wanted pool is not the one playing
         self.threat_until = -1.0
         self.in_combat = False
@@ -222,6 +318,7 @@ class MusicDirector:
         self.backend.stop()
         self.playing = None
         self.landmark = ""
+        self.biome = ""
         self.mismatch_since = None
         self.threat_until = -1.0
         self.in_combat = False
@@ -251,8 +348,11 @@ class MusicDirector:
         return self.pools.get(key, [])
 
     def exploration_pool(self) -> str:
-        """The wanted exploration pool: the landmark's if it has tracks, else ambient (so an empty pool falls back)."""
-        return self.landmark if self.landmark and self.pool(self.landmark) else "ambient"
+        """The wanted exploration pool: the landmark's if it has tracks, else the biome's, else ambient (an empty pool falls back)."""
+        for key in (self.landmark, self.biome):
+            if key and self.pool(key):
+                return key
+        return "ambient"
 
     def combat_pool(self, category: Optional[str]) -> Optional[str]:
         for key in (category, self.manifest["combat"]["default"]):
@@ -268,6 +368,7 @@ class MusicDirector:
         """Look at the game and decide; call a few times a second."""
         now = self.clock()
         self._hysteresis(context)
+        self.biome = self.manifest.get("biomes", {}).get(context.biome, "")
         if context.threat:
             self.threat_until = now + self.timing["combat_cooldown"]
         fighting = now < self.threat_until
@@ -292,6 +393,8 @@ class MusicDirector:
 
     def _keep_exploring(self, now: float) -> None:
         wanted = self.exploration_pool()
+        if wanted != self._wanted:                       # a different pool is wanted: the steady-for-`switch_delay` clock starts again
+            self._wanted, self.mismatch_since = wanted, None
         playing = self.playing
         if not self._idle():
             return
@@ -364,6 +467,10 @@ class MusicDirector:
                 out: Optional[float] = None) -> None:
         """Fade what plays out (over `out` ms, default the landmark fade), then start `track` and fade it in."""
         self._pending = _Pending(track, pool, start, fade_in_ms / 1000.0, combat)
+        if self.backend.crossfades:                      # the old track fades out under the new one: nothing to wait for
+            self._ramp = None
+            self._start(now)
+            return
         if self.playing is not None and self.backend.busy():
             seconds = max(self.fades["landmark"] if out is None else out, 1) / 1000.0
             self._ramp = (now, seconds, self._factor, 0.0)
@@ -384,10 +491,12 @@ class MusicDirector:
         if self._ramp is None and self._pending is not None and self.playing is None:
             self._start(now)
         self.backend.set_volume(self.volume * self._factor)
+        self.backend.update()
 
     def _start(self, now: float) -> None:
         pending, self._pending = self._pending, None
-        if not self.backend.play(os.path.join(self.root, pending.track.path), pending.start):
+        path = os.path.join(self.root, pending.track.path)
+        if not (self.backend.play(path, pending.start, pending.fade_in) if self.backend.crossfades else self.backend.play(path, pending.start)):
             self.log.append(f"unplayable:{pending.track.path}")
             for key in list(self.pools):
                 self.pools[key] = [t for t in self.pools[key] if t.path != pending.track.path]     # never tried again
@@ -396,7 +505,9 @@ class MusicDirector:
         self.playing = _Playing(pending.track, pending.pool, now - pending.start, pending.combat)
         self.last = pending.track.path
         self.log.append(f"play:{pending.track.path}")
-        if pending.fade_in > 0:
+        if self.backend.crossfades:
+            self._factor = 1.0                           # (the backend fades the tracks itself)
+        elif pending.fade_in > 0:
             self._factor, self._ramp = 0.0, (now, pending.fade_in, 0.0, 1.0)
         else:
             self._factor = 1.0
@@ -423,13 +534,14 @@ def context_for(engine, manifest: dict) -> Context:
     from entity import EntityCategory
     player = engine.player
     world = engine.game_map
-    landmark, strength = "", 0.0
+    landmark, strength, biome = "", 0.0, ""
     game_world = getattr(engine, "game_world", None)
     if game_world is not None:
         try:
             landmark, strength = resources.landmark_at(game_world, world.z, player.x, player.y)
+            biome = resources.biome_key_at(game_world, world.z, player.x, player.y) if world.z == 0 else ""
         except Exception:
-            landmark, strength = "", 0.0
+            landmark, strength, biome = "", 0.0, ""
         import landmarks
         if landmark in landmarks.LANDMARKS:
             landmark = landmarks.LANDMARKS[landmark].music or ""
@@ -445,7 +557,7 @@ def context_for(engine, manifest: dict) -> Context:
         category = combat_category(unit, manifest)
         if best is None or rank.get(category, 99) < rank.get(best, 99):
             best = category
-    return Context(landmark, strength, best)
+    return Context(landmark, strength, best, biome)
 
 
 _DIRECTOR: Optional[MusicDirector] = None

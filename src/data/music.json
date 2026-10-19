@@ -1,49 +1,107 @@
 {
- "_help": "Music manifest. Put the audio files in the music folder (settings 'music_dir', else the STARSTRANDED_MUSIC environment variable, else the 'music' folder beside src/). Each pool lists tracks as a path below that folder, or {\"file\": path, \"weight\": 2, \"length\": seconds}. A landmark's pool is named by its 'music' key; 'ambient' plays everywhere else. Empty pools fall back (landmark -> ambient, combat category -> default category). See src/music.py for the rules.",
- "root": "data/music",
- "fade_ms": {
-  "landmark": 3000,
-  "combat_in": 700,
-  "combat_out": 1200,
-  "resume_in": 1500,
-  "start": 2000
- },
- "timing": {
-  "switch_delay": 6.0,
-  "combat_cooldown": 1.0,
-  "landmark_enter": 0.55,
-  "landmark_leave": 0.3,
-  "resume_min_left": 10.0
- },
- "pools": {
-  "ambient": ["RIOT.mp3"],
-  "mushroom_forest": ["Lullaby.ogg"],
-  "cactus_desert": ["BLOODSTAIN.ogg"],
-  "crystal_badlands": ["pcpassc_dc3023.mp3"],
-  "volcanic_mountains": ["Fresh.ogg"],
-  "decayed_land": ["MUDAI.mp3"],
-  "beach": ["Toadstool.mp3"],
-  "flowering_meadow": ["HosizoraTheme.mp3"]
- },
- "combat": {
-  "priority": [
-   "robot",
-   "humanoid",
-   "wildlife"
-  ],
-  "default": "wildlife",
-  "tags": {
-   "robot": [
-    "robot"
-   ],
-   "humanoid": [
-    "humanoid"
-   ]
+  "_help": "Music manifest. Put the audio files in the music folder (settings 'music_dir', else the STARSTRANDED_MUSIC environment variable, else the 'music' folder beside src/). Each pool lists tracks as a path below that folder, or {\"file\": path, \"weight\": 2, \"length\": seconds}. A landmark's pool is named by its 'music' key; 'ambient' plays everywhere else. Empty pools fall back (landmark -> ambient, combat category -> default category). See src/music.py for the rules. 'biomes' maps a biome to the pool it plays (landmark pool first, then the biome's, then ambient).",
+  "root": "data/music",
+  "fade_ms": {
+    "landmark": 3000,
+    "combat_in": 700,
+    "combat_out": 1200,
+    "resume_in": 1500,
+    "start": 2000
+  },
+  "timing": {
+    "switch_delay": 6.0,
+    "combat_cooldown": 1.0,
+    "landmark_enter": 0.55,
+    "landmark_leave": 0.3,
+    "resume_min_left": 10.0
   },
   "pools": {
-   "wildlife": ["Minesweeper.ogg"],
-   "humanoid": ["MRRDRR.ogg"],
-   "robot": ["Broadcast Signal Intrusion.ogg"]
+    "ambient": [
+      "RIOT.mp3",
+      "To The Stars.mp3",
+      "Infinity Zone.ogg"
+    ],
+    "mushroom_forest": [
+      "Lullaby.ogg"
+    ],
+    "cactus_desert": [
+      "BLOODSTAIN.ogg"
+    ],
+    "crystal_badlands": [
+      "pcpassc_dc3023.mp3"
+    ],
+    "volcanic_mountains": [
+      "Fresh.ogg"
+    ],
+    "decayed_land": [
+      "MUDAI.mp3"
+    ],
+    "beach": [
+      "Toadstool.mp3"
+    ],
+    "flowering_meadow": [
+      "HosizoraTheme.mp3"
+    ],
+    "forest": [
+      "Inception.ogg",
+      "Eyeball Planet is Not Found.mp3"
+    ],
+    "plains": [
+      "6ft.mp3",
+      "City Lights.mp3"
+    ],
+    "cold": [
+      "Abyss.ogg",
+      "Fracture.ogg"
+    ],
+    "wet": [
+      "System99.ogg",
+      "spacecultinst.mp3"
+    ],
+    "dry": [
+      "Don't Eff With Me.mp3"
+    ]
+  },
+  "combat": {
+    "priority": [
+      "robot",
+      "humanoid",
+      "wildlife"
+    ],
+    "default": "wildlife",
+    "tags": {
+      "robot": [
+        "robot"
+      ],
+      "humanoid": [
+        "humanoid"
+      ]
+    },
+    "pools": {
+      "wildlife": [
+        "Minesweeper.ogg"
+      ],
+      "humanoid": [
+        "MRRDRR.ogg"
+      ],
+      "robot": [
+        "Broadcast Signal Intrusion.ogg"
+      ]
+    }
+  },
+  "biomes": {
+    "temperate_forest": "forest",
+    "taiga": "forest",
+    "jungle": "forest",
+    "grassland": "plains",
+    "savanna": "plains",
+    "steppe": "plains",
+    "shrubland": "plains",
+    "tundra": "cold",
+    "glacial": "cold",
+    "swamp": "wet",
+    "bog": "wet",
+    "badlands": "dry",
+    "desert": "dry"
   }
- }
 }
