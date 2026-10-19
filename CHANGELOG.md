@@ -3,6 +3,9 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## World readability round, 19 Oct 2026
+- Changed: lakes, rivers and seas come in a wide range of vivid colours again (blue, teal, green, yellow, violet, magenta); a lake keeps its colour and different places differ.
+
 ## Session, sight and faction round, 19 Oct 2026
 - Fixed: Continue after Save & Quit to Main Menu no longer throws you straight back to the menu.
 - Fixed: music stops when you leave a game for the menu and starts fresh in the next one.

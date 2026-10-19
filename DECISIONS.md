@@ -756,3 +756,8 @@ The plan above was implemented as written, with these specifics and deviations:
 **What:** the planting threshold is now `BASE_THRESHOLD + (1 - density) * 0.4 - woodland * WOODLAND_REACH`, where `woodland` is the vegetation noise read at scale 0.012 (about 100 tiles) and offset.
 **Why:** the old `0.1 + (1 - density) * 0.45` put grass, steppe, savanna and scrub at roughly 0.3-1% cover (the original generator had a flat 4.7%), so open biomes looked bare and forests were thin. Measured on open ground, seed 12345: grassland 4.7%, shrubland 5.7%, temperate forest 19%, jungle 30%, desert 1.8% (before: ~1%, ~1%, ~6%, ~15%).
 **Alternative:** a global probability bump; rejected, since it would flatten every biome and give no copses or clearings.
+
+## Lake colours: a hue field, not two colours (readability round)
+**What:** `worldgen.liquid_palette` gives every liquid tile a shallow and a deep colour from a hue noise field (noise 12, scale 0.0012, so one lake keeps its colour across chunk borders) mapped through `HUE_STOPS` (blue, teal, green, lime, yellow, violet, magenta, pink) at fixed saturation, with plateaus (`PLATEAU_EDGE`) so most of a body of water holds one colour. The liquid kind only pulls the hue 30% towards its own tint (violet for the impure kinds, yellow-green for acid); nothing labels the kind.
+**Why:** commit fda29ec had collapsed all lakes to one shallow and one deep colour. The first version of the field changed hue every ~50 tiles, so a single ocean showed a whole rainbow; the lower frequency plus plateaus fixed that.
+**Alternative:** hardcoded colours per kind or per biome; rejected (the brief wants the colours to come from the generation model, not exceptions).

@@ -1,3 +1,4 @@
+import colorsys
 """Liquids: depth rings, hidden kinds, wading, acid."""
 import numpy as np
 import pytest
@@ -38,22 +39,40 @@ def test_deeper_liquid_is_always_ringed_by_shallower_liquid():
 
 
 def test_only_shallow_liquid_can_be_waded_and_the_colours_grade_from_shore_to_deep():
-    colours = {1: set(), 2: set(), 3: set()}
+    shallow, middle, deep = [], [], []
     for seed in (1, 2, 3):
         for tiles in _chunks(seed, [(0, 0), (1, 0), (0, 1), (-1, 0)]).values():
             depth = tiles["depth"]
             assert (tiles["liquid"][depth > 0] > 0).all() and (tiles["liquid"][depth == 0] == 0).all()
             assert np.array_equal(tiles["walkable"][depth > 0], depth[depth > 0] == 1)
-            for d in (1, 2, 3):
-                colours[d].update(map(tuple, tiles["light"]["fg"][depth == d].tolist()))
-    assert colours[3], "no deep liquid generated"
-    assert colours[3] == {worldgen.DEEP_COLOR}                 # the middle of a lake is the plain deep colour
-    def near(found, base, tolerance):
-        return all(max(abs(a - b) for a, b in zip(c, base)) <= tolerance for c in found)
-    assert near(colours[1], worldgen.SHALLOW_COLOR, 60)       # shallows are shallow-coloured, tinted by the shore
-    assert near(colours[2], worldgen.DEEP_COLOR, 60) and not near(colours[2], worldgen.DEEP_COLOR, 0)   # half-way to the shallows
-    assert len(colours[1]) > 5                                # a gradient, not one flat colour
-    assert sum(worldgen.DEEP_COLOR) < sum(worldgen.SHALLOW_COLOR)  # deep is the darker of the two
+            fg = tiles["light"]["fg"]
+            shallow += fg[depth == 1].tolist()
+            middle += fg[depth == 2].tolist()
+            deep += fg[depth == 3].tolist()
+    assert deep, "no deep liquid generated"
+    brightness = lambda colours: np.mean([max(c) for c in colours])
+    assert brightness(shallow) > brightness(middle) > brightness(deep)   # deep is the darker end of the gradient
+    assert len({tuple(c) for c in shallow}) > 5                           # a gradient, not one flat colour
+
+
+def test_lakes_are_vivid_and_not_all_one_colour():
+    """There is no fixed lake colour: the hue comes from a noise field, so different places get clearly different, saturated water."""
+    noise = worldgen.TerrainNoise(5)
+    kind = np.full((400, 400), 1)
+    shallow, deep = worldgen.liquid_palette(noise, kind, -4000, -4000, 400, 400)
+    hues = np.array([colorsys.rgb_to_hsv(*(c / 255.0))[0] for c in shallow.reshape(-1, 3)[::97]]) * 360
+    assert np.ptp(hues) > 60
+    spread = shallow.max(axis=-1) - shallow.min(axis=-1)
+    assert spread.min() > 40                                               # always saturated, never grey
+    assert (deep.max(axis=-1) < shallow.max(axis=-1)).all()
+
+
+def test_the_lake_palette_depends_only_on_the_place():
+    noise = worldgen.TerrainNoise(5)
+    kind = np.full((30, 30), 1)
+    whole, _ = worldgen.liquid_palette(noise, kind, 100, 100, 30, 30)
+    part, _ = worldgen.liquid_palette(noise, kind[:10, :10], 110, 115, 10, 10)
+    assert np.allclose(whole[10:20, 15:25], part)
 
 
 def test_kinds_are_whole_numbers_between_impure_and_acidic():

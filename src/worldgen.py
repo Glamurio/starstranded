@@ -36,6 +36,15 @@ erosions that give the liquid depths (2), and the wetland damp that reaches `WET
 
 SHALLOW_COLOR = (92, 150, 186)
 DEEP_COLOR = (58, 104, 148)
+"""The classic blue, kept as the fallback and for hand-built maps; generated lakes take their colour from `liquid_palette`."""
+HUE_STOPS = ((0.00, 205.0), (0.30, 218.0), (0.45, 182.0), (0.58, 152.0), (0.68, 110.0), (0.76, 62.0), (0.84, 292.0), (0.92, 322.0), (1.00, 345.0))
+"""Lake hue (degrees) along the slowly varying lake-colour noise (0..1): mostly sea blues and teals, then greens, lime, gold, and the
+violets and rose of an alien chemistry. Interpolated, so neighbouring lakes shade into each other."""
+PLATEAU_EDGE = 0.25
+KIND_HUE, KIND_PULL = {2: 285.0, 3: 78.0}, 0.3
+"""What a lake is made of tints it a little (toxic towards violet, acid towards yellow-green): a faint tell, never a label, since
+the colour field is independent of the kind field and plenty of clean-looking lakes are poisonous."""
+LIQUID_SATURATION, SHALLOW_VALUE, DEEP_VALUE = 0.68, 0.80, 0.54
 """Liquid has exactly two colours, the same everywhere: shallow (depth 1) and deep (depth 2 and 3). They are close in
 brightness on purpose: a stark light/dark edge clashes with the land."""
 FOAM_COLOR = (225, 240, 250)
@@ -108,6 +117,10 @@ class TerrainNoise:
 
     def heights(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         return (self.sample(0, 0.05, x0, y0, width, height) + self.sample(1, 0.25, x0, y0, width, height)) / 2
+
+    def liquid_hue_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Slowly varying noise for the colour of a lake (noise 12: unused by anything else), unrelated to its kind on purpose."""
+        return self.sample(12, 0.0012, x0, y0, width, height)
 
     def liquid_kind_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Slowly varying noise that decides what a lake is made of (a lake is mostly one kind)."""
@@ -195,9 +208,43 @@ def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_
     return {k: np.ascontiguousarray(v[interior]) for k, v in env.items()}
 
 
-def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int) -> None:
+def liquid_palette(noise: TerrainNoise, kind: np.ndarray, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
+    """`(shallow, deep)` RGB (float, shape (width, height, 3)) for every tile of the rectangle: a pure function of the lake-colour
+    noise and the liquid kind, so a lake keeps its colour across chunk borders and neighbouring lakes differ."""
+    import colorsys
+    field = noise.liquid_hue_field(x0, y0, width, height)
+    u = np.clip(0.5 + field / 1.1, 0.0, 1.0)
+    stops = np.array(HUE_STOPS)
+    # plateaus: most of a body of water keeps one colour and the change to the next is a short band, so an ocean is not a rainbow
+    cells = u * (len(stops) - 1)
+    base = np.floor(cells)
+    blend = np.clip((cells - base - 0.5) / PLATEAU_EDGE + 0.5, 0.0, 1.0)
+    hue = stops[np.minimum(base.astype(int), len(stops) - 1), 1] * (1 - blend) + stops[np.minimum(base.astype(int) + 1, len(stops) - 1), 1] * blend
+    for number, target in KIND_HUE.items():
+        pull = np.where(kind == number, KIND_PULL, 0.0)
+        delta = (target - hue + 180.0) % 360.0 - 180.0         # the short way round the colour wheel
+        hue = (hue + delta * pull) % 360.0
+    out = []
+    for value in (SHALLOW_VALUE, DEEP_VALUE):
+        # (vectorised hsv->rgb)
+        h = (hue / 60.0) % 6.0
+        s, v = LIQUID_SATURATION, value
+        c = v * s
+        x = c * (1 - np.abs(h % 2 - 1))
+        m = v - c
+        z = np.zeros_like(h)
+        sector = h.astype(int)
+        r = np.choose(sector, (c, x, z, z, x, c))
+        g = np.choose(sector, (x, c, c, x, z, z))
+        b = np.choose(sector, (z, z, x, c, c, x))
+        out.append(np.stack([r + m, g + m, b + m], axis=-1) * 255.0)
+    return out[0], out[1]
+
+
+def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int):
     """Give the lake tiles (`liquid` mask) their depth (1 on the shore, +1 per tile inwards, at most 3: deeper liquid is
-    always ringed by shallower), kind and colour (shallow or deep). Shallow liquid can be waded, deeper liquid cannot."""
+    always ringed by shallower), kind and colour (shallow or deep, see `liquid_palette`). Shallow liquid can be waded, deeper liquid
+    cannot. Returns the palette `(shallow, deep)` for the whole rectangle (the shores borrow it)."""
     from procgen import neighbour_masks
     depth = liquid.astype(np.int8)
     inner = liquid
@@ -207,12 +254,14 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
         depth += inner
     kind_value = noise.liquid_kind_field(x0, y0, width, height)
     kind = np.where(kind_value < IMPURE_BELOW, 1, np.where(kind_value < TOXIC_BELOW, 2, 3)).astype(np.int8)
-    light = np.where((depth >= 2)[..., None], np.array(DEEP_COLOR, dtype=np.uint8), np.array(SHALLOW_COLOR, dtype=np.uint8))
+    shallow, deep = liquid_palette(noise, kind, x0, y0, width, height)
+    light = np.where((depth >= 2)[..., None], deep, shallow).astype(np.uint8)
     landscape["liquid"][liquid] = kind[liquid]
     landscape["depth"][liquid] = depth[liquid]
     landscape["walkable"][liquid] = depth[liquid] == 1
     landscape["light"]["fg"][liquid] = light[liquid]
     landscape["dark"]["fg"][liquid] = (light[liquid] * 0.5).astype(np.uint8)
+    return shallow, deep
 
 
 # ── ground cover and shores ─────────────────────────────────────────────────────────────────────────────
@@ -253,31 +302,29 @@ def _mix(a: np.ndarray, b: np.ndarray, share) -> np.ndarray:
     return (a.astype(float) * (1.0 - share) + b.astype(float) * share)
 
 
-def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.ndarray, ground: np.ndarray, open_ground: np.ndarray) -> None:
+def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.ndarray, ground: np.ndarray, open_ground: np.ndarray,
+                  shallow: np.ndarray, deep: np.ndarray) -> None:
     """Soften the edge between water and land into a gradient: the ground gets damper and bluer towards the water, shallow
     water takes some of the ground's colour, and the step from shallow to deep water is split in two. Every tile gets a few
     shades of variation so the bands do not read as stripes."""
     distance = shore_distance(water)
-    shallow = np.array(SHALLOW_COLOR, dtype=float)
-    deep = np.array(DEEP_COLOR, dtype=float)
     jitter = np.floor(noise.scatter(1, *area) * 9 - 4)[..., None]   # -4..4 shades, the same for a tile whichever chunk makes it
     for step, share in enumerate(SHORE_WET, start=1):
         band = open_ground & (distance == step)
         if not band.any():
             continue
         for layer, scale in (("light", 0.8), ("dark", 0.4)):
-            damp = shallow * scale * 0.85 + ground[band].astype(float) * scale * 0.15
+            damp = shallow[band] * scale * 0.85 + ground[band].astype(float) * scale * 0.15
             colour = _mix(landscape[layer]["fg"][band], damp, share) + jitter[band]
             landscape[layer]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
-        damp_bg = shallow * 0.10
+        damp_bg = shallow[band] * 0.10
         landscape["light"]["bg"][band] = np.clip(_mix(landscape["light"]["bg"][band], damp_bg, share), 0, 255).astype(np.uint8)
     depth = landscape["depth"]
     for level, base, other, share in ((1, shallow, ground * 0.8, 0.22), (2, deep, shallow, 0.45)):
         band = water & (depth == level)
         if not band.any():
             continue
-        target = other[band] if level == 1 else other
-        colour = _mix(np.broadcast_to(base, (int(band.sum()), 3)), target, share) + jitter[band]
+        colour = _mix(base[band], other[band], share) + jitter[band]
         landscape["light"]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
         landscape["dark"]["fg"][band] = np.clip(colour * 0.5, 0, 255).astype(np.uint8)
 
@@ -350,7 +397,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     landscape[kinds == 1] = tile_types.floor.get_array()
     landscape = replace_variations(tile_types.water, landscape, pw, ph)
     landscape = replace_variations(tile_types.wall, landscape, pw, ph)
-    _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
+    shallow_colors, deep_colors = _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
     hot = hydrology.hot_spring_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0)
     landscape["liquid"][hot] = 4      # liquids.LiquidKind.HOT
     fall = hydrology.waterfall_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0) & ~hot
@@ -381,7 +428,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     area = (x0 - m, y0 - m, pw, ph)
-    _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground)
+    _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground, shallow_colors, deep_colors)
     for layer, scale in (("light", 1.0), ("dark", 0.5)):     # hot springs are a paler, greener blue; lava glows orange
         landscape[layer]["fg"][hot] = (np.array(HOT_COLOR, dtype=float) * scale).astype(np.uint8)
         landscape[layer]["fg"][fall & ~lava] = (np.array(FOAM_COLOR, dtype=float) * scale).astype(np.uint8)

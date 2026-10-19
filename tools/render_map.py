@@ -27,7 +27,8 @@ def paint(seed: int, x0: int, y0: int, width: int, height: int) -> np.ndarray:
     rock = kinds == 2
     image = np.where(rock[..., None], image * (1 - ash) + np.array(worldgen.ASH_COLOR) * ash, image)
     image = np.where(rock[..., None], image * (1 - snow) + np.array(worldgen.SNOW_COLOR) * snow, image)
-    image[kinds == 0] = (40, 90, 170)
+    shallow, deep = worldgen.liquid_palette(noise, np.full(kinds.shape, 1), x0, y0, width, height)   # (the kind tint is left out here)
+    image[kinds == 0] = shallow[kinds == 0]
     sx, sy = 35 - x0, 20 - y0
     if 4 <= sx < width - 4 and 4 <= sy < height - 4:
         image[sx - 4:sx + 5, sy] = (255, 0, 0)
