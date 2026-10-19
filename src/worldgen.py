@@ -24,6 +24,7 @@ from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the
 import tile_types
 from atlas import sprite_id
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chunk_origin
+from entity import EntityCategory
 from species import PlantCategory, PlantSpecies, make_plant_species
 
 if TYPE_CHECKING:
@@ -471,6 +472,7 @@ class NoiseWorldSource:
         import components.plant
         from procgen import place_entities
         tree_map = chunk.__dict__.pop("pending_trees")
+        import structures
         now = world.engine.game_world.current_time if getattr(world.engine, "game_world", None) else 0
         before = set(chunk.entities)
         with seeded_rng(mix_seed(self.chunk_seed(chunk.key), 1)):
@@ -491,6 +493,8 @@ class NoiseWorldSource:
                 env = shafts.environment(self.floor_seed, chunk.key)
                 self._grow_flora(world, chunk, tree_map, env)
                 self._scatter_stones(world, chunk, env, reserved)
+                import scenery
+                scenery.populate(self, world, chunk, env, reserved, ruin_chunk=chunk.key in structures.ruin_chunks(self.floor_seed))
                 self._spawn_fauna(world, chunk, env, reserved)
                 self._place_sites(world, chunk)
                 settlements.populate(world, chunk, self.floor_seed)
@@ -519,6 +523,8 @@ def _grow_flora(self, world: "World", chunk: Chunk, tree_map: np.ndarray, env: d
 
 FLOWERS_PER_CHUNK = (25, 60)
 """Flowers placed on a chunk's open ground (min, max attempts; each needs a free tile a flower species can live on)."""
+FLOWER_UNDER_TREE = 0.12
+"""Chance that a flower attempt picks the foot of a tree instead of open ground."""
 LILY_PADS_PER_100_WATER_TILES = 1.2
 """Lily pads on the water of a chunk: very sparse."""
 
@@ -529,7 +535,20 @@ def _scatter_flowers(self, world: "World", chunk: Chunk, env: dict, reserved) ->
     pool, weights = self.planet.species_weights(env, PlantCategory.FLOWER)   # one pass over the whole chunk
     if not pool:
         return
+    trees = [(e.x, e.y) for e in chunk.entities if e.category is EntityCategory.PLANT and e.blocks_movement]
     for _ in range(random.randint(*FLOWERS_PER_CHUNK)):
+        if trees and random.random() < FLOWER_UNDER_TREE:
+            # (a flower may grow at the foot of a tree: the one pairing of foliage that may share a tile)
+            x, y = random.choice(trees)
+            there = world.get_entities_at_location(x, y)
+            if len(there) == 1 and (x, y) not in reserved:
+                lx, ly = x - chunk.x0, y - chunk.y0
+                column = weights[:, lx, ly]
+                if column.sum() > 0:
+                    plant = components.plant.Flower(random.choices(pool, weights=column.tolist())[0])
+                    plant.growth = random.randrange(int(plant.avg_cycle) + 1)
+                    world.add_entity(plant, x, y)
+            continue
         lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
         x, y = chunk.x0 + lx, chunk.y0 + ly
         if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
@@ -606,6 +625,8 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         x, y = chunk.x0 + lx, chunk.y0 + ly
         if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
             continue
+        if any(e.category is EntityCategory.PLANT for e in world.get_entities_at_location(x, y)):
+            continue                                  # (a loose stone under a bush could not be seen)
         biome = biomes.BIOME_IDS[int(env["biome"][lx, ly])]
         stone_landmark = landmarks.key_of(int(env["landmark"][lx, ly])) if env["landmark_strength"][lx, ly] > 0.3 else ""
         material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome, stone_landmark)

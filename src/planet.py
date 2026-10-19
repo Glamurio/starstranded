@@ -319,6 +319,11 @@ class Planet:
         """Flora of the given category with their spawn weight for each tile of `env` (arrays): shape (n_species, *tile_shape)."""
         pool = [s for s in self.flora if (category is None and s.category is not PlantCategory.FLOWER) or s.category is category]
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
+        if category is None and pool and "biome" in env:
+            share = np.array([biomes.TREE_SHARE[k] for k in biomes.BIOME_IDS])[np.asarray(env["biome"])]
+            for i, species in enumerate(pool):
+                if species.category is PlantCategory.TREE:
+                    weights[i] = weights[i] * share
         return pool, weights
 
     def fauna_weights(self, env: Mapping[str, object]) -> Tuple[List[UnitSpecies], np.ndarray]:

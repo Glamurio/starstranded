@@ -294,8 +294,8 @@ class Namer:
 
     def _unique(self, rng: random.Random, base: str) -> str:
         """`base` made unique among this planet's names by a coined qualifier before it (never "II")."""
-        for _ in range(60):
-            text = _plain(self.culture, f"{coined(rng)} {base}") if self.culture == "human" else _plain(self.culture, f"{base}-{coined(rng)}")
+        for _ in range(60 if self.culture == "human" else 0):    # (the other cultures keep a short catalogue numeral: their words are long)
+            text = _plain(self.culture, f"{coined(rng)} {base}")
             if _norm(text) not in self.used:
                 self.used.add(_norm(text))
                 return text

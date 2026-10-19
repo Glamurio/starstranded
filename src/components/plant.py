@@ -199,6 +199,13 @@ class Flower(Plant):
         Plant.__init__(self, species)
         self.inventory.add(Fruit(self.inventory, species.fruit))   # it starts in bloom
 
+    def on_added_to_map(self, game_map) -> None:
+        """A flower at the foot of a tree leaves the tile as the tree made it (blocked, opaque); elsewhere it shapes the tile as plants do."""
+        tile = game_map.tile_at(self.x, self.y)
+        if tile is not None and not bool(tile["walkable"]):
+            return
+        Plant.on_added_to_map(self, game_map)
+
     def yield_piece(self):
         return Fruit(self.inventory, self.kind.fruit)
 
