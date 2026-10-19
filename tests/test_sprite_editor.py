@@ -47,7 +47,7 @@ def test_set_applies_live_and_save_writes_only_the_changes(config):
     assert tile_types.floor.get_array()["light"]["sprite"] == atlas.sprite_id(7, 7)
     assert species.UNIT_SPECIES["selenite_people"].sprite == (9, 9)   # the playable Selenites share the entry
     spriteconfig.reset("unit.selenite")
-    assert species.UNIT_SPECIES["selenite"].sprite == (115, 1)
+    assert species.UNIT_SPECIES["selenite"].sprite == (118, 1)
     assert json.loads(config.read_text()) == {"tile.floor": [7, 7]}
 
 
@@ -89,7 +89,7 @@ def test_search_click_assign_and_reset(config):
     assert json.loads(config.read_text()) == {"unit.selenite": [2, 3]}
     draw(editor)
     editor.ev_keydown(events.KeyDown(Key.R, events.Mod.CTRL))
-    assert species.UNIT_SPECIES["selenite"].sprite == (115, 1)
+    assert species.UNIT_SPECIES["selenite"].sprite == (118, 1)
 
 
 def test_sheet_scrolls_and_clicks_follow_the_scroll(config):

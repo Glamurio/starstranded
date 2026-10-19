@@ -181,7 +181,7 @@ HUMAN = register(UnitSpecies(
     grants=grants("improved_crafting", "omnivore", "requires_organic", "night_aversion"), **_RACE_BASE,
 ))
 SELENITE_PEOPLE = register(UnitSpecies(
-    "selenite_people", "Selenite", sprite=(115, 1), corpse_sprite=(44, 16), color=(190, 215, 255), shade_sigma=None,
+    "selenite_people", "Selenite", sprite=(118, 1), corpse_sprite=(44, 16), color=(190, 215, 255), shade_sigma=None,
     default_name="Zudaab", diet=Diet.HERBIVORE, damage_type=DamageType.BLUNT,
     grants=grants("increased_plant_yield", "faster_crop_growth", "prolonged_breath_holding", "herbivore", "frail_exoskeleton",
                   "requires_organic"), **dict(_RACE_BASE, max_hp=26),
@@ -194,14 +194,14 @@ MAU = register(UnitSpecies(
 ))
 PLAYABLE_SPECIES = (HUMAN, SELENITE_PEOPLE, MAU)
 SELENITE = register(UnitSpecies(
-    "selenite", "Selenite", sprite=(115, 1), corpse_sprite=(44, 16), color=color.light_blue,
+    "selenite", "Selenite", sprite=(118, 1), corpse_sprite=(44, 16), color=color.light_blue,
     max_hp=10, power=3, defense=0, level_up_base=100, xp_given=35, ai=AIKind.HOSTILE, name_origin="selenite",
     damage_type=DamageType.SHARP, diet=Diet.CARNIVORE,
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
 MEAT = register(ItemKind("meat", "Meat", sprite=(1, 21), color=color.red, hunger_amount=10, thirst_amount=5))
-LEATHER = register(ItemKind("leather", "Leather", sprite=(2, 25), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))
+LEATHER = register(ItemKind("leather", "Leather", sprite=(1, 25), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))
 FLASK = register(ItemKind("flask", "Flask", sprite=(3, 23), color=(0xB0, 0x78, 0x40), material="Leather"))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(108, 0), shade_sigma=10))
 DAGGER = register(ItemKind("dagger", "Dagger", sprite=(44, 26), color=(0, 191, 255), material="Bronze",
@@ -210,36 +210,36 @@ AXE = register(ItemKind("axe", "Axe", sprite=(26, 28), color=(0x8B, 0x6B, 0x3D),
                         equipment_type=EquipmentType.WEAPON, power_bonus=4, damage_type=DamageType.SHARP))
 LEATHER_ARMOR = register(ItemKind("leather_armor", "Armor", sprite=(25, 30), color=color.brown, material="Leather",
                                   equipment_type=EquipmentType.ARMOR, defense_bonus=1))
-CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(1, 38), color=color.white,
+CAMPFIRE = register(ItemKind("campfire", "Campfire", species="Campfire", sprite=(0, 42), color=color.white,
                              lit_color=color.orange, light_radius=8))
 STUMP = register(ItemKind("stump", "Stump", sprite=(4, 10), color=color.brown, render_order=RenderOrder.CORPSE))
-WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(3, 5), color=(150, 105, 60)))
+WOODEN_FLOOR = register(ItemKind("wooden_floor", "Wooden floor", sprite=(8, 5), color=(150, 105, 60)))
 WOODEN_STAIRS = register(ItemKind("wooden_stairs", "Wooden stairs", sprite=(24, 1), color=(150, 105, 60)))
 
 
-RATION = register(ItemKind("ration", "Ration pack", sprite=(8, 22), color=(210, 190, 120), hunger_amount=40, thirst_amount=10))
-AMMO = register(ItemKind("ammo", "Pistol rounds", sprite=(51, 23), color=(210, 190, 90)))
+RATION = register(ItemKind("ration", "Ration pack", sprite=(54, 21), color=(210, 190, 120), hunger_amount=40, thirst_amount=10))
+AMMO = register(ItemKind("ammo", "Pistol rounds", sprite=(68, 22), color=(210, 190, 90)))
 
 # ── Material pieces (what the world gives you; each instance carries its own Material, see items.Stuff) ──
 def _piece(key, name, sprite, **kw):
     return register(ItemKind(key, name, sprite=sprite, shade_sigma=6, **kw))
 
 
-PIECE_STONE = _piece("piece_stone", "Stone", (3, 24))
-PIECE_ORE = _piece("piece_ore", "Ore", (1, 24))
-PIECE_FIBER = _piece("piece_fiber", "Fibre", (1, 27))
+PIECE_STONE = _piece("piece_stone", "Stone", (20, 5))
+PIECE_ORE = _piece("piece_ore", "Ore", (1, 13))
+PIECE_FIBER = _piece("piece_fiber", "Fibre", (2, 27))
 PIECE_HIDE = _piece("piece_hide", "Hide", (2, 25))
 PIECE_FEATHER = _piece("piece_feather", "Feather", (5, 25))
-PIECE_CHITIN = _piece("piece_chitin", "Chitin", (4, 22))
-PIECE_SCALE = _piece("piece_scale", "Scale", (1, 22))
-PIECE_SAND = _piece("piece_sand", "Sand", (4, 25))
-PIECE_CLAY = _piece("piece_clay", "Clay", (4, 25))
-PIECE_COAL = _piece("piece_coal", "Coal", (3, 24))
-PIECE_INGOT = _piece("piece_ingot", "Ingot", (0, 25))
-PIECE_BRICK = _piece("piece_brick", "Brick", (5, 25))
-PIECE_GLASS = _piece("piece_glass", "Glass", (2, 23))
-PIECE_CORD = _piece("piece_cord", "Cord", (2, 27))
-PIECE_WIRE = _piece("piece_wire", "Wire", (0, 27))
+PIECE_CHITIN = _piece("piece_chitin", "Chitin", (72, 25))
+PIECE_SCALE = _piece("piece_scale", "Scale", (4, 22))
+PIECE_SAND = _piece("piece_sand", "Sand", (5, 13))
+PIECE_CLAY = _piece("piece_clay", "Clay", (14, 5))
+PIECE_COAL = _piece("piece_coal", "Coal", (4, 13))
+PIECE_INGOT = _piece("piece_ingot", "Ingot", (6, 25))
+PIECE_BRICK = _piece("piece_brick", "Brick", (31, 33))
+PIECE_GLASS = _piece("piece_glass", "Glass", (2, 24))
+PIECE_CORD = _piece("piece_cord", "Cord", (100, 1))
+PIECE_WIRE = _piece("piece_wire", "Wire", (55, 9))
 PIECE_FORMS = (PIECE_STONE, PIECE_ORE, PIECE_FIBER, PIECE_HIDE, PIECE_FEATHER, PIECE_CHITIN, PIECE_SCALE, PIECE_SAND, PIECE_CLAY, PIECE_COAL, PIECE_INGOT,
                PIECE_BRICK, PIECE_GLASS, PIECE_CORD, PIECE_WIRE)
 
@@ -256,47 +256,47 @@ HATCHET = register(ItemKind("hatchet", "Hatchet", sprite=(27, 28), color=_WOOD, 
                             damage_type=DamageType.SHARP, base_power=3, tool_tags=("chopping", "cutting")))
 PICKAXE = register(ItemKind("pickaxe", "Pickaxe", sprite=(1, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
                             damage_type=DamageType.PIERCE, base_power=2, tool_tags=("mining",)))
-SHOVEL = register(ItemKind("shovel", "Shovel", sprite=(3, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+SHOVEL = register(ItemKind("shovel", "Shovel", sprite=(0, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
                            damage_type=DamageType.BLUNT, base_power=1, tool_tags=("digging",)))
 KNIFE = register(ItemKind("knife", "Knife", sprite=(44, 26), color=_WOOD, equipment_type=EquipmentType.WEAPON,
                           damage_type=DamageType.SHARP, base_power=2, tool_tags=("cutting",)))
-CLUB = register(ItemKind("club", "Club", sprite=(26, 27), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+CLUB = register(ItemKind("club", "Club", sprite=(27, 27), color=_WOOD, equipment_type=EquipmentType.WEAPON,
                          damage_type=DamageType.BLUNT, base_power=3))
-SPEAR = register(ItemKind("spear", "Spear", sprite=(42, 27), color=_WOOD, equipment_type=EquipmentType.WEAPON,
+SPEAR = register(ItemKind("spear", "Spear", sprite=(40, 27), color=_WOOD, equipment_type=EquipmentType.WEAPON,
                           damage_type=DamageType.PIERCE, base_power=3))
 HAMMER = register(ItemKind("hammer", "Hammer", sprite=(5, 31), color=_WOOD, equipment_type=EquipmentType.WEAPON,
                            damage_type=DamageType.BLUNT, base_power=2, tool_tags=("hammering",)))
 HIDE_ARMOR = register(ItemKind("hide_armor", "Armour", sprite=(25, 30), color=color.brown,
                                equipment_type=EquipmentType.ARMOR, base_power=1))
-SALVAGE_TOOL = register(ItemKind("salvage_tool", "Salvage tool", sprite=(9, 31), color=(180, 180, 190),
+SALVAGE_TOOL = register(ItemKind("salvage_tool", "Salvage tool", sprite=(59, 25), color=(180, 180, 190),
                                  equipment_type=EquipmentType.WEAPON, damage_type=DamageType.PIERCE, base_power=1,
                                  tool_tags=("salvaging", "cutting", "hammering")))
-OMNITOOL = register(ItemKind("omnitool", "Omnitool", sprite=(10, 31), color=(140, 200, 240),
+OMNITOOL = register(ItemKind("omnitool", "Omnitool", sprite=(68, 23), color=(140, 200, 240),
                              equipment_type=EquipmentType.WEAPON, damage_type=DamageType.SHARP, base_power=3,
                              tool_tags=("chopping", "mining", "digging", "cutting", "hammering", "salvaging")))
 PISTOL = register(ItemKind("pistol", "Pistol", sprite=(50, 22), color=(190, 190, 200), equipment_type=EquipmentType.WEAPON,
                            damage_type=DamageType.PIERCE, base_power=6))
 # ── Things made of parts that are not worn or wielded ──
 BED = register(ItemKind("bed", "Bed", sprite=(0, 36), color=_WOOD, station="bed"))
-WORKBENCH = register(ItemKind("workbench", "Workbench", sprite=(26, 31), color=_WOOD, station="workbench"))
-FURNACE = register(ItemKind("furnace", "Furnace", sprite=(27, 31), color=(140, 140, 150), station="furnace"))
-TORCH = register(ItemKind("torch", "Torch", sprite=(10, 31), color=color.orange, lit_color=color.orange, light_radius=5))
-WALL_BLOCK = register(ItemKind("wall_block", "Wall", sprite=(0, 2), color=(150, 150, 150)))
-CIRCUIT = register(ItemKind("circuit", "Circuit board", sprite=(51, 21), color=(80, 200, 120)))
-POWER_CELL = register(ItemKind("power_cell", "Power cell", sprite=(52, 24), color=(120, 220, 120)))
-HULL_PLATE = register(ItemKind("hull_plate", "Hull plate", sprite=(0, 25), color=(160, 160, 170)))
-LENS = register(ItemKind("lens", "Lens", sprite=(2, 23), color=(200, 230, 255)))
-MEDKIT = register(ItemKind("medkit", "Medkit", sprite=(2, 24), color=(240, 100, 100)))
-SURVEY_KIT = register(ItemKind("survey_kit", "Survey kit", sprite=(3, 21), color=(120, 180, 240), tool_tags=("surveying",)))
-ARTIFACT = register(ItemKind("artifact", "Relic", sprite=(1, 24), color=(120, 230, 200)))
+WORKBENCH = register(ItemKind("workbench", "Workbench", sprite=(54, 20), color=_WOOD, station="workbench"))
+FURNACE = register(ItemKind("furnace", "Furnace", sprite=(28, 38), color=(140, 140, 150), station="furnace"))
+TORCH = register(ItemKind("torch", "Torch", sprite=(4, 42), color=color.orange, lit_color=color.orange, light_radius=5))
+WALL_BLOCK = register(ItemKind("wall_block", "Wall", sprite=(12, 0), color=(150, 150, 150)))
+CIRCUIT = register(ItemKind("circuit", "Circuit board", sprite=(78, 7), color=(80, 200, 120)))
+POWER_CELL = register(ItemKind("power_cell", "Power cell", sprite=(52, 9), color=(120, 220, 120)))
+HULL_PLATE = register(ItemKind("hull_plate", "Hull plate", sprite=(75, 7), color=(160, 160, 170)))
+LENS = register(ItemKind("lens", "Lens", sprite=(61, 9), color=(200, 230, 255)))
+MEDKIT = register(ItemKind("medkit", "Medkit", sprite=(58, 9), color=(240, 100, 100)))
+SURVEY_KIT = register(ItemKind("survey_kit", "Survey kit", sprite=(62, 26), color=(120, 180, 240), tool_tags=("surveying",)))
+ARTIFACT = register(ItemKind("artifact", "Relic", sprite=(57, 26), color=(120, 230, 200)))
 BEACON = register(ItemKind("beacon", "Distress beacon", sprite=(52, 19), color=(255, 120, 80)))
 # ── places: the crash site and the precursor ruins (see structures.py) ──
-SHIP = register(ItemKind("ship", "Crashed ship", sprite=(48, 22), color=(190, 190, 205), blocks_movement=True))
-WRECKAGE = register(ItemKind("wreckage", "Wreckage", sprite=(47, 21), color=(150, 150, 165), blocks_movement=True))
-CARGO_POD = register(ItemKind("cargo_pod", "Cargo pod", sprite=(38, 31), color=(230, 170, 70), blocks_movement=True))
-RUIN = register(ItemKind("ruin", "Ruin", sprite=(34, 22), color=(170, 200, 190), blocks_movement=True))
-GATE = register(ItemKind("gate", "Precursor gate", sprite=(30, 23), color=(120, 230, 200), blocks_movement=True))
-NAV_UNIT = register(ItemKind("nav_unit", "Navigation unit", sprite=(51, 22), color=(120, 160, 240)))
+SHIP = register(ItemKind("ship", "Crashed ship", sprite=(76, 4), color=(190, 190, 205), blocks_movement=True))
+WRECKAGE = register(ItemKind("wreckage", "Wreckage", sprite=(19, 6), color=(150, 150, 165), blocks_movement=True))
+CARGO_POD = register(ItemKind("cargo_pod", "Cargo pod", sprite=(84, 4), color=(230, 170, 70), blocks_movement=True))
+RUIN = register(ItemKind("ruin", "Ruin", sprite=(26, 23), color=(170, 200, 190), blocks_movement=True))
+GATE = register(ItemKind("gate", "Precursor gate", sprite=(12, 1), color=(120, 230, 200), blocks_movement=True))
+NAV_UNIT = register(ItemKind("nav_unit", "Navigation unit", sprite=(75, 18), color=(120, 160, 240)))
 
 
 # ── Procedural definitions ───────────────────────────────────────────────────────

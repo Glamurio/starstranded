@@ -11,6 +11,7 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - New: denser grass and leaves, a blended shore gradient, very sparse lily pads, and flowers as named, harvestable plants.
 - Removed: ferro rod, wooden spear, Selenite corpse and the rabbit.
 - Fixed: scaled and chitinous animals no longer always roll "hard".
+- Changed: sprite choices made in the sprite editor (40 items, Selenite) are now the code defaults, so they no longer depend on `sprites.json`.
 - Faster: plants stop building discarded items while full; the test suite runs about three times faster.
 
 ## Survival game (branch `gameplay-core`, save version 8)
