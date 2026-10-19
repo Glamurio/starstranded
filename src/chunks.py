@@ -61,6 +61,8 @@ class Chunk:
         self.explored = explored if explored is not None else np.zeros((CHUNK_W, CHUNK_H), dtype=bool, order="F")
         self.blocked = np.zeros((CHUNK_W, CHUNK_H), dtype=np.int16, order="F")
         self.terrain_version = 0
+        self.wild_capacity = 0                  # how many wild animals the ground carries (see wildlife.py); 0: not tracked
+        self.wild_stamp = None                  # game time the wildlife was last settled
         self.entities: Dict[Entity, None] = {}
         self.by_category: Dict[EntityCategory, Dict[Entity, None]] = {c: {} for c in EntityCategory}
         self.actors: Dict[Entity, None] = {}

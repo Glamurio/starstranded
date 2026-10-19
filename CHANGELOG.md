@@ -11,6 +11,7 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - New: the world map shows ships, pods, ruins and the gate with their own pictures.
 - Changed: roads are only laid when they can be walked end to end (no roads that stop at a cliff or lake; bridges only over short clean water).
 - New: seven kinds of cave (barren, volcanic, ice, crystal, fungal, flooded, precursor ruins) with their own colours and cave animals; Selenites are now rare visitors.
+- New: wildlife recovers where it was hunted out and herds breed, also while you are away.
 - New: music follows the biome as well as the landmark, uses more of the tracks, and crossfades between tracks.
 
 ## Session, sight and faction round, 19 Oct 2026

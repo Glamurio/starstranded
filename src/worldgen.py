@@ -637,7 +637,9 @@ def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> Non
     """Place up to `FAUNA_PER_CHUNK` animals at random tiles, each a species that can live at that tile."""
     import components.unit as units
     from components.unit import Unit
+    import wildlife
     pool, _ = self.planet.fauna_weights({k: v[0:1, 0:1] for k, v in env.items()})
+    placed = 0
     for _ in range(random.randint(0, FAUNA_PER_CHUNK)):
         lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
         x, y = chunk.x0 + lx, chunk.y0 + ly
@@ -655,6 +657,9 @@ def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> Non
         if column.sum() <= 0:
             continue
         world.add_entity(Unit(random.choices(pool, weights=column.tolist())[0]), x, y)
+        placed += 1
+    if self.floor == 1:
+        wildlife.note(world, chunk, placed)
 
 
 STONES_PER_CHUNK = (3, 7)

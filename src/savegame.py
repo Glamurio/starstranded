@@ -135,7 +135,8 @@ def serialize_chunk(world: World, chunk: Chunk) -> bytes:
     player = getattr(world.engine, "player", None)
     refs, _ = _references(world)
     inner = _dumps([e for e in chunk.entities if e is not player], refs, _members(chunk, player))
-    outer = {"key": chunk.key, "tiles": chunk.tiles, "explored": chunk.explored, "entities": inner}
+    outer = {"key": chunk.key, "tiles": chunk.tiles, "explored": chunk.explored, "entities": inner,
+             "wild": (chunk.wild_capacity, chunk.wild_stamp)}
     return zlib.compress(pickle.dumps(outer, protocol=pickle.HIGHEST_PROTOCOL), COMPRESSION_LEVEL)
 
 
@@ -151,6 +152,7 @@ def restore_chunk(world: World, blob: bytes) -> Chunk:
     outer = pickle.loads(zlib.decompress(blob))
     entities = _loads(outer["entities"], bindings, world)
     chunk = Chunk(outer["key"], outer["tiles"], outer["explored"])
+    chunk.wild_capacity, chunk.wild_stamp = outer.get("wild", (0, None))      # (saves from before wildlife had none)
     world.chunks[chunk.key] = chunk
     for entity in entities:
         entity.parent = None
@@ -161,6 +163,8 @@ def restore_chunk(world: World, blob: bytes) -> Chunk:
         for entity in list(chunk.entities):
             if entity.ai:
                 upkeep(entity, now)
+        import wildlife
+        wildlife.settle(world, chunk, now)            # the days spent away: births, and ground that fills up again
     return chunk
 
 
