@@ -105,7 +105,7 @@ def tooltip_lines(entity) -> list:
     import lore
     state = lore.scan_state(entity.engine, entity) if getattr(entity, "engine", None) is not None else None
     if state:
-        lines.append(f"{state}" + (" (X to scan)" if state != "scanned" else ""))
+        lines.append(f"{state}" + (" (S to scan)" if state != "scanned" else ""))
     if getattr(entity, "category", None) is not None and entity.category.name == "UNIT":
         if not entity.is_alive:
             lines.append("dead")
@@ -120,6 +120,20 @@ def tooltip_lines(entity) -> list:
     return lines
 
 
+def hover_detail(engine: Engine) -> str:
+    """The line under the name in the side panel for what the cursor is on: its scan state and condition, or what a rock face is."""
+    x, y = engine.mouse_location
+    game_map = engine.game_map
+    if not game_map.in_bounds(x, y) or not game_map.is_visible(x, y):
+        return ""
+    things = [e for e in game_map.stack_at(x, y) if e is not engine.player and not getattr(e, "decal", False)]
+    if things:
+        return ", ".join(tooltip_lines(things[0]))
+    if rock_face_at(engine, x, y) is not None:
+        return "Solid rock. Break it with a pickaxe."
+    return ""
+
+
 def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     """A small framed box beside the cursor: the top thing's sprite and name centred, what else lies there, and any liquid."""
     import widgets
@@ -128,27 +142,17 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     game_map = engine.game_map
     if not game_map.in_bounds(x, y) or not game_map.is_visible(x, y):
         return
-    things = [e for e in game_map.stack_at(x, y) if e is not engine.player and not getattr(e, "decal", False)]
+    # (scenery - bones, pebbles - and bare rock have no card: they are only named in the side panel, see `hover_detail`)
+    things = [e for e in game_map.stack_at(x, y) if e is not engine.player and not getattr(e, "decal", False) and not getattr(e, "scenery", False)]
     import liquids
     liquid = liquids.describe(game_map.tile_at(x, y))
-    rock = None if (things or liquid) else rock_face_at(engine, x, y)
-    if not things and not liquid and rock is None:
+    if not things and not liquid:
         return
     camera = engine.camera
     sx, sy = camera.to_screen(x, y)
     if not camera.on_screen(sx, sy):
         return
     width = 26
-    if rock is not None:
-        tile = game_map.tile_at(x, y)["light"]
-        bx = sx + 2 if sx + 2 + width <= camera.width else sx - width - 1
-        by = max(0, min(sy - 2, camera.height - 11))
-        canvas.draw_frame(bx, by, width, 11)
-        widgets.sprite_slot(canvas, bx + (width - 4) // 2, by + 1, int(tile["sprite"]), tuple(int(c) for c in tile["fg"]))
-        canvas.print(bx + width // 2, by + 5, rock_face_title(engine, rock)[: canvas.chars(width) - 4], fg=Theme.TITLE, alignment=CENTER)
-        for k, text in enumerate(("Solid rock.", "Break it with a pickaxe.")):
-            canvas.print(bx + width // 2, by + 6 + k, text, fg=Theme.DIM if k == 0 else Theme.TEXT, alignment=CENTER)
-        return
     top = things[0] if things else None
     lines = []
     if top is not None:

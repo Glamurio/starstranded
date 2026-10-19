@@ -68,6 +68,7 @@ def draw(canvas, engine) -> None:
 
     canvas.rule(x0 + 1, 20, PANEL_W - 2)
     render_functions.render_names_at_mouse_location(canvas, ix, 21, engine, width=iw, rows=2)
+    canvas.print(ix, 23, render_functions.hover_detail(engine)[: canvas.chars(iw)], fg=Theme.DIM)
     canvas.rule(x0 + 1, 24, PANEL_W - 2)
     import music
     song = music.now_playing()
