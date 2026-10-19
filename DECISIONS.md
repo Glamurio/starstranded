@@ -689,3 +689,8 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Fallbacks:** empty landmark pool -> ambient; empty combat category -> default category -> exploration music carries on; missing files are dropped at load (`director.missing`); a file the mixer cannot play is dropped for good; no audio device, no folder or an empty manifest means silence, never an error. A failure inside the tick replaces the director with a silent one rather than disturbing the game.
 - **Fades** are volume ramps on the director's own clock, not `mixer.music.fadeout` (which blocks the game while it runs); the transition is fade-out then fade-in, not a true crossfade (the mixer has one music stream). A later sound-effect system can reuse the manifest style and `settings.effective`.
 - Checked with the real mixer (dummy audio driver) on real mp3s from the shared folder: play, combat switch, resume at an offset. Not checked: how it sounds, or fade lengths by ear.
+
+## Mouse-only travel between screens
+- What: a left click on the outer ring of the view sends the player to the tile just past that edge (`input_handlers.travel_target`); the existing path walk then crosses into the next chunk, which loads and the camera pages onward. The hover path preview shows the same route.
+- Why: mouse-only players could not leave the screen. A shared 1-tile border was not needed for this; the click target does the job.
+- Alternative: a duplicated border tile row (rejected: tiles belong to one chunk, and it would not help with clicking).

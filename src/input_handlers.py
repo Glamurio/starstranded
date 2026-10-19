@@ -76,6 +76,28 @@ def screen_to_world(engine: Engine, position) -> Optional[Tuple[int, int]]:
     return camera.to_world(sx, sy)
 
 
+def edge_exit(camera, x: int, y: int) -> Tuple[int, int]:
+    """Outward direction (-1/0/1 per axis) when world tile (x, y) lies on the outermost ring of the viewport, else (0, 0)."""
+    sx, sy = camera.to_screen(x, y)
+    dx = -1 if sx == 0 else 1 if sx == camera.width - 1 else 0
+    dy = -1 if sy == 0 else 1 if sy == camera.height - 1 else 0
+    return dx, dy
+
+
+def travel_target(engine: Engine, x: int, y: int) -> Tuple[int, int]:
+    """Where a left click on tile (x, y) sends the player. A click on the edge ring of the view means "leave this
+    screen that way": the goal is the tile just past the edge, so mouse-only play walks into the next chunk, which
+    then loads and scrolls into view. Falls back to the clicked tile when the tile beyond cannot be reached."""
+    dx, dy = edge_exit(engine.camera, x, y)
+    if (dx, dy) == (0, 0):
+        return x, y
+    beyond = (x + dx, y + dy)
+    player = engine.player
+    if engine.game_map.in_bounds(*beyond) and engine.get_path_to(player, *beyond):
+        return beyond
+    return x, y
+
+
 def highlight_world(engine: Engine, canvas: Canvas, x: int, y: int, wash=color.white, alpha: int = 110) -> None:
     """Highlight world tile (x, y) if it is in the map viewport."""
     camera = engine.camera
@@ -1142,6 +1164,7 @@ class MainGameEventHandler(EventHandler):
             return   # pointing at something: the tooltip is about that, not about walking
         if render_functions.rock_face_at(engine, x, y) is not None:
             return
+        x, y = travel_target(engine, x, y)
         path: List[Tuple] = engine.get_path_to(player, x, y)
         for step in path:
             highlight_world(engine, canvas, step[0], step[1], (140, 220, 230), alpha=45)
@@ -1157,7 +1180,8 @@ class MainGameEventHandler(EventHandler):
         if event.button == MouseButton.LEFT:
             player = self.engine.player
             x, y = self.engine.mouse_location
-
+            if not any(e is not player and not getattr(e, "decal", False) for e in self.engine.game_map.stack_at(x, y)):
+                x, y = travel_target(self.engine, x, y)
             return actions.BumpAction(player, x, y)
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
