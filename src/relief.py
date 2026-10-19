@@ -41,9 +41,12 @@ def smooth(x: np.ndarray) -> np.ndarray:
     return x * x * (3.0 - 2.0 * x)
 
 
-def _shifted(noise, index: int, scale: float, x0, y0, width, height):
+def _shifted(noise, index: int, scale: float, x0, y0, width, height, step: int = 1):
+    """Noise `index` read every `step` tiles from (x0, y0) (the coarse grids of `hydrology` use step > 1)."""
     ox, oy = noise.shift
-    return noise.sample(index, scale, x0 + ox, y0 + oy, width, height)
+    if step == 1:
+        return noise.sample(index, scale, x0 + ox, y0 + oy, width, height)
+    return noise.sample(index, scale * step, (x0 + ox) / step, (y0 + oy) / step, width, height)
 
 
 def find_shift(noise) -> tuple:
@@ -75,10 +78,10 @@ def find_shift(noise) -> tuple:
     return best
 
 
-def spawn_freedom(x0: int, y0: int, width: int, height: int) -> np.ndarray:
+def spawn_freedom(x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
     """0 at the landing site, 1 from `SPAWN_FREE` tiles away."""
-    xs = np.arange(x0, x0 + width)[:, None] - SPAWN[0]
-    ys = np.arange(y0, y0 + height)[None, :] - SPAWN[1]
+    xs = x0 + step * np.arange(width)[:, None] - SPAWN[0]
+    ys = y0 + step * np.arange(height)[None, :] - SPAWN[1]
     return smooth((np.hypot(xs, ys) - SPAWN_LAND) / (SPAWN_FREE - SPAWN_LAND))
 
 
@@ -92,26 +95,26 @@ def pond_centre(seed: int) -> tuple:
     return SPAWN[0] + distance * math.cos(angle), SPAWN[1] + distance * math.sin(angle) * 0.6
 
 
-def continent_raw(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
-    return _shifted(noise, 6, CONTINENT_SCALE, x0, y0, width, height) * 1.7
+def continent_raw(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
+    return _shifted(noise, 6, CONTINENT_SCALE, x0, y0, width, height, step) * 1.7
 
 
-def continent(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
-    raw = continent_raw(noise, x0, y0, width, height)
+def continent(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
+    raw = continent_raw(noise, x0, y0, width, height, step)
     land = np.where(raw > 0, PLATEAU * np.tanh(np.maximum(raw, 0) / PLATEAU), raw)   # the interior flattens out: rock is for ranges
     px, py = pond_centre(noise.floor_seed)
-    xs = np.arange(x0, x0 + width)[:, None] - px
-    ys = np.arange(y0, y0 + height)[None, :] - py
+    xs = x0 + step * np.arange(width)[:, None] - px
+    ys = y0 + step * np.arange(height)[None, :] - py
     return land - POND_DEPTH * smooth(1.0 - np.hypot(xs, ys / 0.7) / POND_RADIUS)
 
 
-def ranges(noise, x0: int, y0: int, width: int, height: int, c: np.ndarray, free: bool = True) -> np.ndarray:
+def ranges(noise, x0: int, y0: int, width: int, height: int, c: np.ndarray, free: bool = True, step: int = 1) -> np.ndarray:
     """0..1 mountain mass: high on the ridge lines of the range zones, 0 in the sea and at the landing site."""
-    ridge = _shifted(noise, 7, RANGE_SCALE, x0, y0, width, height)
-    zone = smooth((_shifted(noise, 8, RANGE_MASK_SCALE, x0, y0, width, height) - 0.02) / 0.22)
+    ridge = _shifted(noise, 7, RANGE_SCALE, x0, y0, width, height, step)
+    zone = smooth((_shifted(noise, 8, RANGE_MASK_SCALE, x0, y0, width, height, step) - 0.02) / 0.22)
     profile = smooth(1.0 - np.abs(ridge) / RIDGE_HALF_WIDTH) ** 1.4
     land = smooth((c - SEA_LEVEL + 0.05) / 0.35)
-    return profile * zone * land * (spawn_freedom(x0, y0, width, height) if free else 1.0)
+    return profile * zone * land * (spawn_freedom(x0, y0, width, height, step) if free else 1.0)
 
 
 def elevation(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
@@ -129,6 +132,13 @@ def basin_height(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray
 
 
 def smooth_elevation(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
-    """Elevation without the rough detail: what water flows over (see `hydrology`)."""
+    """Elevation without the rough detail (the climate, and so the landmarks, read this)."""
     c = continent(noise, x0, y0, width, height)
     return c + MOUNTAIN_HEIGHT * ranges(noise, x0, y0, width, height, c)
+
+
+def drainage(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
+    """What rivers flow over: the smooth height, read every `step` tiles. It has no local detail (that would give a pit every
+    twenty tiles), so its only basins are the real ones: the sea, the pond and inland dips."""
+    c = continent(noise, x0, y0, width, height, step)
+    return c + MOUNTAIN_HEIGHT * ranges(noise, x0, y0, width, height, c, True, step)

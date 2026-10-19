@@ -16,6 +16,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np  # type: ignore
 import tcod
 
+import hydrology
 import landmarks
 import relief
 import shafts
@@ -28,9 +29,9 @@ from species import PlantCategory, PlantSpecies, make_plant_species
 if TYPE_CHECKING:
     from world import World
 
-MARGIN = 4
+MARGIN = 8
 """Padding (tiles) around a chunk for neighbour-dependent generation steps: dilation (1) + variations (1) + the two
-erosions that give the liquid depths (2)."""
+erosions that give the liquid depths (2), and the wetland damp that reaches `WET_REACH` (6) tiles from water."""
 
 SHALLOW_COLOR = (92, 150, 186)
 DEEP_COLOR = (58, 104, 148)
@@ -132,9 +133,12 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
     kinds = np.where(wet, 0, np.where(rock, 2, 1)).astype(np.int8)
     kinds = np.asfortranarray(kinds)
     kinds[dilate(kinds == 0)] = 0
+    kinds[hydrology.water_mask(noise, x0, y0, width, height)] = 0      # rivers, springs, estuaries and lakes at river ends
     return kinds
 
 
+WET_REACH, WET_BOOST = 6, 0.6
+"""How far (tiles) the damp of water reaches over low ground, and how much moisture it adds at the shore."""
 WATER_PROXIMITY = (1.0, 1.0, 0.7, 0.4)
 """Water availability by distance (tiles) from liquid: 0 = in it, 1, 2, 3; beyond that 0."""
 
@@ -145,8 +149,13 @@ def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: i
     `landmarks`). All pure functions of the seed."""
     from procgen import dilate
     import biomes
-    moisture = noise.moisture(x0, y0, width, height)
     elevation = relief.elevation(noise, x0, y0, width, height)
+    # Wetlands: low ground near water (river banks, lake shores, estuaries) is soaked, so the swamp and bog overlay of the
+    # biome table takes it. The damp fades out over `WET_REACH` tiles.
+    distance = shore_distance(kinds == 0, WET_REACH)
+    damp = np.clip(1.0 - (distance - 1) / WET_REACH, 0.0, 1.0) * (distance > 0) * relief.smooth((0.3 - elevation) / 0.3)
+    moisture = noise.moisture(x0, y0, width, height) + WET_BOOST * damp
+    shore = np.clip(1.0 - (distance - 1) / (WET_REACH - 1), 0.0, 1.0) * (distance > 0)   # 1 at the water's edge, 0 six tiles inland
     # (the air cools with the smooth height only: rough detail would make temperature, and so the biome, jump from tile to tile)
     cooling = relief.LAPSE * np.maximum(relief.smooth_elevation(noise, x0, y0, width, height) - relief.SNOWLINE, 0.0)
     temperature = noise.temperature(x0, y0, width, height) - cooling
@@ -159,7 +168,7 @@ def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: i
         water[reach & (water == 0)] = WATER_PROXIMITY[distance]
     fertility = np.clip(np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[biome] / 1.6, 0.0, 1.0)
     env = dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
-               light=np.ones((width, height)), water=water, biome=biome)
+               light=np.ones((width, height)), water=water, biome=biome, land=kinds != 0, shore=shore)
     env["landmark"], env["landmark_strength"] = landmarks.field(noise, x0, y0, width, height, env)
     return env
 

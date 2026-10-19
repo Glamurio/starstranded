@@ -1,0 +1,94 @@
+"""Rivers: sources, downhill courses, confluences, honest ends, no stray puddles, agreement across chunk borders."""
+from collections import Counter, deque
+
+import numpy as np
+import pytest
+
+import hydrology
+import relief
+import worldgen
+
+SEEDS = (1, 5, 12345)
+AREA = (-700, -400, 1400, 800)
+
+
+@pytest.fixture(scope="module", params=SEEDS)
+def world(request):
+    noise = worldgen.TerrainNoise(request.param)
+    system = hydrology.system_for(noise)
+    return noise, system, system.rivers_near(*AREA)
+
+
+def test_there_are_rivers(world):
+    noise, system, rivers = world
+    assert len(rivers) >= 5
+    assert {r.source for r in rivers} <= {"spring", "thaw"}
+
+
+def test_every_river_flows_downhill_from_its_source(world):
+    noise, system, rivers = world
+    for river in rivers:
+        heights = [system.height(*node) for node in river.nodes]
+        body = heights[:-hydrology.RUN_ON] if river.end == "sea" else heights
+        assert all(a > b for a, b in zip(body, body[1:])), river.cell
+        assert heights[0] >= hydrology.SOURCE_MIN_HEIGHT, "a source starts on high ground"
+
+
+def test_every_river_ends_in_the_sea_or_a_lake(world):
+    noise, system, rivers = world
+    for river in rivers:
+        assert river.end in ("sea", "lake")
+        x, y = river.nodes[-1][0] * hydrology.NODE, river.nodes[-1][1] * hydrology.NODE
+        mask = hydrology.water_mask(noise, x - 15, y - 15, 31, 31)
+        assert mask[10:21, 10:21].sum() >= 20, f"no water where river {river.cell} ends"
+        if river.end == "sea":
+            assert system.height(*river.nodes[-hydrology.RUN_ON - 1]) < relief.SEA_LEVEL + hydrology.SEA_MARGIN
+
+
+def test_rivers_merge_and_the_flow_adds_up(world):
+    noise, system, rivers = world
+    flow = Counter()
+    for river in rivers:
+        flow.update(river.nodes)
+    assert max(flow.values()) >= 2, "no confluence in the sample"
+    assert hydrology.river_width(1) < hydrology.river_width(4) < hydrology.river_width(9)
+
+
+def test_water_is_the_same_however_the_world_is_cut(world):
+    noise, system, rivers = world
+    whole = hydrology.water_mask(noise, -300, -200, 600, 400)
+    part = hydrology.water_mask(noise, -100, -50, 200, 150)
+    assert np.array_equal(whole[200:400, 150:300], part)
+
+
+def test_no_stray_puddles(world):
+    """Every body of water (river, lake or sea) has at least six tiles."""
+    noise, system, rivers = world
+    x0, y0, w, h = -300, -200, 600, 400
+    kinds = worldgen.base_terrain(noise, x0, y0, w, h)
+    water = kinds == 0
+    seen = np.zeros_like(water)
+    small = []
+    for sx, sy in np.argwhere(water & ~seen).tolist():
+        if seen[sx, sy]:
+            continue
+        queue, size = deque([(sx, sy)]), 0
+        seen[sx, sy] = True
+        touches_edge = False
+        while queue:
+            x, y = queue.popleft()
+            size += 1
+            touches_edge |= x in (0, w - 1) or y in (0, h - 1)
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 <= nx < w and 0 <= ny < h and water[nx, ny] and not seen[nx, ny]:
+                    seen[nx, ny] = True
+                    queue.append((nx, ny))
+        if size < 6 and not touches_edge:
+            small.append((sx + x0, sy + y0, size))
+    assert not small, small[:5]
+
+
+def test_the_landing_chunk_has_no_river():
+    for seed in SEEDS + (2, 3, 11, 99):
+        noise = worldgen.TerrainNoise(seed)
+        assert not hydrology.water_mask(noise, 0, 0, 70, 40).any(), seed

@@ -46,9 +46,11 @@ class Landmark:
     ground_mix: float = 0.7           # how far (at full strength) the ground moves to `ground`
     cover: Tuple[Cell, ...] = ()      # ground cover sprites (sheet cells) used instead of the biome's; () = the biome's
     vegetation: float = 1.0           # multiplies how thickly open ground is vegetated
+    density_floor: float = 0.0        # at least this much vegetation density at full strength (a mushroom forest is a forest even on poor soil)
     ambient: int = 0                  # degrees C added to the biome's temperature at full strength
     stones: Tuple[str, ...] = ()      # stone archetypes found here in addition to the biome's
     music: str = ""                   # soundtrack pool key (see the music manifest)
+    coastal: bool = False             # lives on land by the water: not faded towards the sea, never on water tiles
 
 
 LANDMARKS: Dict[str, Landmark] = {}
@@ -69,10 +71,10 @@ _DRY = ((3, 9), (4, 9), (5, 9))
 _landmark("mushroom_forest", "Mushroom forest", "Damp, dim ground under towering fungi, strange and soft-coloured.",
           Habitat(temperature=(-0.4, 0.8), moisture=(0.15, 1.0)),
           threshold=0.26, ground=(120, 66, 128), ground_mix=0.8, cover=_TUFTS + ((2, 10), (3, 10), (2, 10), (3, 10)),
-          vegetation=1.7, stones=("dark",), music="mushroom_forest")
+          vegetation=1.7, density_floor=0.9, stones=("dark",), music="mushroom_forest")
 _landmark("cactus_desert", "Cactus desert", "Baked sand, bare red rock and a scatter of cacti.",
           Habitat(temperature=(0.25, 1.2), moisture=(-1.2, -0.25)),
-          threshold=0.0, ground=(222, 156, 84), ground_mix=0.65, cover=_DRY, vegetation=5.0, ambient=4,
+          threshold=0.0, ground=(222, 156, 84), ground_mix=0.65, cover=_DRY, vegetation=1.0, density_floor=0.4, ambient=4,
           stones=("red", "pale"), music="cactus_desert")
 _landmark("crystal_badlands", "Crystalline badlands", "Broken rock and cold, glittering crystal under a hard sky.",
           Habitat(temperature=(-0.5, 0.5), moisture=(-1.2, 0.25), elevation=(-0.15, 1.2)),
@@ -84,11 +86,15 @@ _landmark("volcanic_mountains", "Volcanic mountains", "Black rock, ash and vents
           stones=("dark", "red"), music="volcanic_mountains")
 _landmark("decayed_land", "Decaying landscape", "Dead trees on grey ground, a place where something went wrong.",
           Habitat(temperature=(-0.3, 1.0), moisture=(-0.3, 0.7)),
-          threshold=0.36, ground=(78, 66, 84), ground_mix=0.75, cover=_DRY, vegetation=0.4, stones=("dark", "grey"),
+          threshold=0.36, ground=(78, 66, 84), ground_mix=0.75, cover=_DRY, vegetation=0.4, density_floor=0.45, stones=("dark", "grey"),
           music="decayed_land")
+_landmark("beach", "Beach", "Pale sand, driftwood and shells where the land meets the water.",
+          Habitat(temperature=(-0.15, 1.2), moisture=(-1.2, 0.5), elevation=(-0.6, 0.35), water=(0.7, 1.0)),
+          scale=0.012, threshold=-0.7, fade=0.3, ground=(232, 214, 160), ground_mix=0.85, cover=_DRY, vegetation=0.3, density_floor=0.25, stones=("pale",),
+          music="beach", coastal=True)
 _landmark("flowering_meadow", "Flowering meadow", "Open, airy grass in pale colours, thick with wildflowers.",
           Habitat(temperature=(-0.2, 0.6), moisture=(0.0, 0.8), elevation=(-0.4, 0.3)),
-          threshold=0.26, ground=(150, 190, 120), ground_mix=0.55, cover=_TUFTS, vegetation=0.55, stones=("pale",),
+          threshold=0.26, ground=(150, 190, 120), ground_mix=0.55, cover=_TUFTS, vegetation=0.55, density_floor=0.35, stones=("pale",),
           music="flowering_meadow")
 
 LANDMARK_INDEX: Dict[str, int] = {key: i + 1 for i, key in enumerate(LANDMARK_IDS)}
@@ -111,9 +117,10 @@ def smooth(x: np.ndarray) -> np.ndarray:
 
 def climate_of(noise, x0: int, y0: int, width: int, height: int, env: dict) -> dict:
     """The climate a landmark is judged against: `env` with only the smooth large-scale relief as elevation (the tile-to-tile
-    roughness of `env["elevation"]` would speckle the edges). Fertility (a step per biome) and shore distance are not in any
+    roughness of `env["elevation"]` would speckle the edges) and the climate's own moisture (not the wetland damp at shores). Fertility (a step per biome) and shore distance are not in any
     landmark's habitat, so climate alone shapes a landmark."""
-    return dict(env, elevation=relief.smooth_elevation(noise, x0, y0, width, height))
+    return dict(env, elevation=relief.smooth_elevation(noise, x0, y0, width, height), moisture=noise.moisture(x0, y0, width, height),
+                water=env.get("shore", env["water"]))
 
 
 def field(noise, x0: int, y0: int, width: int, height: int, env: dict) -> Tuple[np.ndarray, np.ndarray]:
@@ -122,12 +129,13 @@ def field(noise, x0: int, y0: int, width: int, height: int, env: dict) -> Tuple[
     climate = climate_of(noise, x0, y0, width, height, env)
     # no landmark far out at sea: they fade over the last stretch of coast
     dry = smooth((relief.basin_height(noise, x0, y0, width, height) - relief.SEA_LEVEL) / COAST_FADE)
+    land = env["land"] if "land" in env else np.ones((width, height), dtype=bool)
     best = np.zeros((width, height), dtype=np.float64)
     index = np.zeros((width, height), dtype=np.int8)
     for i, key in enumerate(LANDMARK_IDS):
         landmark = LANDMARKS[key]
         wants = smooth((noise.sample(NOISE_BASE + i, landmark.scale, x0, y0, width, height) - landmark.threshold) / landmark.fade)
-        strength = wants * suitability(landmark.climate, climate) * dry
+        strength = wants * suitability(landmark.climate, climate) * (land if landmark.coastal else dry)
         better = strength > best
         best = np.where(better, strength, best)
         index = np.where(better, np.int8(i + 1), index)
@@ -150,11 +158,14 @@ def blend_ground(ground: np.ndarray, index: np.ndarray, strength: np.ndarray) ->
 
 
 def blend_density(density: np.ndarray, index: np.ndarray, strength: np.ndarray) -> np.ndarray:
-    """Vegetation density scaled towards each landmark's `vegetation` multiplier by its strength."""
+    """Vegetation density scaled towards each landmark's `vegetation` multiplier by its strength, but not below its `density_floor`."""
     factor = np.ones(density.shape)
+    floor = np.zeros(density.shape)
     for key, number in LANDMARK_INDEX.items():
-        factor = np.where(index == number, 1.0 + (LANDMARKS[key].vegetation - 1.0) * strength, factor)
-    return density * factor
+        inside = index == number
+        factor = np.where(inside, 1.0 + (LANDMARKS[key].vegetation - 1.0) * strength, factor)
+        floor = np.where(inside, LANDMARKS[key].density_floor * strength, floor)
+    return np.maximum(density * factor, floor)
 
 
 def key_of(number: int) -> str:
@@ -165,6 +176,6 @@ def key_of(number: int) -> str:
 def validate_content() -> None:
     from planet import STONE_ARCHETYPES
     for landmark in LANDMARKS.values():
-        assert -0.5 < landmark.threshold < 1.0 and landmark.fade > 0, landmark.key
+        assert -1.0 < landmark.threshold < 1.0 and landmark.fade > 0, landmark.key
         assert all(0 <= c <= 255 for c in landmark.ground), landmark.key
         assert landmark.cover and all(s in STONE_ARCHETYPES for s in landmark.stones), landmark.key

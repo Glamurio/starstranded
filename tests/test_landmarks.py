@@ -6,13 +6,15 @@ import worldgen
 from ecology import suitability
 
 W, H = 600, 400
+BIG = (1800, 1000)   # wide enough that every landmark turns up
 
 
-def region(seed=77, x0=-300, y0=-200):
+def region(seed=77, x0=-300, y0=-200, size=(W, H)):
+    width, height = size
     noise = worldgen.TerrainNoise(seed)
-    kinds = worldgen.base_terrain(noise, x0, y0, W, H)
-    env = worldgen.environment_for(noise, x0, y0, W, H, kinds)
-    env["climate"] = landmarks.climate_of(noise, x0, y0, W, H, env)
+    kinds = worldgen.base_terrain(noise, x0, y0, width, height)
+    env = worldgen.environment_for(noise, x0, y0, width, height, kinds)
+    env["climate"] = landmarks.climate_of(noise, x0, y0, width, height, env)
     return env
 
 
@@ -34,10 +36,10 @@ def test_cutting_the_world_differently_gives_the_same_landmarks():
 
 
 def test_a_landmark_only_forms_where_the_climate_suits_it():
-    env = region()
+    env = region(x0=-900, y0=-500, size=BIG)
     for key, number in landmarks.LANDMARK_INDEX.items():
         inside = env["landmark"] == number
-        assert inside.any(), f"{key} never appears in a {W}x{H} sample"
+        assert inside.any(), f"{key} never appears in a {BIG[0]}x{BIG[1]} sample"
         fit = suitability(landmarks.LANDMARKS[key].climate, env["climate"])
         assert fit[inside].min() > 0.0
         # strength is the product of the noise and the fit, so it can never exceed the fit
@@ -51,9 +53,12 @@ def test_each_tile_has_at_most_one_landmark_and_strength_matches():
 
 
 def test_edges_are_gradual():
-    """Next to a tile of one landmark the strength changes by a small step, never from full to none."""
-    s = region()["landmark_strength"]
-    assert np.abs(np.diff(s, axis=0)).max() < 0.5 and np.abs(np.diff(s, axis=1)).max() < 0.5
+    """Between two neighbouring land tiles the strength changes by a small step, never from full to none."""
+    env = region()
+    s, land = env["landmark_strength"], env["land"] & (env["landmark"] != landmarks.LANDMARK_INDEX["beach"])   # (a beach is a band a few tiles wide)
+    for axis in (0, 1):
+        both = np.take(land, range(1, land.shape[axis]), axis=axis) & np.take(land, range(0, land.shape[axis] - 1), axis=axis)
+        assert np.abs(np.diff(s, axis=axis))[both].max() < 0.5
 
 
 def test_landmarks_are_coherent_regions_not_speckle():
