@@ -187,3 +187,47 @@ def test_waterfalls_are_deep_unwadable_foam_in_rivers():
     tiles, _ = worldgen.generate_terrain(noise, x - 600 - 35, y - 350 - 20, 70, 40)
     foam = (tiles["depth"] == 3) & (tiles["liquid"] != 0) & (tiles["light"]["fg"][..., 0] > 200)
     assert foam.any() and not tiles["walkable"][foam].any()
+
+
+# ── bridges ─────────────────────────────────────────────────────────────────────────────────────────────
+def _bridges(seed, x0=-600, y0=-350, w=1200, h=700):
+    noise = worldgen.TerrainNoise(seed)
+    system = hydrology.system_for(noise)
+    out = []
+    for river in system.rivers_near(x0, y0, w, h):
+        for k in range(len(river.nodes)):
+            found = system.bridge_at(river, k)
+            if found:
+                out.append(found)
+    return noise, out
+
+
+def test_natural_bridges_are_uncommon_short_and_have_dry_banks():
+    import tile_types
+    for seed in (1234, 5):
+        noise, bridges = _bridges(seed)
+        assert 1 <= len(bridges) <= 25
+        for found in bridges:
+            deck = [p for p in found if p[2]]
+            assert hydrology.BRIDGE_SPAN[0] <= len(deck) <= hydrology.BRIDGE_SPAN[1]
+            for a, b in zip(found, found[1:]):
+                assert max(abs(a[0] - b[0]), abs(a[1] - b[1])) == 1           # one unbroken line of tiles
+            xs, ys = [p[0] for p in found], [p[1] for p in found]
+            x0, y0 = min(xs) - 3, min(ys) - 3
+            tiles, trees = worldgen.generate_terrain(noise, x0, y0, max(xs) - x0 + 4, max(ys) - y0 + 4)
+            for x, y, is_deck in found:
+                tile = tiles[x - x0, y - y0]
+                assert tile["walkable"] and tile["liquid"] == 0 and not trees[x - x0, y - y0]
+                assert bool(tile_types.is_laid(tile[None])[0])
+
+
+def test_a_bridge_looks_the_same_from_either_chunk():
+    import tile_types
+    noise, bridges = _bridges(1234)
+    xs, ys = [p[0] for p in bridges[0]], [p[1] for p in bridges[0]]
+    cx, cy = (min(xs) + max(xs)) // 2, (min(ys) + max(ys)) // 2
+    whole, _ = worldgen.generate_terrain(noise, cx - 40, cy - 30, 80, 60)
+    left, _ = worldgen.generate_terrain(noise, cx - 40, cy - 30, 40, 60)
+    right, _ = worldgen.generate_terrain(noise, cx, cy - 30, 40, 60)
+    assert np.array_equal(tile_types.is_laid(whole)[:40], tile_types.is_laid(left))
+    assert np.array_equal(tile_types.is_laid(whole)[40:], tile_types.is_laid(right))

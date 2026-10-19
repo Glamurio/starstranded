@@ -186,16 +186,212 @@ def navigation_lines(engine) -> list:
     return lines
 
 
-class NavigationHandler(AskUserEventHandler):
-    """The navigation screen (M): your position and the way to the places you know."""
+def known_places(engine) -> list:
+    """`[(name, (x, y), color)]`: the places the player knows of (ship, cargo pod, ruins found)."""
+    run = engine.game_world.run
+    places = []
+    if run.wreck:
+        places.append(("Your ship", run.wreck, (255, 200, 80)))
+    if run.pod:
+        places.append(("Sponsor cargo pod", run.pod, (120, 220, 255)))
+    for index, at in sorted((run.flags.get("sites") or {}).items()):
+        if run.knowledge.is_known(f"ruin:{index}"):
+            places.append((f"Precursor ruin {index + 1}", at, (200, 140, 255)))
+    return places
 
-    def on_render(self, canvas: Canvas) -> None:
-        from ui import Theme
+
+class WorldMapHandler(AskUserEventHandler):
+    """The world map (M): one cell per chunk of the surface, from what the player has seen (see `worldmap`). Chunks in view are
+    bright, explored ones dim, undiscovered ones blank. Arrows move the cursor, +/- zoom, Home goes back to you, M or Esc close.
+    Drawing it never generates terrain."""
+
+    SIDE = 32
+    """Width (cells) of the side panel; below `MIN_FOR_SIDE` cells of window it moves under the map."""
+    MIN_FOR_SIDE = 72
+    UNDISCOVERED = (14, 18, 30)
+    BRIGHTEN = 1.7       # (the recorded colours are the lit tile colours, which are dark on screen)
+
+    def __init__(self, engine):
+        super().__init__(engine)
+        from chunks import chunk_key
+        player = engine.player
+        self.home = chunk_key(player.x, player.y)
+        self.cursor = self.home
+        self.zoom = None          # pixels per chunk; None = fit the known world
+        self.origin = None        # chunk at the top-left of the map area; None = centred on the cursor
+        self._geometry = None
+
+    # ── geometry ─────────────────────────────────────────────────────────────────────
+    def _layout(self, canvas):
+        """Cell rectangles (in cells) of the map area and the side panel, and the window frame."""
+        width, height = canvas.width, canvas.height
+        wx, wy, ww, wh = 1, 1, max(width - 2, 20), max(height - 2, 10)
+        side = self.SIDE if ww >= self.MIN_FOR_SIDE else 0
+        return (wx, wy, ww, wh), side
+
+    def _cell_px(self, known, area_px):
+        import worldmap
+        if self.zoom:
+            return self.zoom
+        x0, y0, x1, y1 = worldmap.bounds(known, [self.home, self.cursor])
+        return worldmap.fit_cell(x1 - x0 + 3, y1 - y0 + 3, *area_px)
+
+    def _view(self, known, area_px, cell):
+        """`(kx0, ky0, columns, rows)`: the chunk rectangle shown, kept around the cursor (or the fitted known world)."""
+        import worldmap
+        columns, rows = max(area_px[0] // cell, 1), max(area_px[1] // cell, 1)
+        x0, y0, x1, y1 = worldmap.bounds(known, [self.home, self.cursor])
+        if not self.zoom and x1 - x0 + 3 <= columns and y1 - y0 + 3 <= rows:     # all of it fits: centre it
+            return x0 - (columns - (x1 - x0 + 1)) // 2, y0 - (rows - (y1 - y0 + 1)) // 2, columns, rows
+        cx, cy = self.cursor
+        return cx - columns // 2, cy - rows // 2, columns, rows
+
+    # ── drawing ──────────────────────────────────────────────────────────────────────
+    def on_render(self, canvas) -> None:
+        import pygame
+        import worldmap
+        from chunks import chunk_key
+        from ui import CELL, Theme
         super().on_render(canvas)
-        lines = navigation_lines(self.engine)
-        ix, iy, iw, ih = canvas.window(8, 5, 54, len(lines) + 8, title="Navigation", hints=[("Esc", "close")])
-        for i, line in enumerate(lines):
-            canvas.print(ix, iy + i, line, fg=Theme.TEXT if i else Theme.TITLE)
+        engine = self.engine
+        known = worldmap.records(engine.game_world.run)
+        (wx, wy, ww, wh), side = self._layout(canvas)
+        ix, iy, iw, ih = canvas.window(wx, wy, ww, wh, title="World map", hints=[("Arrows", "cursor"), ("+/-", "zoom"), ("Home", "you"), ("M", "close")])
+        map_w = iw - (side + 1 if side else 0)
+        map_h = ih - (0 if side else 7)
+        area = pygame.Rect(ix * CELL, iy * CELL, map_w * CELL, map_h * CELL)
+        cell = self._cell_px(known, (area.width, area.height))
+        kx0, ky0, columns, rows = self._view(known, (area.width, area.height), cell)
+        self._geometry = (area, cell, kx0, ky0)
+        surface = canvas.surface
+        surface.fill(self.UNDISCOVERED, area)
+        visible = worldmap.visible_chunks(engine) if engine.game_map.z == 0 else set()
+        clip = surface.get_clip()
+        surface.set_clip(area)
+        for (kx, ky), info in known.items():
+            if not (kx0 <= kx < kx0 + columns and ky0 <= ky < ky0 + rows):
+                continue
+            rect = pygame.Rect(area.x + (kx - kx0) * cell, area.y + (ky - ky0) * cell, cell, cell)
+            live = (kx, ky) in visible
+            dim = 1.0 if live else 0.7
+            fade = 0.55 + 0.45 * min(1.0, info.share * 2.0)         # a chunk seen only in part is paler
+            shown = tuple(min(255, int(min(255, c * self.BRIGHTEN) * dim * fade + u * (1 - dim * fade))) for c, u in zip(info.color, self.UNDISCOVERED))
+            surface.fill(shown, rect.inflate(-1, -1) if cell >= 6 else rect)
+            if live and cell >= 6:
+                pygame.draw.rect(surface, (235, 245, 255), rect.inflate(-1, -1), 1)
+        for name, (x, y), tint in known_places(engine):
+            key = chunk_key(x, y)
+            if key in known and kx0 <= key[0] < kx0 + columns and ky0 <= key[1] < ky0 + rows:
+                size = max(cell // 3, 2)
+                spot = pygame.Rect(0, 0, size, size)
+                spot.center = (area.x + (key[0] - kx0) * cell + cell // 2, area.y + (key[1] - ky0) * cell + cell // 2)
+                pygame.draw.rect(surface, tint, spot)
+        px, py = self.home
+        if kx0 <= px < kx0 + columns and ky0 <= py < ky0 + rows:             # you: a red-ringed white mark (blinks a little)
+            rect = pygame.Rect(area.x + (px - kx0) * cell, area.y + (py - ky0) * cell, cell, cell)
+            pygame.draw.rect(surface, (255, 70, 70), rect, max(1, cell // 8))
+            mark = rect.inflate(-max(cell // 2, 2), -max(cell // 2, 2))
+            surface.fill((255, 255, 255), mark)
+        cx, cy = self.cursor
+        if kx0 <= cx < kx0 + columns and ky0 <= cy < ky0 + rows:
+            rect = pygame.Rect(area.x + (cx - kx0) * cell, area.y + (cy - ky0) * cell, cell, cell)
+            pygame.draw.rect(surface, (255, 220, 90), rect, 2)
+        surface.set_clip(clip)
+        self._side_panel(canvas, known, ix, iy, iw, ih, side, visible)
+
+    def _side_panel(self, canvas, known, ix, iy, iw, ih, side, visible) -> None:
+        from ui import Theme
+        engine = self.engine
+        player = engine.player
+        if side:
+            x, y, width = ix + iw - side, iy, side
+        else:
+            x, y, width = ix, iy + ih - 6, iw
+        lines = []
+        kx, ky = self.cursor
+        info = known.get(self.cursor)
+        lines.append((f"Chunk {kx}, {ky}", Theme.TITLE))
+        if info is None:
+            lines.append(("Undiscovered", Theme.DIM))
+        else:
+            from landmarks import LANDMARKS
+            state = "in view" if self.cursor in visible else "explored"
+            lines.append((f"{state}, {round(info.share * 100)}% seen", Theme.TEXT))
+            if info.landmark in LANDMARKS:
+                lines.append((LANDMARKS[info.landmark].name, Theme.KEY))
+            terrain = [f"{round(info.water * 100)}% water"] if info.water >= 0.05 else []
+            if info.rock >= 0.05:
+                terrain.append(f"{round(info.rock * 100)}% rock")
+            if terrain:
+                lines.append((", ".join(terrain), Theme.DIM))
+        if side:
+            lines.append(("", Theme.TEXT))
+            lines.append((f"You: {player.x}, {player.y}" + (f" (layer {engine.game_world.current_z})" if engine.game_world.current_z else ""), Theme.TEXT))
+            for name, (px, py), tint in known_places(engine):
+                lines.append((f"{name}: {bearing(px - player.x, py - player.y)}", tint))
+            lines.append(("", Theme.TEXT))
+            lines.append(("White frame: in view now. Dim: explored. Blank: undiscovered.", Theme.DIM))
+        else:
+            lines.append((f"You: {player.x}, {player.y}", Theme.TEXT))
+        row = y
+        for text, tint in lines:
+            for part in (canvas.wrap(text, width) if text else [""]):
+                if row >= iy + ih:
+                    return
+                canvas.print(x, row, part, fg=tint)
+                row += 1
+
+    # ── input ────────────────────────────────────────────────────────────────────────
+    STEP = {Key.LEFT: (-1, 0), Key.RIGHT: (1, 0), Key.UP: (0, -1), Key.DOWN: (0, 1)}
+
+    def ev_keydown(self, event):
+        key, big = event.sym, bool(event.mod & (events.Mod.SHIFT))
+        if key in self.STEP:
+            n = 5 if big else 1
+            self.cursor = (self.cursor[0] + self.STEP[key][0] * n, self.cursor[1] + self.STEP[key][1] * n)
+            return None
+        if key == Key.HOME or key == Key.PERIOD:
+            self.cursor = self.home
+            return None
+        if key in (Key.PLUS, Key.EQUALS, Key.KP_PLUS):
+            self.zoom = min((self.zoom or self._fitted()) + 2, 32)
+            return None
+        if key in (Key.MINUS, Key.KP_MINUS):
+            self.zoom = max((self.zoom or self._fitted()) - 2, 3)
+            return None
+        if key in (Key.M, Key.ESCAPE):
+            return self.on_exit()
+        return None            # (any other key does nothing: the map is for looking)
+
+    def _fitted(self) -> int:
+        return self._geometry[1] if self._geometry else 8
+
+    def _chunk_at(self, position):
+        if not self._geometry:
+            return None
+        from ui import CELL
+        area, cell, kx0, ky0 = self._geometry
+        px, py = int(position[0]) * CELL + CELL // 2, int(position[1]) * CELL + CELL // 2
+        if not area.collidepoint(px, py):
+            return None
+        return kx0 + (px - area.x) // cell, ky0 + (py - area.y) // cell
+
+    def ev_mousemotion(self, event):
+        key = self._chunk_at(event.position)
+        if key is not None:
+            self.cursor = key
+        return None
+
+    def ev_mousebuttondown(self, event):
+        if event.button == events.MouseButton.LEFT:
+            key = self._chunk_at(event.position)
+            if key is not None:
+                self.cursor = key
+            return None
+        return super().ev_mousebuttondown(event)
+
+
+NavigationHandler = WorldMapHandler       # (M used to open a plain list of places)
 
 
 CONTROLS = (
@@ -208,7 +404,7 @@ CONTROLS = (
     ("S", "scan a visible tile or creature (O: codex of what you know)"),
     ("Z", "sleep in a bed (Casual mode saves there)"),
     ("P / K", "fire the pistol at a target / use the bounty tracker"),
-    ("M / C / V", "navigation / character / message history"),
+    ("M / C / V", "world map and navigation / character / message history"),
     ("L, <, >", "take stairs"),
     ("H", "this help"),
 )

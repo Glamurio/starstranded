@@ -81,7 +81,7 @@ RECIPES: List[Recipe] = [
            (Need("frame", "Frame", ("Branch",), 3, (("toughness", 4.0),)),
             Need("padding", "Padding", ("Fibre", "Hide", "Leather", "Feather"), 2, (("insulation", 3.0),))), "placed", defs.BED,
            rules={"toughness": ("role", "frame"), "insulation": ("role", "padding")}, designation="frame", is_placeable=True, time=4),
-    Recipe("floor", "Wooden floor", "A plank floor for open air: build it next to you, then walk out onto it.", 1,
+    Recipe("floor", "Wooden floor", "A plank floor for open air, or a bridge over water next to dry ground: build it next to you, then walk out onto it.", 1,
            (Need("boards", "Boards", ("Branch",), 2, (("toughness", 3.0),)),), "floor", defs.WOODEN_FLOOR,
            designation="boards", is_placeable=True),
     Recipe("stairs", "Wooden stairs", "A staircase up to the layer above (the way down appears there too).", 1,

@@ -136,7 +136,7 @@ def _rock_edge(master: int, key: ChunkKey) -> Optional[np.ndarray]:
 def _open_floor(master: int, key: ChunkKey) -> np.ndarray:
     """Surface tiles of a chunk that are walkable and free of trees (after the spawn carve)."""
     tiles, tree_map = raw_surface(master, key)
-    free = tiles["walkable"] & ~tree_map & (tiles["liquid"] == 0)
+    free = tiles["walkable"] & ~tree_map & (tiles["liquid"] == 0) & ~tile_types.is_laid(tiles)
     if key == (0, 0):
         (sx, sy), carved = start_point(master)
         if carved:
@@ -217,6 +217,8 @@ def surface_layer(master: int, key: ChunkKey) -> Tuple[np.ndarray, np.ndarray]:
         (sx, sy), carved = start_point(master)
         if carved:
             tiles[sx, sy] = tile_types.floor.get_array()
+    import routes
+    routes.paint(master, key, tiles, tree_map)            # paths between the sites (before the buildings, which cover them)
     found = structure(master, key)
     x0, y0 = chunk_origin(key)
     if found.building is not None:

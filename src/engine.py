@@ -180,6 +180,8 @@ class Engine:
 
         # what was seen stays explored
         world.mark_explored()
+        import worldmap
+        worldmap.record(self)
         self.discover_recipes()
 
     @property

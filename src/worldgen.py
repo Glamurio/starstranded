@@ -375,7 +375,11 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
         landscape[layer]["fg"][lava] = (np.array(LAVA_COLOR, dtype=float) * scale).astype(np.uint8)
     # (ground cover never goes under a tree: a tree and a tuft of grass would share a tile)
     _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
-    tree_map &= ~landscape["open"]            # nothing grows over a chasm
+    deck, banks = hydrology.bridge_tiles(noise, x0 - m, y0 - m, pw, ph)
+    deck, banks = deck & (kinds == 0) & ~hot & ~fall & ~lava, banks & (kinds == 1) & ~landscape["open"]
+    landscape[deck] = tile_types.bridge.get_array()       # the odd natural bridge over a narrow river
+    landscape[banks] = tile_types.path.get_array()
+    tree_map &= ~landscape["open"] & ~deck & ~banks        # nothing grows over a chasm, a bridge or its path
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
 

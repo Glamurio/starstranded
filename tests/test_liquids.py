@@ -26,10 +26,12 @@ def test_deeper_liquid_is_always_ringed_by_shallower_liquid():
     for seed in (1, 2, 3, 4):
         for key, tiles in _chunks(seed, [(x, y) for x in range(-2, 3) for y in range(-2, 3)]).items():
             depth = tiles["depth"].astype(int)
-            padded = np.pad(depth, 1, constant_values=9)  # outside the chunk: unknown, never a violation
+            import tile_types
+            padded = np.pad(np.where(tile_types.is_laid(tiles), 9, depth), 1, constant_values=9)  # outside the chunk, or a plank: never a violation
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 neighbour = padded[1 + dx:1 + dx + depth.shape[0], 1 + dy:1 + dy + depth.shape[1]]
-                bad = (depth >= 2) & (neighbour < depth - 1)
+                foam = tiles["light"]["fg"][..., 0] > 200            # (a waterfall drops straight from the bank: deliberately abrupt)
+                bad = (depth >= 2) & (neighbour < depth - 1) & ~foam
                 assert not bad.any(), (seed, key)
             deep_seen += int((depth >= 2).sum())
     assert deep_seen > 0

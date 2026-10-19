@@ -25,6 +25,11 @@ class Key:
     LEFT = pygame.K_LEFT
     RIGHT = pygame.K_RIGHT
     HOME = pygame.K_HOME
+    PLUS = pygame.K_PLUS
+    MINUS = pygame.K_MINUS
+    EQUALS = pygame.K_EQUALS
+    KP_PLUS = pygame.K_KP_PLUS
+    KP_MINUS = pygame.K_KP_MINUS
     END = pygame.K_END
     PAGEUP = pygame.K_PAGEUP
     PAGEDOWN = pygame.K_PAGEDOWN

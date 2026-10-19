@@ -53,6 +53,8 @@ REACH = MAX_NODES * NODE
 FJORD_MAX_NODES, FJORD_MIN_NODES, FJORD_MIN_RANGE, FJORD_MAX_RISE, FJORD_WIDTH = 14, 3, 0.10, 1.3, 8.5
 """A river that meets the sea through a range has its last stretch (at most 14 nodes, at least 3, where the height is still
 within 1.3 of the sea) drowned into a fjord 8.5 tiles wide."""
+BRIDGE_EVERY, BRIDGE_SPAN, APPROACH = 20, (2, 6), 2
+"""One river node in `BRIDGE_EVERY` is a candidate; a bridge spans 2-6 tiles of water and has 2 path tiles on each bank."""
 HOT_CELL, HOT_CHANCE, HOT_STRENGTH = 36, 0.6, 0.45
 LAVA_STRENGTH, LAVA_SHARE = 0.75, 0.5
 """Landmark strength from which a hot site may be a lava lake, and the share of those that are."""
@@ -84,6 +86,7 @@ class RiverSystem:
         self._cells: Dict[Tuple[int, int], Optional[River]] = {}
         self._jitter: Dict[Node, Tuple[float, float]] = {}
         self._hot: Dict[Tuple[int, int], Optional[Tuple[float, float, float]]] = {}
+        self._bridges: Dict[Node, Optional[List[Tuple[int, int, bool]]]] = {}
 
     # ── the field rivers flow over ──────────────────────────────────────────────────────────────────────
     def height(self, ix: int, iy: int) -> float:
@@ -198,6 +201,64 @@ class RiverSystem:
             return None
         lava = float(env["landmark_strength"][0, 0]) >= LAVA_STRENGTH and rng.random() < LAVA_SHARE
         return x, y, radius * (1.8 if lava else 1.0), lava
+
+    def bridge_at(self, river: "River", k: int) -> Optional[List[Tuple[int, int, bool]]]:
+        """The bridge over `river` at its node `k`, if it has one: `[(x, y, deck)]`, the planks over the water (`deck`) and the
+        path tiles on the banks either side. Only a narrow, plain reach with dry banks on both sides and no fall, fjord,
+        lake or mouth near it qualifies, and then only one node in `BRIDGE_EVERY`. Judged on the terrain itself, so the
+        answer is the same whichever chunk asks."""
+        node = river.nodes[k]
+        if node not in self._bridges:
+            self._bridges[node] = self._make_bridge(river, k)
+        return self._bridges[node]
+
+    def _make_bridge(self, river: "River", k: int) -> Optional[List[Tuple[int, int, bool]]]:
+        nodes = river.nodes
+        if k < 2 or k > len(nodes) - RUN_ON - 3 or (river.fjord_from >= 0 and k >= river.fjord_from - 1):
+            return None
+        node = nodes[k]
+        if mix_seed(self.seed, node[0], node[1], 7171) % BRIDGE_EVERY or mix_seed(self.seed, node[0], node[1], 5353) % FORD_EVERY == 0:
+            return None
+        import worldgen
+        a, b = nodes[k - 1], nodes[k + 1]
+        dx, dy = b[0] - a[0] + 0.0, b[1] - a[1] + 0.0
+        norm = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / norm, dx / norm
+        cx, cy = node[0] * NODE + self.jitter(node)[0], node[1] * NODE + self.jitter(node)[1]
+        half = 16
+        x0, y0 = int(cx) - half, int(cy) - half
+        size = 2 * half + 1
+        kinds = worldgen.base_terrain(self.noise, x0, y0, size, size)
+        bad = waterfall_mask(self.noise, x0, y0, size, size) | lava_mask(self.noise, x0, y0, size, size) | hot_spring_mask(self.noise, x0, y0, size, size)
+        line = []
+        for step in range(-2 * half + 2, 2 * half - 1):
+            t = step / 2.0
+            tile = (int(round(cx + nx * t)), int(round(cy + ny * t)))
+            if not line or line[-1] != tile:
+                line.append(tile)
+        local = [(x - x0, y - y0) for x, y in line]
+        inside = [(i, p) for i, p in enumerate(local) if 1 <= p[0] < size - 1 and 1 <= p[1] < size - 1]
+        if not inside:
+            return None
+        water = [i for i, p in inside if kinds[p] == 0]
+        if not water or bad[tuple(zip(*[p for _, p in inside]))].any():
+            return None
+        # the water crossing the centre of the line: the run of water tiles around the water nearest the river node
+        centre = min(water, key=lambda i: (line[i][0] - cx) ** 2 + (line[i][1] - cy) ** 2)
+        lo = hi = centre
+        while lo - 1 >= 0 and 1 <= local[lo - 1][0] < size - 1 and 1 <= local[lo - 1][1] < size - 1 and kinds[local[lo - 1]] == 0:
+            lo -= 1
+        while hi + 1 < len(local) and 1 <= local[hi + 1][0] < size - 1 and 1 <= local[hi + 1][1] < size - 1 and kinds[local[hi + 1]] == 0:
+            hi += 1
+        span = hi - lo + 1
+        if not BRIDGE_SPAN[0] <= span <= BRIDGE_SPAN[1] or lo - APPROACH < 0 or hi + APPROACH >= len(local):
+            return None
+        for i in list(range(lo - APPROACH, lo)) + list(range(hi + 1, hi + 1 + APPROACH)):
+            px, py = local[i]
+            if not (0 <= px < size and 0 <= py < size) or kinds[px, py] != 1:       # dry, open ground on both banks
+                return None
+        found = [(line[i][0], line[i][1], lo <= i <= hi) for i in range(lo - APPROACH, hi + 1 + APPROACH)]
+        return found
 
     def rivers_near(self, x0: int, y0: int, width: int, height: int) -> List[River]:
         """Every river whose course may touch the tile rectangle."""
@@ -323,6 +384,22 @@ def waterfall_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarr
             mid = np.array([[(ax + bx) / 2, (ay + by) / 2]])
             _stamp(mask, x0, y0, mid, np.array([2.2]))
     return mask
+
+
+def bridge_tiles(noise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
+    """`(deck, approach)` masks of the natural bridges in the rectangle: planks over the water, and the path tiles of the banks."""
+    system = system_for(noise)
+    deck = np.zeros((width, height), dtype=bool)
+    approach = np.zeros((width, height), dtype=bool)
+    for river in system.rivers_near(x0, y0, width, height):
+        for k in range(len(river.nodes)):
+            found = system.bridge_at(river, k)
+            if not found:
+                continue
+            for x, y, is_deck in found:
+                if x0 <= x < x0 + width and y0 <= y < y0 + height:
+                    (deck if is_deck else approach)[x - x0, y - y0] = True
+    return deck, approach
 
 
 def lava_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:

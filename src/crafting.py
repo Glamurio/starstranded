@@ -202,10 +202,21 @@ class BuildingPiece(Constructable):
 
 
 def floor_problem(game_map, x: int, y: int) -> Optional[str]:
+    """A floor goes over open air, or (a bridge) over water that touches dry ground or an existing bridge: built out from the
+    bank one plank at a time. Not over lava."""
     tile = game_map.tile_at(x, y)
-    if tile is None or not tile["open"]:
-        return "There is nothing to build on there: floors go where there is open air."
-    return None
+    if tile is not None and tile["open"]:
+        return None
+    if tile is not None and tile["depth"] > 0:
+        import liquids
+        if int(tile["liquid"]) == liquids.LiquidKind.LAVA:
+            return "Nothing can be laid over molten rock."
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            near = game_map.tile_at(x + dx, y + dy)
+            if near is not None and near["walkable"] and not near["liquid"]:
+                return None
+        return "A bridge has to start from dry ground or from another plank."
+    return "There is nothing to build on there: floors go where there is open air, or over water next to dry ground."
 
 
 def stairs_problem(game_map, x: int, y: int) -> Optional[str]:
@@ -219,7 +230,8 @@ def stairs_problem(game_map, x: int, y: int) -> Optional[str]:
 
 
 def build_floor(game_map, x: int, y: int) -> None:
-    game_map.set_tile(x, y, tile_types.built_floor.get_array())
+    over_water = game_map.tile_at(x, y)["depth"] > 0
+    game_map.set_tile(x, y, (tile_types.bridge if over_water else tile_types.built_floor).get_array())
 
 
 def build_stairs(game_map, x: int, y: int) -> None:

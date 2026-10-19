@@ -223,6 +223,35 @@ built_floor = Tile(  # a floor the player laid
     light_bg=color.nigh_black,
     dtype=tile_dt
 )
+bridge = Tile(  # planks over water: walkable, nothing grows or flows on it
+    object_type="Bridge",
+    walkable=True,
+    transparent=True,
+    sprite=(2, 4),
+    dark_fg=(70, 48, 28),
+    light_fg=(170, 120, 70),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    dtype=tile_dt
+)
+path = Tile(  # trodden earth: the way between places, and the banks of a bridge
+    object_type="Path",
+    walkable=True,
+    transparent=True,
+    sprite=(2, 5),
+    dark_fg=(62, 50, 36),
+    light_fg=(150, 125, 90),
+    dark_bg=color.black,
+    light_bg=color.nigh_black,
+    dtype=tile_dt
+)
+
+
+def is_laid(tiles: np.ndarray) -> np.ndarray:
+    """Mask of the tiles that are a bridge or a path (told by their sprite: the tile array has no room for a kind)."""
+    return np.isin(tiles["light"]["sprite"], (bridge.sprite, path.sprite))
+
+
 cave_floor = Tile(
     object_type="Cave floor",
     walkable=True,
