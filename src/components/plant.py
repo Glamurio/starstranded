@@ -106,8 +106,10 @@ class Plant(Entity):
                     continue
                 self.inventory.drop(item, tile)
                 break
-        self.inventory.add(self.yield_piece())
-        if self.fruit:
+        # `Inventory.add` throws away what does not fit, so do not build (and colour-jitter) items for nothing
+        if not self.inventory.is_full():
+            self.inventory.add(self.yield_piece())
+        if self.fruit and not self.inventory.is_full():
             self.inventory.add(Fruit(self.inventory, self.fruit))
 
     def yield_piece(self):
@@ -165,6 +167,21 @@ class Stump(Entity):
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         return "Stump"
+
+
+class Flower(Plant):
+    """A small ground plant that bears one bloom: grab it with G, and a new one opens each growth cycle. Walked over freely."""
+
+    def __init__(self, species: PlantSpecies):
+        Plant.__init__(self, species)
+        self.inventory.add(Fruit(self.inventory, species.fruit))   # it starts in bloom
+
+    def yield_piece(self):
+        return Fruit(self.inventory, self.kind.fruit)
+
+    def complete_cycle(self) -> None:
+        if not self.inventory.is_full():
+            self.inventory.add(Fruit(self.inventory, self.kind.fruit))
 
 
 class Tree(Plant):

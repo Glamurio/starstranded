@@ -35,7 +35,7 @@ def test_deeper_liquid_is_always_ringed_by_shallower_liquid():
     assert deep_seen > 0
 
 
-def test_only_shallow_liquid_can_be_waded_and_there_are_just_two_colours():
+def test_only_shallow_liquid_can_be_waded_and_the_colours_grade_from_shore_to_deep():
     colours = {1: set(), 2: set(), 3: set()}
     for seed in (1, 2, 3):
         for tiles in _chunks(seed, [(0, 0), (1, 0), (0, 1), (-1, 0)]).values():
@@ -45,7 +45,12 @@ def test_only_shallow_liquid_can_be_waded_and_there_are_just_two_colours():
             for d in (1, 2, 3):
                 colours[d].update(map(tuple, tiles["light"]["fg"][depth == d].tolist()))
     assert colours[3], "no deep liquid generated"
-    assert colours[1] == {worldgen.SHALLOW_COLOR} and colours[2] <= {worldgen.DEEP_COLOR} and colours[3] == {worldgen.DEEP_COLOR}
+    assert colours[3] == {worldgen.DEEP_COLOR}                 # the middle of a lake is the plain deep colour
+    def near(found, base, tolerance):
+        return all(max(abs(a - b) for a, b in zip(c, base)) <= tolerance for c in found)
+    assert near(colours[1], worldgen.SHALLOW_COLOR, 60)       # shallows are shallow-coloured, tinted by the shore
+    assert near(colours[2], worldgen.DEEP_COLOR, 60) and not near(colours[2], worldgen.DEEP_COLOR, 0)   # half-way to the shallows
+    assert len(colours[1]) > 10                                # a gradient, not one flat colour
     assert sum(worldgen.DEEP_COLOR) < sum(worldgen.SHALLOW_COLOR)  # deep is the darker of the two
 
 

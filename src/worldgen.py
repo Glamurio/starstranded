@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import random
-from typing import Iterator, List, Optional, Tuple, TYPE_CHECKING
+from typing import Dict, Iterator, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np  # type: ignore
 import tcod
@@ -19,6 +19,7 @@ import tcod
 import shafts
 from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the long-standing import path)
 import tile_types
+from atlas import sprite_id
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chunk_origin
 from species import PlantCategory, PlantSpecies, make_plant_species
 
@@ -56,10 +57,27 @@ class TerrainNoise:
     """The floor's four noise generators (two for height, two for vegetation, as the single-map generator had)."""
 
     def __init__(self, floor_seed: int):
+        self.floor_seed = floor_seed
         self.noises = [
             tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(floor_seed, i) % 2**31)
             for i in range(8)
         ]
+
+    def scatter(self, salt: int, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """A pseudo-random number in [0, 1) for every tile of a world rectangle, a pure function of (seed, salt, x, y): the same
+        tile gets the same number however the rectangle is cut, so chunk borders show no seam (unlike the global RNG)."""
+        mask = 2 ** 64 - 1
+        with np.errstate(over="ignore"):
+            xs = np.arange(x0, x0 + width, dtype=np.int64).astype(np.uint64)[:, None]
+            ys = np.arange(y0, y0 + height, dtype=np.int64).astype(np.uint64)[None, :]
+            key = np.uint64((self.floor_seed * 0x165667B19E3779F9 + salt * 0x27D4EB2F165667C5) & mask)
+            h = xs * np.uint64(0x9E3779B97F4A7C15) ^ ys * np.uint64(0xC2B2AE3D27D4EB4F) ^ key
+            h ^= h >> np.uint64(33)
+            h *= np.uint64(0xFF51AFD7ED558CCD)
+            h ^= h >> np.uint64(33)
+            h *= np.uint64(0xC4CEB9FE1A85EC53)
+            h ^= h >> np.uint64(33)
+        return (h >> np.uint64(11)).astype(np.float64) / float(2 ** 53)
 
     def sample(self, index: int, scale: float, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Noise `index` on the world rectangle (x0, y0, width, height) as a [x, y] array."""
@@ -160,6 +178,95 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
     landscape["dark"]["fg"][liquid] = (light[liquid] * 0.5).astype(np.uint8)
 
 
+# ── ground cover and shores ─────────────────────────────────────────────────────────────────────────────
+_TUFTS = ((3, 9), (4, 9), (5, 9), (1, 9), (7, 9), (8, 9), (9, 9), (19, 9), (20, 9))
+_FERNS = ((10, 9), (11, 9), (12, 9))
+_LEAVES = ((17, 9), (18, 9))
+_DRY = ((3, 9), (4, 9), (5, 9))
+GROUND_COVER: Dict[str, Tuple[Tuple[int, int], ...]] = {
+    "glacial": _DRY, "tundra": _DRY + ((1, 9),), "taiga": _TUFTS + _FERNS, "steppe": _DRY + ((7, 9), (8, 9)),
+    "temperate_forest": _TUFTS + _FERNS + _LEAVES, "grassland": _TUFTS, "shrubland": _DRY + ((7, 9), (8, 9)),
+    "savanna": _DRY + ((7, 9), (8, 9)), "jungle": _TUFTS + _FERNS + _LEAVES + _LEAVES, "badlands": _DRY, "desert": _DRY,
+    "swamp": _TUFTS + _FERNS + _LEAVES, "bog": _TUFTS + _FERNS, "volcanic": _DRY, "crystalline": _DRY,
+    "fungal": _TUFTS + ((2, 10), (3, 10), (2, 10)),
+}
+"""The little plants drawn on open ground, by biome: tufts of grass, ferns, leaves, toadstools (sprites of the sheet).
+They are part of the terrain graphics, not objects: free to draw, nothing to save, nothing to pick up."""
+COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.06, 0.30, 0.5
+"""Share of open ground that carries cover: `COVER_BASE + COVER_PER_VEGETATION * biome.vegetation` (at most `COVER_MAX`)."""
+
+SHORE_WET = (0.40, 0.22, 0.09)
+"""How far the damp of a shore reaches into the land: the share of the water colour mixed into the ground 1, 2 and 3 tiles
+from the water."""
+
+
+def shore_distance(water: np.ndarray, reach: int = 3) -> np.ndarray:
+    """Tiles from the nearest water for every tile: 0 in the water, 1..`reach` on land, `reach` + 1 further away."""
+    from procgen import dilate
+    distance = np.full(water.shape, reach + 1, dtype=np.int8)
+    distance[water] = 0
+    seen = water.copy()
+    for step in range(1, reach + 1):
+        grown = dilate(seen)
+        distance[grown & ~seen] = step
+        seen = grown
+    return distance
+
+
+def _mix(a: np.ndarray, b: np.ndarray, share) -> np.ndarray:
+    return (a.astype(float) * (1.0 - share) + b.astype(float) * share)
+
+
+def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.ndarray, ground: np.ndarray, open_ground: np.ndarray) -> None:
+    """Soften the edge between water and land into a gradient: the ground gets damper and bluer towards the water, shallow
+    water takes some of the ground's colour, and the step from shallow to deep water is split in two. Every tile gets a few
+    shades of variation so the bands do not read as stripes."""
+    distance = shore_distance(water)
+    shallow = np.array(SHALLOW_COLOR, dtype=float)
+    deep = np.array(DEEP_COLOR, dtype=float)
+    jitter = np.floor(noise.scatter(1, *area) * 9 - 4)[..., None]   # -4..4 shades, the same for a tile whichever chunk makes it
+    for step, share in enumerate(SHORE_WET, start=1):
+        band = open_ground & (distance == step)
+        if not band.any():
+            continue
+        for layer, scale in (("light", 0.8), ("dark", 0.4)):
+            damp = shallow * scale * 0.85 + ground[band].astype(float) * scale * 0.15
+            colour = _mix(landscape[layer]["fg"][band], damp, share) + jitter[band]
+            landscape[layer]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
+        damp_bg = shallow * 0.10
+        landscape["light"]["bg"][band] = np.clip(_mix(landscape["light"]["bg"][band], damp_bg, share), 0, 255).astype(np.uint8)
+    depth = landscape["depth"]
+    for level, base, other, share in ((1, shallow, ground * 0.8, 0.22), (2, deep, shallow, 0.45)):
+        band = water & (depth == level)
+        if not band.any():
+            continue
+        target = other[band] if level == 1 else other
+        colour = _mix(np.broadcast_to(base, (int(band.sum()), 3)), target, share) + jitter[band]
+        landscape["light"]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
+        landscape["dark"]["fg"][band] = np.clip(colour * 0.5, 0, 255).astype(np.uint8)
+
+
+def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, biome: np.ndarray, open_ground: np.ndarray, vegetation: np.ndarray) -> None:
+    """Scatter little plants over open ground (see `GROUND_COVER`): a sprite, tinted from the ground under it."""
+    import biomes
+    chance = np.clip(COVER_BASE + COVER_PER_VEGETATION * vegetation, 0.0, COVER_MAX)
+    covered = open_ground & (noise.scatter(2, *area) < chance)
+    pick, turn, tone = noise.scatter(3, *area), noise.scatter(4, *area), noise.scatter(5, *area)
+    for index, key in enumerate(biomes.BIOME_IDS):
+        mask = covered & (biome == index)
+        count = int(mask.sum())
+        if not count:
+            continue
+        sprites = np.array([sprite_id(*cell) for cell in GROUND_COVER[key]], dtype=np.int32)
+        chosen = sprites[(pick[mask] * len(sprites)).astype(int)]
+        flip = turn[mask] < 0.5
+        for layer, brighten in (("light", (1.0, 1.55)), ("dark", (1.0, 1.4))):
+            shade = (brighten[0] + tone[mask] * (brighten[1] - brighten[0]))[:, None]
+            landscape[layer]["sprite"][mask] = chosen
+            landscape[layer]["flip"][mask] = flip
+            landscape[layer]["fg"][mask] = np.clip(landscape[layer]["fg"][mask].astype(float) * shade, 0, 255).astype(np.uint8)
+
+
 def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
     """Tiles and tree map for a world rectangle, generated on a padded region. Uses the global RNGs (wrap it in
     `seeded_rng`). Returns `(tiles, tree_map)` for the unpadded rectangle."""
@@ -190,6 +297,9 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     threshold = 0.1 + (1.0 - density) * 0.45
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
+    area = (x0 - m, y0 - m, pw, ph)
+    _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground)
+    _cover_ground(noise, area, landscape, env["biome"], open_ground, density)
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
 
@@ -288,6 +398,8 @@ class NoiseWorldSource:
                 self._scatter_stones(world, chunk, env, reserved)
                 self._spawn_fauna(world, chunk, env, reserved)
                 self._place_sites(world, chunk)
+                self._scatter_flowers(world, chunk, env, reserved)
+                self._scatter_lily_pads(world, chunk)
         for entity in chunk.entities:
             if entity not in before:
                 entity.last_upkeep = now
@@ -307,6 +419,49 @@ def _grow_flora(self, world: "World", chunk: Chunk, tree_map: np.ndarray, env: d
         plant = components.plant.Tree(species) if species.category is PlantCategory.TREE else components.plant.Shrub(species)
         plant.growth = random.randrange(int(plant.avg_cycle) + 1)  # staggered, so the forest does not fruit in unison
         world.add_entity(plant, chunk.x0 + lx, chunk.y0 + ly)
+
+
+FLOWERS_PER_CHUNK = (25, 60)
+"""Flowers placed on a chunk's open ground (min, max attempts; each needs a free tile a flower species can live on)."""
+LILY_PADS_PER_100_WATER_TILES = 1.2
+"""Lily pads on the water of a chunk: very sparse."""
+
+
+def _scatter_flowers(self, world: "World", chunk: Chunk, env: dict, reserved) -> None:
+    """Flowers on free open ground, each a species whose habitat suits the tile."""
+    import components.plant
+    pool, weights = self.planet.species_weights(env, PlantCategory.FLOWER)   # one pass over the whole chunk
+    if not pool:
+        return
+    for _ in range(random.randint(*FLOWERS_PER_CHUNK)):
+        lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
+        x, y = chunk.x0 + lx, chunk.y0 + ly
+        if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
+            continue
+        if world.get_entities_at_location(x, y):
+            continue
+        column = weights[:, lx, ly]
+        if column.sum() <= 0:
+            continue
+        plant = components.plant.Flower(random.choices(pool, weights=column.tolist())[0])
+        plant.growth = random.randrange(int(plant.avg_cycle) + 1)
+        world.add_entity(plant, x, y)
+
+
+def _scatter_lily_pads(self, world: "World", chunk: Chunk) -> None:
+    """A few lily pads floating on the shallow and middling water."""
+    import decals
+    liquid = chunk.tiles["liquid"] > 0
+    count = int(liquid.sum() * LILY_PADS_PER_100_WATER_TILES / 100 + random.random())
+    spots = np.argwhere(liquid & (chunk.tiles["depth"] <= 2))
+    for _ in range(min(count, len(spots))):
+        lx, ly = spots[random.randrange(len(spots))].tolist()
+        x, y = chunk.x0 + lx, chunk.y0 + ly
+        if world.get_entities_at_location(x, y):
+            continue
+        pad = decals.LilyPad(tuple(max(0, min(255, c + random.randint(-18, 18))) for c in (70, 150, 70)))
+        pad.variant = random.randrange(8)
+        world.add_entity(pad, x, y)
 
 
 FAUNA_PER_CHUNK = 9
@@ -376,6 +531,8 @@ def _place_sites(self, world: "World", chunk: Chunk) -> None:
 NoiseWorldSource._place_sites = _place_sites
 NoiseWorldSource._scatter_stones = _scatter_stones
 NoiseWorldSource._grow_flora = _grow_flora
+NoiseWorldSource._scatter_flowers = _scatter_flowers
+NoiseWorldSource._scatter_lily_pads = _scatter_lily_pads
 NoiseWorldSource._spawn_fauna = _spawn_fauna
 
 

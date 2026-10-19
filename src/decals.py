@@ -23,24 +23,44 @@ class DecalKind:
 PUDDLE = DecalKind("puddle", "puddle")
 
 
-class Puddle(Entity):
-    """A pool of `fluid` ("blood") of one colour, in one of eight shapes picked from its position."""
-    object_type = "Puddle"
+class Decal(Entity):
+    """Scenery drawn on the ground under everything else, in one of eight shapes (`pattern` names the picture)."""
+    object_type = "Decal"
     decal = True
+    pattern = "puddle"
+    variant = 0
+
+    @property
+    def sprite_id(self) -> int:       # drawn procedurally (`atlas.get_decal`), not from the sheet
+        return -1
+
+
+class Puddle(Decal):
+    """A pool of `fluid` ("blood") of one colour."""
+    object_type = "Puddle"
 
     def __init__(self, color: RGB, fluid: str = "blood"):
         Entity.__init__(self, PUDDLE)
         self.color = self.shade = tuple(color)
         self.fluid = fluid
-        self.variant = 0
 
     @property
     def species(self) -> str:
         return f"puddle of {self.fluid}"
 
+
+class LilyPad(Decal):
+    """A lily pad floating on the water."""
+    object_type = "Lily pad"
+    pattern = "lilypad"
+
+    def __init__(self, color: RGB = (70, 150, 70)):
+        Entity.__init__(self, PUDDLE)
+        self.color = self.shade = tuple(color)
+
     @property
-    def sprite_id(self) -> int:       # drawn procedurally (`atlas.get_puddle`), not from the sheet
-        return -1
+    def species(self) -> str:
+        return "lily pad"
 
 
 def is_decal(entity) -> bool:

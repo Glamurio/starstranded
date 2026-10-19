@@ -41,7 +41,8 @@ ABSENT_TYPICAL = {"radioactivity", "transparency", "incandescence", "electrical_
 COLOR_CONCEPTS = ("red", "orange", "yellow", "green", "teal", "blue", "indigo", "violet", "pink", "brown", "white", "black", "grey")
 
 NOUN_CONCEPTS = ("wood", "tree", "stone", "rock", "metal", "fibre", "hide", "bone", "clay", "sand", "glass", "crystal",
-                 "coal", "plant", "bush", "grass", "reed", "coat", "hopper", "runner", "shell", "wing", "horn", "root")
+                 "coal", "plant", "bush", "grass", "reed", "coat", "hopper", "runner", "shell", "wing", "horn", "root",
+                 "flower", "bloom", "bell", "blossom", "star", "aster")
 
 FAMILY_NOUNS: Dict[str, Tuple[str, ...]] = {
     "wood": ("wood", "tree"), "stone": ("stone", "rock"), "metal": ("metal",), "fiber": ("fibre", "plant"),
@@ -49,7 +50,7 @@ FAMILY_NOUNS: Dict[str, Tuple[str, ...]] = {
     "ceramic": ("clay",), "crystal": ("crystal", "stone"), "fuel": ("coal", "stone"), "organic": ("plant",),
     "composite": ("wood",),
     # organisms
-    "tree": ("tree", "wood"), "shrub": ("bush", "plant"), "grass": ("grass", "reed"), "fungus": ("plant",),
+    "tree": ("tree", "wood"), "shrub": ("bush", "plant"), "flower": ("flower", "bloom", "bell", "blossom", "star", "aster"), "grass": ("grass", "reed"), "fungus": ("plant",),
     "animal": ("hopper", "runner"), "furred": ("coat", "runner"), "armoured": ("shell", "runner"),
     "small_herbivore": ("hopper", "coat"), "grazer": ("runner", "horn"), "predator": ("runner", "coat"),
     "crawler": ("shell", "runner"), "bird": ("wing", "runner"), "serpent": ("runner", "hide"), "fruit": ("plant",),
@@ -79,6 +80,7 @@ HUMAN: Dict[str, Tuple[str, ...]] = {
     "coal": ("coal", "cinder"), "plant": ("plant", "weed"), "bush": ("bush", "shrub"), "grass": ("grass", "sedge"),
     "reed": ("reed", "cane"), "coat": ("coat", "pelt", "fur"), "hopper": ("hopper", "hare"), "runner": ("runner", "stalker"),
     "shell": ("shell", "back"), "wing": ("wing",), "horn": ("horn",), "root": ("root", "tuber"),
+    "flower": ("flower", "bud"), "bloom": ("bloom",), "bell": ("bell", "cup"), "blossom": ("blossom",), "star": ("star",), "aster": ("aster",),
 }
 MAU: Dict[str, Tuple[str, ...]] = {
     "spring": ("nehem",), "hard": ("khepesh",), "soft": ("neden",), "stout": ("aa",), "brittle": ("tjeser",), "bind": ("shenu",),
@@ -91,6 +93,7 @@ MAU: Dict[str, Tuple[str, ...]] = {
     "glass": ("hebeny",), "crystal": ("mefkat",), "coal": ("tjesu",), "plant": ("sekhet",), "bush": ("bener",),
     "grass": ("sekhu",), "reed": ("ges",), "coat": ("seshem",), "hopper": ("sepen",), "runner": ("maw",),
     "shell": ("nekhen",), "wing": ("djuw",), "horn": ("abu",), "root": ("khenu",),
+    "flower": ("sheny",), "bloom": ("pert",), "bell": ("nebet",), "blossom": ("khenem",), "star": ("seba",), "aster": ("iaret",),
 }
 
 

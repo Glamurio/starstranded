@@ -108,6 +108,16 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
     FloraTemplate("reeds", PlantCategory.SHRUB, ((6, 9),), Habitat((-0.3, 1.0), (0.0, 1.0), water=(0.6, 1.0)), variants=1, rarity=2.0, fruit_chance=0.3, max_hp=6, growth_cycle=5, name_family="grass",
                   color_range=((100, 140, 60), (170, 190, 100))),
     FloraTemplate("bush", PlantCategory.SHRUB, ((105, 0),), Habitat((-0.5, 0.8), (-0.4, 1.0), fertility=(0.2, 1.0)), variants=2, rarity=2.0, max_hp=8, growth_cycle=5, name_family="shrub"),
+    # flowers: small ground plants with one bloom each to pick (food now, medicine and cooking later)
+    FloraTemplate("meadow_flower", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat((-0.5, 0.7), (-0.2, 1.0), fertility=(0.2, 1.0)),
+                  variants=4, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower",
+                  color_range=((130, 70, 90), (255, 240, 200))),
+    FloraTemplate("marsh_flower", PlantCategory.FLOWER, ((17, 9), (18, 9), (0, 10)), Habitat((-0.2, 1.0), (0.3, 1.0), water=(0.3, 1.0)),
+                  variants=3, rarity=2.5, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower",
+                  color_range=((90, 80, 150), (240, 220, 255))),
+    FloraTemplate("dry_flower", PlantCategory.FLOWER, ((1, 10), (16, 9)), Habitat((0.1, 1.0), (-1.0, 0.1)),
+                  variants=2, rarity=2.0, fruit_chance=1.0, max_hp=2, growth_cycle=8, name_family="flower",
+                  color_range=((200, 90, 40), (255, 220, 110))),
     FloraTemplate("thorns", PlantCategory.SHRUB, ((106, 0),), Habitat((-1.0, 1.0), (-1.0, 0.3), fertility=(0.0, 0.8)), variants=1, rarity=1.5, fruit_chance=0.5, max_hp=8, growth_cycle=5, name_family="shrub"),
 )
 
@@ -201,7 +211,7 @@ class Planet:
 
     def species_weights(self, env: Mapping[str, object], category: Optional[PlantCategory] = None) -> Tuple[List[PlantSpecies], np.ndarray]:
         """Flora of the given category with their spawn weight for each tile of `env` (arrays): shape (n_species, *tile_shape)."""
-        pool = [s for s in self.flora if category is None or s.category is category]
+        pool = [s for s in self.flora if (category is None and s.category is not PlantCategory.FLOWER) or s.category is category]
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
         return pool, weights
 
@@ -307,6 +317,8 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04))
     slot = index % len(template.sprites)
     sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])
+    if template.category is PlantCategory.FLOWER:
+        return _make_flower(rng, namer, template, index, color, sprite)
     if template.category is PlantCategory.TREE:
         ranges = dict(hardness=(3, 6), toughness=(4, 8), tenacity=(3, 6), density=(3, 7), elasticity=(2, 7), insulation=(3, 6),
                       thermal_conductivity=(1, 3), flammability=(5, 7.5), combustibility=(5, 7.5))
@@ -338,6 +350,20 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         blocks_movement=template.category is PlantCategory.TREE, blocks_sight=template.category is PlantCategory.TREE,
         render_order=RenderOrder.TREE if template.category is PlantCategory.TREE else RenderOrder.SHRUB,
         habitat=template.habitat, material=stem, fiber=fiber, rarity=template.rarity,
+    )
+
+
+def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, color: RGB, sprite) -> PlantSpecies:
+    """A flower species: a named plant that does not block, and the bloom it bears (an item named after it)."""
+    name = namer.name(f"flora:{template.key}:{index}", "flower", color, {})
+    label = namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
+    toxic = rng.random() < 0.2
+    bloom = ItemKind(None, "Consumable", species=label, sprite=sprite, color=color, shade_sigma=8,
+                     hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=rng.randint(6, 14) if toxic else 0)
+    return PlantSpecies(
+        f"planet:flora:{template.key}:{index}", name.text, PlantCategory.FLOWER, sprite=sprite, corpse_sprite=(3, 9), color=color, fruit=bloom,
+        max_hp=template.max_hp, growth_cycle=template.growth_cycle, inventory_capacity=2, blocks_movement=False, blocks_sight=False,
+        render_order=RenderOrder.SHRUB, habitat=template.habitat, rarity=template.rarity,
     )
 
 

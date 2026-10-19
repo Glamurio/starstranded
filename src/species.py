@@ -41,6 +41,7 @@ class Diet(Enum):
 class PlantCategory(Enum):
     TREE = auto()
     SHRUB = auto()
+    FLOWER = auto()      # small ground plants that bear one bloom to pick (see components.plant.Flower)
 
 
 def _lookup(kind_name: str, key: str):

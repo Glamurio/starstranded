@@ -109,6 +109,30 @@ def draw_puddle(surface: pygame.Surface, variant: int) -> None:
         surface.set_at((x, y), (230, 230, 230, 220))
 
 
+def draw_lily_pad(surface: pygame.Surface, variant: int) -> None:
+    """A round pad with a wedge cut out (white, grey veins) and, on some variants, a pale flower in the middle."""
+    import random
+    rng = random.Random(variant)
+    cx, cy, radius = 12 + rng.randint(-2, 2), 12 + rng.randint(-2, 2), rng.randint(6, 8)
+    notch = rng.uniform(0, 6.28)
+    import math
+    for x in range(24):
+        for y in range(24):
+            dx, dy = x - cx, y - cy
+            distance = (dx * dx + dy * dy) ** 0.5
+            if distance > radius:
+                continue
+            angle = math.atan2(dy, dx)
+            if distance > 1.5 and abs((angle - notch + math.pi) % (2 * math.pi) - math.pi) < 0.28:
+                continue                                           # the wedge
+            vein = abs(((angle - notch) * 3.2 / math.pi) % 1.0 - 0.5) < 0.05 and distance > 2
+            shade = 190 if vein else 235
+            surface.set_at((x, y), (shade, shade, shade, 255))
+    if variant % 3 == 0:                                         # a bloom
+        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+            surface.set_at((cx + dx, cy + dy), (255, 255, 255, 255))
+
+
 class SpriteAtlas:
     """Holds the sheet once and hands out cached sprite surfaces.
 
@@ -160,15 +184,15 @@ class SpriteAtlas:
         self._cache[key] = body
         return body
 
-    def get_puddle(self, variant: int, tint: RGB) -> pygame.Surface:
-        """A stain of colour `tint` (blood, oil...) lying on the ground; `variant` (0-7) picks its shape."""
-        key = ("puddle", variant % 8, tuple(tint))
+    def get_decal(self, pattern: str, variant: int, tint: RGB) -> pygame.Surface:
+        """A procedural ground picture of colour `tint`: a "puddle" (blood, oil...) or a "lilypad"; `variant` (0-7) picks its shape."""
+        key = (pattern, variant % 8, tuple(tint))
         hit = self._cache.get(key)
         if hit is not None:
             return hit
         self._make_room()
         surface = pygame.Surface((TILE, TILE), pygame.SRCALPHA, 32)
-        draw_puddle(surface, variant % 8)
+        (draw_lily_pad if pattern == "lilypad" else draw_puddle)(surface, variant % 8)
         surface.fill((*tint, 255), special_flags=pygame.BLEND_RGBA_MULT)
         self._cache[key] = surface
         return surface

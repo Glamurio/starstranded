@@ -54,7 +54,7 @@ def test_puddle_is_drawn_tinted_and_under_the_corpse(small_world):
     x, y = e.player.x + 1, e.player.y
     decals.spill(e.game_map, x, y, (200, 0, 0))
     e.update_fov()
-    surface = atlas.get_atlas().get_puddle(3, (200, 0, 0))
+    surface = atlas.get_atlas().get_decal("puddle", 3, (200, 0, 0))
     reds = [surface.get_at((i, j)) for i in range(24) for j in range(24) if surface.get_at((i, j)).a > 0]
     assert reds and all(c.g == 0 and c.b == 0 and c.r > 100 for c in reds)
     from render_order import LAYERS, RenderOrder
