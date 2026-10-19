@@ -694,3 +694,8 @@ The plan above was implemented as written, with these specifics and deviations:
 - What: a left click on the outer ring of the view sends the player to the tile just past that edge (`input_handlers.travel_target`); the existing path walk then crosses into the next chunk, which loads and the camera pages onward. The hover path preview shows the same route.
 - Why: mouse-only players could not leave the screen. A shared 1-tile border was not needed for this; the click target does the job.
 - Alternative: a duplicated border tile row (rejected: tiles belong to one chunk, and it would not help with clicking).
+
+## Bridges: single horizontal, single vertical, multi-tile
+- What: `tile.bridge` stays the single horizontal tile (the sprite the player chose, 11,40). New tiles `bridge_vertical` and `bridge_h/v_start/mid/end` are picked from the plank's neighbours (`tile_types.bridge_piece`) for natural river bridges, route bridges and built planks (which reshape as the span grows). Pieces without a sprite of their own are drawn like the single tile of their direction, so each can be set separately in the sprite editor (`tile.bridge_h_mid`, ...).
+- Why: the existing single tile could only look right going one way and never showed a span with ends.
+- Default vertical sprite (12,40) is a guess from the sheet; the editor can change it.

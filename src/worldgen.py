@@ -377,7 +377,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
     deck, banks = hydrology.bridge_tiles(noise, x0 - m, y0 - m, pw, ph)
     deck, banks = deck & (kinds == 0) & ~hot & ~fall & ~lava, banks & (kinds == 1) & ~landscape["open"]
-    landscape[deck] = tile_types.bridge.get_array()       # the odd natural bridge over a narrow river
+    tile_types.lay_bridge(landscape, deck, (kinds == 1) & ~deck)     # the odd natural bridge over a narrow river
     landscape[banks] = tile_types.path.get_array()
     tree_map &= ~landscape["open"] & ~deck & ~banks        # nothing grows over a chasm, a bridge or its path
     interior = (slice(m, m + width), slice(m, m + height))

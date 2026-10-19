@@ -139,6 +139,10 @@ def _apply_live(key: str, pos: Pos) -> None:
         tile = getattr(tile_types, name, None)
         if tile is not None:
             tile.set_sprite(pos, variation or None)
+            if not variation:      # a piece that follows this tile (a bridge's ends) is drawn like it unless set by hand
+                for other, piece in vars(tile_types).items():
+                    if getattr(piece, "follows", None) == name and not is_changed(f"tile.{other}"):
+                        piece.set_sprite(pos)
     # flora and fauna: generated per world, so they take the new sprite at the next world generation
 
 

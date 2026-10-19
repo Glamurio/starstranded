@@ -247,9 +247,80 @@ path = Tile(  # trodden earth: the way between places, and the banks of a bridge
 )
 
 
+def _bridge_piece(name: str, sprite, follows: str) -> Tile:
+    piece = Tile(object_type="Bridge", walkable=True, transparent=True, sprite=sprite, dark_fg=bridge.dark_fg,
+                 light_fg=bridge.light_fg, dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
+    piece.follows = follows      # until it is given a sprite of its own it is drawn like this tile (see _apply_sprite_config)
+    return piece
+
+
+# A bridge is drawn by its direction and by where the tile sits in it. `bridge` is the single horizontal tile (a span one
+# tile long, running east-west); `bridge_vertical` is the single tile running north-south; longer spans use a start, a
+# middle and an end piece. Pieces without a sprite of their own use the single tile of their direction.
+bridge_vertical = Tile(object_type="Bridge", walkable=True, transparent=True, sprite=(12, 40), dark_fg=bridge.dark_fg,
+                       light_fg=bridge.light_fg, dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
+bridge_h_start = _bridge_piece("bridge_h_start", bridge.sprite_pos, "bridge")      # west end
+bridge_h_mid = _bridge_piece("bridge_h_mid", bridge.sprite_pos, "bridge")
+bridge_h_end = _bridge_piece("bridge_h_end", bridge.sprite_pos, "bridge")          # east end
+bridge_v_start = _bridge_piece("bridge_v_start", bridge_vertical.sprite_pos, "bridge_vertical")  # north end
+bridge_v_mid = _bridge_piece("bridge_v_mid", bridge_vertical.sprite_pos, "bridge_vertical")
+bridge_v_end = _bridge_piece("bridge_v_end", bridge_vertical.sprite_pos, "bridge_vertical")      # south end
+BRIDGE_PIECES = (bridge, bridge_vertical, bridge_h_start, bridge_h_mid, bridge_h_end, bridge_v_start, bridge_v_mid, bridge_v_end)
+
+
+def bridge_piece(deck_at, land_at, x: int, y: int) -> Tile:
+    """The bridge tile for the deck tile (x, y). `deck_at(x, y)` says whether a tile is a plank; `land_at(x, y)` whether it is
+    dry ground (told apart only for a one-tile bridge, whose direction is the one that has a bank on both sides)."""
+    west, east, north, south = deck_at(x - 1, y), deck_at(x + 1, y), deck_at(x, y - 1), deck_at(x, y + 1)
+    horizontal = west or east
+    vertical = north or south
+    if not horizontal and not vertical:
+        across_x = land_at(x - 1, y) and land_at(x + 1, y)
+        across_y = land_at(x, y - 1) and land_at(x, y + 1)
+        return bridge_vertical if across_y and not across_x else bridge
+    if horizontal:      # (a bend counts as running east-west)
+        return bridge_h_mid if west and east else bridge_h_start if east else bridge_h_end
+    return bridge_v_mid if north and south else bridge_v_start if south else bridge_v_end
+
+
+def is_bridge(tiles: np.ndarray) -> np.ndarray:
+    """Mask of the bridge tiles of any shape (told by their sprite)."""
+    return np.isin(tiles["light"]["sprite"], [piece.sprite for piece in BRIDGE_PIECES])
+
+
 def is_laid(tiles: np.ndarray) -> np.ndarray:
     """Mask of the tiles that are a bridge or a path (told by their sprite: the tile array has no room for a kind)."""
-    return np.isin(tiles["light"]["sprite"], (bridge.sprite, path.sprite))
+    return is_bridge(tiles) | (tiles["light"]["sprite"] == path.sprite)
+
+
+def lay_bridge(tiles: np.ndarray, deck: np.ndarray, land: np.ndarray) -> None:
+    """Write the right bridge piece into `tiles` at every True cell of the `deck` mask (`land`: the dry ground mask, for lone
+    planks). Cells outside the arrays count as neither."""
+    width, height = deck.shape
+
+    def deck_at(x: int, y: int) -> bool:
+        return 0 <= x < width and 0 <= y < height and bool(deck[x, y])
+
+    def land_at(x: int, y: int) -> bool:
+        return 0 <= x < width and 0 <= y < height and bool(land[x, y])
+
+    for x, y in np.argwhere(deck):
+        tiles[x, y] = bridge_piece(deck_at, land_at, int(x), int(y)).get_array()
+
+
+def reshape_bridge_near(world, x: int, y: int) -> None:
+    """After a plank is built at (x, y) on a live map: pick the right piece for it and for its bridge neighbours."""
+    def deck_at(px: int, py: int) -> bool:
+        tile = world.tile_at(px, py)
+        return tile is not None and bool(is_bridge(tile[None])[0])
+
+    def land_at(px: int, py: int) -> bool:
+        tile = world.tile_at(px, py)
+        return tile is not None and bool(tile["walkable"]) and int(tile["liquid"]) == 0 and not deck_at(px, py)
+
+    for px, py in ((x, y), (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+        if deck_at(px, py):
+            world.set_tile(px, py, bridge_piece(deck_at, land_at, px, py).get_array())
 
 
 cave_floor = Tile(
@@ -270,7 +341,9 @@ def _apply_sprite_config() -> None:
     for name, tile in list(globals().items()):
         if not isinstance(tile, Tile):
             continue
-        tile.set_sprite(spriteconfig.get(f"tile.{name}", tile.sprite_pos))
+        follows = getattr(tile, "follows", None)
+        default = globals()[follows].sprite_pos if follows else tile.sprite_pos   # (a base tile is configured before its pieces)
+        tile.set_sprite(spriteconfig.get(f"tile.{name}", default))
         for column, row, variation in list(tile.variations):
             tile.set_sprite(spriteconfig.get(f"tile.{name}.{variation}", (column, row)), variation)
 

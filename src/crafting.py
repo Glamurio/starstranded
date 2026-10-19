@@ -232,6 +232,8 @@ def stairs_problem(game_map, x: int, y: int) -> Optional[str]:
 def build_floor(game_map, x: int, y: int) -> None:
     over_water = game_map.tile_at(x, y)["depth"] > 0
     game_map.set_tile(x, y, (tile_types.bridge if over_water else tile_types.built_floor).get_array())
+    if over_water:
+        tile_types.reshape_bridge_near(game_map, x, y)
 
 
 def build_stairs(game_map, x: int, y: int) -> None:

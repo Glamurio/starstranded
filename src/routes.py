@@ -158,14 +158,22 @@ def paint(master: int, key: ChunkKey, tiles: np.ndarray, tree_map: np.ndarray) -
     import tile_types
     x0, y0 = key[0] * CHUNK_W, key[1] * CHUNK_H
     for a, b in edges_near(master, key):
-        for (x, y), deck in laid(master, a, b).items():
+        route = laid(master, a, b)
+
+        def deck_at(px, py, route=route):
+            return route.get((px, py)) is True
+
+        def land_at(px, py, route=route):
+            return route.get((px, py)) is False
+
+        for (x, y), deck in route.items():
             lx, ly = x - x0, y - y0
             if not (0 <= lx < CHUNK_W and 0 <= ly < CHUNK_H):
                 continue
             here = tiles[lx, ly]
             if deck:
                 if here["depth"] > 0 and here["liquid"] > 0 or here["liquid"] == 0 and here["walkable"]:
-                    tiles[lx, ly] = tile_types.bridge.get_array()
+                    tiles[lx, ly] = tile_types.bridge_piece(deck_at, land_at, x, y).get_array()
             elif here["walkable"] and here["liquid"] == 0 and not here["stairs"]:
                 tiles[lx, ly] = tile_types.path.get_array()
             tree_map[lx, ly] = False
