@@ -133,6 +133,8 @@ def test_terrain_is_continuous_across_chunk_borders(seed, neighbour, monkeypatch
     import routes
     monkeypatch.setattr(shafts, "structure", lambda master, key: shafts.Structure())
     monkeypatch.setattr(routes, "paint", lambda *args: None)     # (and so are the planned paths)
+    import settlements
+    monkeypatch.setattr(settlements, "paint", lambda *args: None)  # (and the farms and towns)
     source = NoiseWorldSource(seed)
     world = World(None, source)
     keys = [(0, 0), neighbour]

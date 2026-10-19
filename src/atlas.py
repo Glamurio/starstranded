@@ -69,24 +69,10 @@ def _mask_to_surface(mask: np.ndarray) -> pygame.Surface:
     return surface
 
 
-BONE = (228, 220, 196, 255)
-BONE_SHADE = (150, 142, 124, 255)
 
 
-def draw_bones(surface: pygame.Surface) -> None:
-    """A little skull and two crossed bones (24x24 tile), drawn pixel by pixel over `surface`."""
-    skull = ["..XXXX..", ".XXXXXX.", "XXXXXXXX", "X.XXXX.X", "XXXXXXXX", ".XXXXXX.", "..X..X.."]
-    for dy, row in enumerate(skull):
-        for dx, ch in enumerate(row):
-            if ch == "X":
-                eye = (dy, dx) in ((3, 1), (3, 6))
-                surface.set_at((3 + dx, 14 + dy), BONE_SHADE if eye else BONE)
-    for i in range(9):                                  # two crossed long bones
-        for x, y in ((12 + i, 6 + i), (12 + i, 14 - i)):
-            if 0 <= x < 24 and 0 <= y < 24:
-                surface.set_at((x, y), BONE)
-    for x, y in ((11, 5), (11, 15), (21, 15), (21, 5)):
-        surface.set_at((x, y), BONE)
+FOLIAGE_COLOR, FOLIAGE_DARKEN, FOLIAGE_ALPHA = 0.55, 0.9, 205
+"""Plants keep this share of their colour, are this bright, and this opaque (of 255)."""
 
 
 def draw_puddle(surface: pygame.Surface, variant: int) -> None:
@@ -173,16 +159,44 @@ class SpriteAtlas:
         return surface
 
     def get_remains(self, sprite: int, flipped: bool = False, tint: RGB = WHITE) -> pygame.Surface:
-        """What is left of a creature: its own sprite lying on its side (rotated a quarter turn, darkened) with bones on top."""
+        """What is left of a creature: its own sprite lying on its side (rotated a quarter turn, darkened)."""
         key = (sprite, bool(flipped), tuple(tint), "remains")
         hit = self._cache.get(key)
         if hit is not None:
             return hit
         self._make_room()
         body = pygame.transform.rotate(self.get(sprite, flipped, tuple(int(c * 0.7) for c in tint)), 90)
-        draw_bones(body)
         self._cache[key] = body
         return body
+
+    def get_foliage(self, sprite: int, flipped: bool, tint: RGB) -> pygame.Surface:
+        """A plant sprite drawn calmer than the things you can use: the colour is pulled towards grey and the picture is a
+        little transparent, so it blends into the ground behind it instead of competing with items, units and structures."""
+        key = (sprite, bool(flipped), tuple(tint), "foliage")
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        grey = 0.3 * tint[0] + 0.59 * tint[1] + 0.11 * tint[2]
+        muted = tuple(int((grey + (c - grey) * FOLIAGE_COLOR) * FOLIAGE_DARKEN) for c in tint)
+        picture = self.get(sprite, flipped, muted).copy()
+        picture.fill((255, 255, 255, FOLIAGE_ALPHA), special_flags=pygame.BLEND_RGBA_MULT)
+        self._cache[key] = picture
+        return picture
+
+    def get_rotated(self, sprite: int, flipped: bool, tint: RGB, degrees: int) -> pygame.Surface:
+        """A sprite turned by `degrees` (a multiple of 45), scaled so the whole turned picture fits in its tile (wreckage)."""
+        key = (sprite, bool(flipped), tuple(tint), "rot", degrees % 360)
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        picture = self.get(sprite, flipped, tint)
+        turned = pygame.transform.rotate(picture, degrees % 360)
+        if turned.get_size() != picture.get_size():
+            turned = pygame.transform.scale(turned, picture.get_size())
+        self._cache[key] = turned
+        return turned
 
     def get_decal(self, pattern: str, variant: int, tint: RGB) -> pygame.Surface:
         """A procedural ground picture of colour `tint`: a "puddle" (blood, oil...) or a "lilypad"; `variant` (0-7) picks its shape."""

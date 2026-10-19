@@ -302,16 +302,18 @@ def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, o
 SNOW_FROM, SNOW_SPAN = 1.0, 0.45
 """Rock above this elevation (reached only by the high crests) turns white over the next `SNOW_SPAN`."""
 SNOW_COLOR, ASH_COLOR = (228, 236, 246), (70, 52, 50)
+STONE_COLOR, STONE_FROM_GROUND = (128, 120, 110), 0.22
+"""Bare rock is grey-brown stone with this share of the colour of the ground around it."""
 
 
-def _tint_rock(landscape: np.ndarray, env: dict, rock: np.ndarray) -> None:
+def _tint_rock(landscape: np.ndarray, env: dict, rock: np.ndarray, ground: np.ndarray) -> None:
     """Mountain colour by height: bare grey-brown at the foot, snow and ice on the crests, dark ash and lava rock in
     volcanic country (where it is too hot for snow). Only the colours change; the tiles stay ordinary walls."""
     volcanic = (env["landmark"] == landmarks.LANDMARK_INDEX["volcanic_mountains"]) * env["landmark_strength"]
     snow = relief.smooth((env["elevation"] - SNOW_FROM) / SNOW_SPAN) * (1.0 - np.clip(volcanic * 1.5, 0.0, 1.0))
     ash = np.clip(volcanic * 1.2, 0.0, 0.85)
     for layer, scale in (("light", 1.0), ("dark", 0.5)):
-        fg = landscape[layer]["fg"][..., :3].astype(float)
+        fg = np.array(STONE_COLOR, dtype=float) * scale * (1.0 - STONE_FROM_GROUND) + ground.astype(float) * scale * STONE_FROM_GROUND
         fg = fg * (1.0 - ash[..., None]) + np.array(ASH_COLOR, dtype=float) * scale * ash[..., None]
         fg = fg * (1.0 - snow[..., None]) + np.array(SNOW_COLOR, dtype=float) * scale * snow[..., None]
         landscape[layer]["fg"][..., :3][rock] = np.clip(fg[rock], 0, 255).astype(np.uint8)
@@ -353,7 +355,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     env = environment_for(noise, x0 - m, y0 - m, pw, ph, kinds)
     ground = landmarks.blend_ground(biomes.ground_colors(env["biome"]), env["landmark"], env["landmark_strength"])
     open_ground = kinds == 1
-    _tint_rock(landscape, env, kinds == 2)
+    _tint_rock(landscape, env, kinds == 2, ground)
     _cut_chasms(noise, landscape, env, kinds == 2, x0 - m, y0 - m, pw, ph)
     landscape["light"]["fg"][open_ground] = (ground[open_ground] * 0.8).astype(np.uint8)
     landscape["light"]["bg"][open_ground] = (ground[open_ground] * 0.10).astype(np.uint8)

@@ -8,8 +8,6 @@ import spriteconfig
 from atlas import NO_SPRITE, sprite_id
 from utilities import get_random_color, get_shade
 
-# Water/wall colours are rolled once per process. A private RNG keeps that import-time roll from shifting the
-# global `random` stream (which would make world generation depend on *when* this module is first imported).
 _palette_rng = random.Random()
 
 # Tile graphics: what one cell looks like. `sprite` is an atlas id (NO_SPRITE draws nothing), `flip` mirrors it
@@ -120,7 +118,7 @@ floor = Tile(
     dark_fg=color.gray,
     dtype=tile_dt
 )
-water_color = get_random_color(rng=_palette_rng)
+water_color = (60, 110, 180)        # (fixed: it used to be a random colour, rolled anew for every run of the game)
 water_variations = [
     (0, 41, "north_west"),
     (1, 41, "north"),
@@ -151,7 +149,7 @@ water = Tile(
     dark_bg=color.black,
     dtype=tile_dt
 )
-wall_color = get_random_color(rng=_palette_rng)
+wall_color = (128, 120, 110)        # grey-brown stone (a random colour here made every wall the same odd hue within a run)
 wall_variations = [
     (109, 0, "north_west"),
     (1, 2, "north"),

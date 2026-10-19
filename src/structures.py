@@ -102,10 +102,16 @@ def ship_status(user, run) -> List[Tuple[bool, str]]:
 class Wreckage(Structure):
     object_type = "Wreckage"
 
-    def __init__(self, index: int):
+    rotation = 0          # how the piece lies: a multiple of 45 degrees, and perhaps mirrored (older saves: as drawn)
+    pose_flip = False
+
+    def __init__(self, index: int, rng: Optional[random.Random] = None):
         Structure.__init__(self, defs.WRECKAGE)
         self.index = index % len(WRECK_LOOT)
         self.stripped = False
+        if rng is not None:
+            self.rotation = 45 * rng.randrange(8)
+            self.pose_flip = rng.random() < 0.5
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         return WRECK_NAMES[self.index] + (" (stripped)" if self.stripped else "")
@@ -316,7 +322,7 @@ def place_crash_site(world, spawn: Tuple[int, int], master: int) -> Dict[str, Tu
         if at is None:
             continue
         taken.add(at)
-        world.add_entity(Wreckage(index), *at)
+        world.add_entity(Wreckage(index, rng), *at)
     return placed
 
 

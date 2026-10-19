@@ -705,3 +705,9 @@ The plan above was implemented as written, with these specifics and deviations:
 - New tiles `farmland`, `crops`, `fence`, `street` (sprites picked from the sheet, editable in the sprite editor).
 - Not done yet: people living there, loot or harvestable crops, wild plants are not cleared from fields and houses (only trees are).
 - Correction: the earlier note that the game has no farms or urban areas was wrong about the request, not about the code; they did not exist and now do.
+
+## Look fixes: stone colour, calm foliage, remains, wreckage
+- Rock and wall colour: `tile_types.wall_color` and `water_color` were random colours rolled at start-up (an unseeded private RNG), so every wall and rock shared one arbitrary hue (often pink/red). They are now fixed (grey-brown stone, sea blue), and `worldgen._tint_rock` starts from stone mixed with 22% of the local ground colour before the ash/snow tints.
+- Foliage: plants are drawn through `atlas.get_foliage` (55% of their colour, 90% brightness, alpha 205) so they sit back from items, units and structures.
+- Remains: the skull-and-bones overlay (`atlas.draw_bones`) is gone; remains are still the creature lying on its side.
+- Wreckage: a random multiple of 45 degrees and an optional mirror (`Wreckage.rotation`, `pose_flip`), drawn by `atlas.get_rotated`, scaled so the turned picture fits its tile. Older saves keep the old upright pose.
