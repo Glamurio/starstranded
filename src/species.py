@@ -291,7 +291,7 @@ SURVEY_KIT = register(ItemKind("survey_kit", "Survey kit", sprite=(62, 26), colo
 ARTIFACT = register(ItemKind("artifact", "Relic", sprite=(57, 26), color=(120, 230, 200)))
 BEACON = register(ItemKind("beacon", "Distress beacon", sprite=(52, 19), color=(255, 120, 80)))
 # ── places: the crash site and the precursor ruins (see structures.py) ──
-SHIP = register(ItemKind("ship", "Crashed ship", sprite=(76, 4), color=(190, 190, 205), blocks_movement=True))
+SHIP = register(ItemKind("ship", "Crashed shuttle", sprite=(76, 4), color=(190, 190, 205), blocks_movement=True))
 WRECKAGE = register(ItemKind("wreckage", "Wreckage", sprite=(19, 6), color=(150, 150, 165), blocks_movement=True))
 CARGO_POD = register(ItemKind("cargo_pod", "Cargo pod", sprite=(84, 4), color=(230, 170, 70), blocks_movement=True))
 RUIN = register(ItemKind("ruin", "Ruin", sprite=(26, 23), color=(170, 200, 190), blocks_movement=True))
@@ -312,7 +312,7 @@ def make_fruit_kind(rng: random.Random = random) -> ItemKind:
                     hunger_amount=10, thirst_amount=10)
 
 
-# Wood is cut, not bashed or poked: only sharp tools fell a tree quickly.
+# Wood is cut, not bashed or poked, only sharp tools fell a tree quickly.
 TREE_RESISTANCES: Resistances = ((DamageType.BLUNT, 0.2), (DamageType.SHARP, 1.0), (DamageType.PIERCE, 0.3))
 SHRUB_RESISTANCES: Resistances = ((DamageType.BLUNT, 0.5), (DamageType.SHARP, 1.0), (DamageType.PIERCE, 0.5))
 

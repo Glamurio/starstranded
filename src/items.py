@@ -69,7 +69,7 @@ class Stuff(Item):
         return tuple(found)
 
     def activate(self, user) -> None:
-        raise exceptions.Impossible(f"{self.get_title()} is a crafting material: build something with it ('R').")
+        raise exceptions.Impossible(f"{self.get_title()} is a crafting material, build something with it ('R').")
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         import lore
@@ -77,7 +77,7 @@ class Stuff(Item):
 
 
 class Composite:
-    """Mixin for things assembled from parts: remembers the parts, derives properties, colour and name from them."""
+    """Mixin for things assembled from parts, remembers the parts, derives properties, colour and name from them."""
 
     parts: Dict[str, Material]
     quality: float
@@ -131,7 +131,7 @@ class Made(Composite, Item):
 
 
 class Gear(Composite, Equippable):
-    """A tool, weapon or piece of armour: its strength follows its parts."""
+    """A tool, weapon or piece of armour, its strength follows its parts."""
 
     def __init__(self, kind: defs.ItemKind, parts, quality: float, recipe_key: str, rules=None, weights=None,
                  designation: str = "head", parent=None):
@@ -142,7 +142,7 @@ class Gear(Composite, Equippable):
             self.add_attribute("dull")
 
     def delivery(self) -> float:
-        """How well this weapon delivers its damage type: 1.0 for an ordinary (property 5) head."""
+        """How well this weapon delivers its damage type, 1.0 for an ordinary (property 5) head."""
         if self.damage_type is None:
             return 1.0
         keys = materials.DAMAGE_PROPERTIES[self.damage_type][1]
