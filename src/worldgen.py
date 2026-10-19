@@ -40,6 +40,8 @@ brightness on purpose: a stark light/dark edge clashes with the land."""
 FOAM_COLOR = (225, 240, 250)
 LAVA_COLOR = (235, 90, 20)
 HOT_COLOR = (120, 185, 175)
+BASE_THRESHOLD = -0.02
+WOODLAND_REACH = 0.8   # how far the large-scale woodland noise moves the planting threshold
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 OUTCROP_ABOVE = 0.28
@@ -117,6 +119,11 @@ class TerrainNoise:
     def moisture(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Climate moisture, about -1 (arid) .. 1 (soaked)."""
         return np.clip(1.7 * self.sample(5, 0.007, x0 + self.shift[0], y0 + self.shift[1], width, height), -1.3, 1.3)
+
+    def woodland(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Large-scale stands, about -0.7 (a clearing) .. 0.7 (deep wood): the same noise as `vegetation`, read ~100 tiles wide
+        and offset, so a biome is a patchwork of open ground, copses and forest instead of one even sprinkle."""
+        return self.sample(3, 0.012, x0 + 7919, y0 - 4421, width, height)
 
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
@@ -366,7 +373,10 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # Vegetation: wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
     # the biome (barren desert ... dense jungle).
     random_map = noise.scatter(7, x0 - m, y0 - m, pw, ph)   # a coordinate hash, so chunk borders show no seam
-    threshold = 0.1 + (1.0 - density) * 0.45
+    # (The biome sets the base; the woodland noise raises it into stands and clearings. The earlier `0.1 + (1 - density) * 0.45`
+    # left grass, steppe and scrub at under 1% cover, against the 4.7% everywhere of the original generator.)
+    stands = noise.woodland(x0 - m, y0 - m, pw, ph)
+    threshold = BASE_THRESHOLD + (1.0 - density) * 0.4 - stands * WOODLAND_REACH
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     area = (x0 - m, y0 - m, pw, ph)

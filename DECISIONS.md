@@ -751,3 +751,8 @@ The plan above was implemented as written, with these specifics and deviations:
 ## Settlements alive
 - Built ground (`settlements.built`: houses with a margin, fields, streets) is `reserved` so no wild flowers, stones or animals are placed there. Houses get one or two rations and sometimes a medkit; towns get two to four and farms one or two **settlers** (peaceful Federation humans, species `settler`). No dialogue or trade: they are people to see and protect. Stacks in the inventory: D drops the whole stack in one turn with one message (`DropStack`); S scans the kind, which is the same for every item of a stack.
 
+
+## Tree cover: biome base plus woodland noise (readability round)
+**What:** the planting threshold is now `BASE_THRESHOLD + (1 - density) * 0.4 - woodland * WOODLAND_REACH`, where `woodland` is the vegetation noise read at scale 0.012 (about 100 tiles) and offset.
+**Why:** the old `0.1 + (1 - density) * 0.45` put grass, steppe, savanna and scrub at roughly 0.3-1% cover (the original generator had a flat 4.7%), so open biomes looked bare and forests were thin. Measured on open ground, seed 12345: grassland 4.7%, shrubland 5.7%, temperate forest 19%, jungle 30%, desert 1.8% (before: ~1%, ~1%, ~6%, ~15%).
+**Alternative:** a global probability bump; rejected, since it would flatten every biome and give no copses or clearings.
