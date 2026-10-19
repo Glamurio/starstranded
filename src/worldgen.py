@@ -329,12 +329,28 @@ def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.nd
         landscape["dark"]["fg"][band] = np.clip(colour * 0.5, 0, 255).astype(np.uint8)
 
 
+COVER_HUE_SHIFT, COVER_DESATURATE = 0.06, 0.25
+"""Ground cover varies in hue by up to this share of the colour wheel either way (as plants do) and is this much paler than the
+ground it grows on, so it reads as a soft backdrop rather than as something to use."""
+
+
+def _hue_shifted(colour: np.ndarray, angle: np.ndarray) -> np.ndarray:
+    """Rotate the hue of RGB rows `colour` (n, 3) by `angle` radians each, keeping their brightness."""
+    c, s = np.cos(angle), np.sin(angle)
+    m = np.empty((len(angle), 3, 3))
+    m[:, 0] = np.stack([0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928], axis=1)
+    m[:, 1] = np.stack([0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283], axis=1)
+    m[:, 2] = np.stack([0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072], axis=1)
+    return np.einsum("nij,nj->ni", m, colour)
+
+
 def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, open_ground: np.ndarray, vegetation: np.ndarray) -> None:
     """Scatter little plants over open ground (see `GROUND_COVER`): a sprite, tinted from the ground under it."""
     import biomes
     chance = np.clip(COVER_BASE + COVER_PER_VEGETATION * vegetation, 0.0, COVER_MAX)
     covered = open_ground & (noise.scatter(2, *area) < chance)
     pick, turn, tone = noise.scatter(3, *area), noise.scatter(4, *area), noise.scatter(5, *area)
+    hue = noise.scatter(8, *area)
     # A landmark's own cover takes over where the landmark is strong (the edge mixes both, tile by tile).
     own = (env["landmark"] > 0) & (noise.scatter(6, *area) < env["landmark_strength"])
     groups = [(covered & ~own & (env["biome"] == index), GROUND_COVER[key]) for index, key in enumerate(biomes.BIOME_IDS)]
@@ -347,11 +363,15 @@ def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, o
         sprites = np.array([sprite_id(*cell) for cell in cells], dtype=np.int32)
         chosen = sprites[(pick[mask] * len(sprites)).astype(int)]
         flip = turn[mask] < 0.5
+        angle = (hue[mask] - 0.5) * 2.0 * COVER_HUE_SHIFT * 2.0 * np.pi          # each tuft leans a little towards another hue
         for layer, brighten in (("light", (0.85, 1.2)), ("dark", (0.8, 1.1))):
             shade = (brighten[0] + tone[mask] * (brighten[1] - brighten[0]))[:, None]
             landscape[layer]["sprite"][mask] = chosen
             landscape[layer]["flip"][mask] = flip
-            landscape[layer]["fg"][mask] = np.clip(landscape[layer]["fg"][mask].astype(float) * shade, 0, 255).astype(np.uint8)
+            colour = _hue_shifted(landscape[layer]["fg"][mask].astype(float), angle) * shade
+            grey = colour @ np.array([0.30, 0.59, 0.11])
+            colour = grey[:, None] + (colour - grey[:, None]) * (1.0 - COVER_DESATURATE)      # and is a little paler than the ground
+            landscape[layer]["fg"][mask] = np.clip(colour, 0, 255).astype(np.uint8)
 
 
 SNOW_FROM, SNOW_SPAN = 1.0, 0.45

@@ -23,6 +23,27 @@ def _register() -> None:
         _LABELS[(int(tile.sprite), tuple(int(c) for c in tile.light_fg))] = "Bridge"
 
 
+_COVER: Dict[int, str] = {}
+
+
+def _register_cover() -> None:
+    """What the little ground plants drawn on open ground are called, by sprite cell (see `worldgen.GROUND_COVER`)."""
+    import worldgen
+    for cells, label in ((worldgen._DRY, "Dry grass"), (worldgen._TUFTS, "Grass"), (worldgen._FERNS, "Ferns"),
+                         (worldgen._LEAVES, "Fallen leaves"), (((2, 10), (3, 10)), "Toadstools")):
+        for cell in cells:
+            _COVER.setdefault(tile_types.sprite_id(*cell), label)
+
+
+def cover_label(tile) -> Optional[str]:
+    """The name of the ground cover drawn on an open dry tile, else None."""
+    if not _COVER:
+        _register_cover()
+    if not bool(tile["walkable"]) or int(tile["liquid"]):
+        return None
+    return _COVER.get(int(tile["light"]["sprite"]))
+
+
 def label_of(tile) -> Optional[str]:
     """The name of a special terrain tile record, else None."""
     if not _LABELS:
@@ -56,7 +77,7 @@ def describe(game_map, x: int, y: int) -> Optional[str]:
     tile = game_map.tile_at(x, y)
     if tile is None:
         return None
-    label = label_of(tile)
+    label = label_of(tile) or cover_label(tile)
     if label is None:
         return _cave_name(game_map, tile, x, y)
     if bool(tile["open"]):

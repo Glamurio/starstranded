@@ -90,6 +90,19 @@ class Scenery(Entity):
         return self.spec.name
 
 
+STONE_KINDS = ("pebbles", "small_rocks", "rubble")
+"""These take their colour from the stones of the planet's rock in the biome (so they differ from planet to planet)."""
+STONE_SHARE = 0.65
+
+
+def vary(color: RGB, hue: float, light: float) -> RGB:
+    """`color` turned in hue by up to +-0.04 of the wheel and made up to 12% lighter or darker (`hue`, `light` are 0..1 draws)."""
+    import colorsys
+    h, s, v = colorsys.rgb_to_hsv(*(c / 255 for c in color))
+    r, g, b = colorsys.hsv_to_rgb((h + (hue - 0.5) * 0.08) % 1.0, s, max(0.0, min(1.0, v * (0.88 + 0.24 * light))))
+    return (int(r * 255), int(g * 255), int(b * 255))
+
+
 def _box_mean(mask: np.ndarray, radius: int) -> np.ndarray:
     """Mean of `mask` over the (2r+1)-square around each cell (edges use what exists)."""
     padded = np.pad(mask.astype(float), radius + 1)
@@ -141,6 +154,14 @@ def populate(source, world, chunk, env: dict, reserved, ruin_chunk: bool = False
             if not tile_is_free(world, x, y, reserved):
                 continue
             variant = int(pick[lx, ly] * 1000)
-            world.add_entity(Scenery(kind.key, variant), x, y)
+            color = kind.color
+            planet = getattr(source, "planet", None)
+            if planet is not None and kind.key in STONE_KINDS:
+                stones = planet.stones_for_biome(biomes.BIOME_IDS[int(env["biome"][lx, ly])])
+                if stones:
+                    stone = stones[variant % len(stones)].color
+                    color = tuple(int(c * (1 - STONE_SHARE) + r * STONE_SHARE) for c, r in zip(color, stone))
+            color = vary(color, (variant % 97) / 96.0, (variant % 89) / 88.0)
+            world.add_entity(Scenery(kind.key, variant, color), x, y)
             placed += 1
     return placed
