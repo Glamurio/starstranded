@@ -225,6 +225,8 @@ def surface_layer(master: int, key: ChunkKey) -> Tuple[np.ndarray, np.ndarray]:
         _build(tiles, found.building, 0, x0, y0)
         b = found.building
         tree_map[b.x:b.x + b.w, b.y:b.y + b.h + 1] = False
+    import settlements
+    settlements.paint(master, key, tiles, tree_map)       # farms and towns (only in chunks with no structure)
     ups, downs = layer_stairs(found.links, 0)
     for x, y in ups:
         tiles[x - x0, y - y0] = tile_types.up_stairs.get_array()

@@ -6,7 +6,7 @@ as `path` tiles over open ground, as `bridge` planks over a short stretch of wat
 left out over rock and wide water. A route is a pure function of the seed and its two ends, so every chunk it crosses draws
 the same line and the pieces meet exactly at the chunk borders.
 
-Not modelled: farms and urban areas (the game has neither), and ending a route at the door of the building (the building's
+Farms and towns (`settlements`) are sites too. Not modelled: ending a route at the door of the building (the building's
 spot inside its chunk is only decided when that chunk is generated, which a neighbouring chunk must not trigger)."""
 from __future__ import annotations
 
@@ -33,11 +33,12 @@ def _rng(master: int, *values: int) -> random.Random:
 
 
 def is_site(master: int, key: ChunkKey) -> bool:
-    """Whether chunk `key` is a site: a ruin, or a building by the roll of `shafts.structure` (the landing chunk is not)."""
+    """Whether chunk `key` is a site: a ruin, a farm or town, or a building by the roll of `shafts.structure` (the landing chunk is not)."""
     if key == (0, 0):
         return False
+    import settlements
     import structures
-    if key in structures.ruin_chunks(master):
+    if key in structures.ruin_chunks(master) or settlements.kind_of(master, key) is not None:
         return True
     from shafts import _mix
     return random.Random(_mix(master, key[0], key[1], 7)).random() < BUILDING_ROLL

@@ -247,6 +247,20 @@ path = Tile(  # trodden earth: the way between places, and the banks of a bridge
 )
 
 
+farmland = Tile(  # tilled soil of a farm: walkable
+    object_type="Farmland", walkable=True, transparent=True, sprite=(8, 6), dark_fg=(45, 33, 22), light_fg=(110, 80, 52),
+    dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
+crops = Tile(  # a row of crops: walkable (you trample them), see through
+    object_type="Crops", walkable=True, transparent=True, sprite=(10, 9), dark_fg=(40, 70, 35), light_fg=(110, 160, 75),
+    dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
+fence = Tile(  # a field fence: blocks movement, not sight
+    object_type="Fence", walkable=False, transparent=True, sprite=(6, 40), dark_fg=(60, 42, 26), light_fg=(150, 110, 70),
+    dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
+street = Tile(  # paving between the houses of a town: walkable
+    object_type="Street", walkable=True, transparent=True, sprite=(5, 5), dark_fg=(55, 55, 60), light_fg=(135, 135, 145),
+    dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
+
+
 def _bridge_piece(name: str, sprite, follows: str) -> Tile:
     piece = Tile(object_type="Bridge", walkable=True, transparent=True, sprite=sprite, dark_fg=bridge.dark_fg,
                  light_fg=bridge.light_fg, dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)

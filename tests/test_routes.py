@@ -23,7 +23,8 @@ def _some_routes(count=4):
 def test_the_site_roll_matches_the_building_chance():
     assert routes.BUILDING_ROLL == shafts.BUILDING_CHANCE
     for key in [(x, y) for x in range(-5, 6) for y in range(-5, 6)]:
-        if routes.is_site(SEED, key) and key not in __import__("structures").ruin_chunks(SEED):
+        if (routes.is_site(SEED, key) and key not in __import__("structures").ruin_chunks(SEED)
+                and __import__("settlements").kind_of(SEED, key) is None):
             import random
             assert random.Random(shafts._mix(SEED, key[0], key[1], 7)).random() < shafts.BUILDING_CHANCE
 
