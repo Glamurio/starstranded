@@ -1,4 +1,4 @@
-"""Biomes: a hybrid of climate-driven base biomes and special regions.
+"""Biomes: climate-driven ground types (landmarks, the distinctive regions, live in `landmarks.py`).
 
 Every point of a planet has three environmental numbers, all deterministic functions of the planet seed
 (`worldgen.TerrainNoise`): **temperature** `t` and **moisture** `m` (both about -1..1, smooth over a few hundred tiles)
@@ -35,7 +35,6 @@ class Biome:
     vegetation: float             # multiplier on how much of the ground is vegetated (0 = barren)
     stones: Tuple[str, ...]       # stone archetypes found on the surface here (see planet.STONE_ARCHETYPES)
     description: str
-    special: bool = False         # an overlay region rather than a climate biome
 
 
 BIOMES: Dict[str, Biome] = {}
@@ -63,22 +62,19 @@ _biome("badlands", "Badlands", 34, 18, (170, 105, 70), 0.15, ("red", "dark"), "E
 _biome("desert", "Desert", 38, 25, (205, 180, 120), 0.08, ("pale", "red"), "Sand and rock under a harsh sun.")
 _biome("swamp", "Swamp", 22, 6, (70, 90, 50), 1.1, ("dark",), "Warm, flooded ground.")
 _biome("bog", "Bog", 6, 6, (85, 80, 55), 0.7, ("dark", "grey"), "Cold peat and standing water.")
-_biome("volcanic", "Volcanic field", 45, 15, (60, 40, 40), 0.05, ("dark", "red"), "Black rock, vents and ash.", special=True)
-_biome("crystalline", "Crystalline formations", 5, 10, (140, 160, 190), 0.1, ("crystal", "pale"), "Glittering outcrops of crystal.", special=True)
-_biome("fungal", "Alien fungal region", 18, 4, (110, 70, 110), 1.0, ("dark",), "Spore-laden ground under huge fungi.", special=True)
 
 BIOME_INDEX: Dict[str, int] = {key: i for i, key in enumerate(BIOME_IDS)}
 
 # Whittaker table, first match wins: (key, max_t, max_m) with ranges expressed through the checks in `classify`.
 
 
-def classify(t: np.ndarray, m: np.ndarray, h: np.ndarray, region: np.ndarray) -> np.ndarray:
-    """Biome index (into `BIOME_IDS`) for arrays of temperature, moisture, elevation and special-region noise.
+def classify(t: np.ndarray, m: np.ndarray, h: np.ndarray) -> np.ndarray:
+    """Biome index (into `BIOME_IDS`) for arrays of temperature, moisture and elevation.
 
     Total function: every input maps to exactly one biome.
     """
-    shape = np.broadcast(t, m, h, region).shape
-    t, m, h, region = (np.broadcast_to(a, shape) for a in (t, m, h, region))
+    shape = np.broadcast(t, m, h).shape
+    t, m, h = (np.broadcast_to(a, shape) for a in (t, m, h))
     out = np.full(shape, BIOME_INDEX["desert"], dtype=np.int16)
 
     def put(key: str, mask: np.ndarray) -> None:
@@ -100,18 +96,15 @@ def classify(t: np.ndarray, m: np.ndarray, h: np.ndarray, region: np.ndarray) ->
     )
     for key, mask in rules:
         put(key, mask)
-    # overlays
+    # overlay
     wet_low = (m > 0.45) & (h < 0.15) & (t > -0.3)
     out[wet_low & (t >= 0.1)] = BIOME_INDEX["swamp"]
     out[wet_low & (t < 0.1)] = BIOME_INDEX["bog"]
-    out[(region > 0.5) & (t > 0.2)] = BIOME_INDEX["volcanic"]
-    out[(region > 0.5) & (t <= 0.2) & (t > -0.3)] = BIOME_INDEX["crystalline"]
-    out[(region < -0.5) & (m > 0.1)] = BIOME_INDEX["fungal"]
     return out
 
 
-def biome_at(t: float, m: float, h: float, region: float) -> Biome:
-    return BIOMES[BIOME_IDS[int(classify(np.array(t), np.array(m), np.array(h), np.array(region)))]]
+def biome_at(t: float, m: float, h: float) -> Biome:
+    return BIOMES[BIOME_IDS[int(classify(np.array(t), np.array(m), np.array(h)))]]
 
 
 def ground_colors(index: np.ndarray) -> np.ndarray:

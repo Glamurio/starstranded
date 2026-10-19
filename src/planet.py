@@ -100,7 +100,7 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
                   wood_bias=(("flammability", 1.5), ("combustibility", 1.0), ("insulation", 1.0))),
     FloraTemplate("cypress", PlantCategory.TREE, ((4, 8),), Habitat((0.1, 0.9), (0.2, 1.0), water=(0.2, 1.0)), rarity=1.0, wood_bias=(("toughness", 1.0),)),
     FloraTemplate("palm", PlantCategory.TREE, ((5, 8),), Habitat((0.3, 1.0), (-0.6, 0.6), water=(0.3, 1.0)), rarity=0.8, wood_bias=(("elasticity", 2.0), ("hardness", -1.5))),
-    FloraTemplate("fungal_tree", PlantCategory.TREE, ((101, 0),), Habitat((-0.5, 0.8), (0.2, 1.0), light=(0.0, 1.0), substrate=("fungal", "swamp", "bog")), rarity=2.0,
+    FloraTemplate("fungal_tree", PlantCategory.TREE, ((101, 0),), Habitat((-0.6, 0.9), (0.0, 1.0), light=(0.0, 1.0), landmarks=("mushroom_forest",)), rarity=3.0,
                   color_range=((120, 70, 120), (220, 160, 200)), fruit_chance=0.4, max_hp=14, growth_cycle=8,
                   wood_bias=(("insulation", 2.5), ("toughness", -2.5), ("hardness", -2.0), ("density", -2.0)), name_family="fungus"),
     FloraTemplate("cactus", PlantCategory.TREE, ((102, 0), (103, 0)), Habitat((0.3, 1.0), (-1.0, -0.1)), rarity=1.2, color_range=((40, 120, 60), (100, 170, 90)),
@@ -203,10 +203,13 @@ class Planet:
         found += [s.fruit for s in self.flora if s.fruit is not None]
         return found
 
-    def stones_for_biome(self, biome_key: str) -> List[Material]:
+    def stones_for_biome(self, biome_key: str, landmark_key: str = "") -> List[Material]:
+        """Stones of a biome (plus those of the landmark standing on it, if any) and the everywhere ones."""
+        import landmarks
         by_arch = dict(self.stone_ids)
         mats = dict(self.materials)
-        keys = list(biomes.BIOMES[biome_key].stones) + list(SURFACE_EXTRAS)
+        extra = landmarks.LANDMARKS[landmark_key].stones if landmark_key else ()
+        keys = list(dict.fromkeys(list(biomes.BIOMES[biome_key].stones) + list(extra) + list(SURFACE_EXTRAS)))
         return [mats[i] for k in keys for i in by_arch.get(k, ())]
 
     def species_weights(self, env: Mapping[str, object], category: Optional[PlantCategory] = None) -> Tuple[List[PlantSpecies], np.ndarray]:

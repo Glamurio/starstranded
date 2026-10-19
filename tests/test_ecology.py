@@ -26,9 +26,9 @@ def test_every_requirement_is_binding():
 
 
 def test_substrate_restricts_to_listed_biomes():
-    fungus = Habitat(substrate=("fungal",))
-    assert suitability(fungus, env(biome=BIOME_INDEX["fungal"])) == 1.0
-    assert suitability(fungus, env(biome=BIOME_INDEX["desert"])) == 0.0
+    bog_plant = Habitat(substrate=("bog",))
+    assert suitability(bog_plant, env(biome=BIOME_INDEX["bog"])) == 1.0
+    assert suitability(bog_plant, env(biome=BIOME_INDEX["desert"])) == 0.0
 
 
 def test_light_and_water_and_arrays():

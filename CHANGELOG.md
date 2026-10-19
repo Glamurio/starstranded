@@ -5,6 +5,8 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 
 ## World exploration round, 19 Oct 2026
 - New (debug runs only, `--debug`): God Mode on F10 with Ctrl / Alt jumps; see the README.
+- New: landmarks, large regions on top of the climate (mushroom forest, cactus desert, crystal badlands, volcanic mountains, decaying landscape, flowering meadow) with their own ground, plant cover, stones and warmth; none near the landing site. The volcanic / crystalline / fungal biomes are removed.
+- Changed: ground cover no longer appears under trees; tree layouts differ from before for the same seed (the roll is now chunk-independent).
 
 ## Fixes after the review, 19 Oct 2026
 - Fixed: every step logged "That way is blocked."; dying or reaching an ending during a walk is now noticed at once and stops the walk.

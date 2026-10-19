@@ -150,13 +150,14 @@ class Bot:
         return "firestarting" in crafting.unit_tags(self.player)
 
     def find_a_spark(self, tries: int = 40) -> None:
-        """Pick up loose stones, nearest first, until one of them will strike a spark (flint lies about everywhere)."""
+        """Pick up loose flint, nearest first, until one of them will strike a spark (flint lies about everywhere).
+        Only flint is chased: with other stones the pack can fill up before a spark turns up, which depends on the seed."""
         tried = set()
         for _ in range(tries):
             if self.has_spark():
                 return
             stones = {(i.x, i.y): i for i in self.world.entities
-                      if isinstance(i, Stuff) and i.parent is self.world and i.substance.family is Family.STONE and (i.x, i.y) not in tried}
+                      if isinstance(i, Stuff) and i.parent is self.world and i.substance.family is Family.STONE and ":flint:" in i.substance.id and (i.x, i.y) not in tried}
             if not stones or not self.walk_to(lambda x, y: (x, y) in stones, limit=400):
                 return
             here = (self.player.x, self.player.y)

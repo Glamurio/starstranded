@@ -32,6 +32,7 @@ class Habitat:
     light: Range = (0.0, 1.0)
     water: Range = (0.0, 1.0)
     substrate: Tuple[str, ...] = ()   # biome keys the species is restricted to; () = any
+    landmarks: Tuple[str, ...] = ()   # landmark keys the species is restricted to (see `landmarks`); () = any
 
     def __post_init__(self):
         for name in ("temperature", "moisture", "elevation", "fertility", "light", "water"):
@@ -61,4 +62,8 @@ def suitability(habitat: Habitat, env: Env):
         from biomes import BIOME_INDEX
         allowed = np.array([BIOME_INDEX[k] for k in habitat.substrate])
         weight = weight * np.isin(np.asarray(env["biome"]), allowed)
+    if habitat.landmarks:
+        from landmarks import LANDMARK_INDEX
+        allowed = np.array([LANDMARK_INDEX[k] for k in habitat.landmarks])
+        weight = weight * np.isin(np.asarray(env.get("landmark", 0)), allowed)
     return weight

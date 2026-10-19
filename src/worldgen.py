@@ -16,6 +16,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np  # type: ignore
 import tcod
 
+import landmarks
 import shafts
 from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the long-standing import path)
 import tile_types
@@ -60,7 +61,7 @@ class TerrainNoise:
         self.floor_seed = floor_seed
         self.noises = [
             tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(floor_seed, i) % 2**31)
-            for i in range(8)
+            for i in range(landmarks.NOISE_BASE + len(landmarks.LANDMARK_IDS))   # 0-7 terrain and climate, then one per landmark
         ]
 
     def scatter(self, salt: int, x0: int, y0: int, width: int, height: int) -> np.ndarray:
@@ -102,10 +103,6 @@ class TerrainNoise:
         """Climate moisture, about -1 (arid) .. 1 (soaked)."""
         return np.clip(1.7 * self.sample(5, 0.007, x0, y0, width, height), -1.3, 1.3)
 
-    def region(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
-        """Special-region noise (volcanic / crystalline above 0.5, fungal below -0.5; see `biomes.classify`)."""
-        return self.sample(6, 0.012, x0, y0, width, height)
-
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
         return self.sample(3, 0.1, x0, y0, width, height)
@@ -131,13 +128,14 @@ WATER_PROXIMITY = (1.0, 1.0, 0.7, 0.4)
 
 def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: int, kinds: np.ndarray) -> dict:
     """Environment arrays (see `ecology`) for a world rectangle whose base terrain kinds (0 water) are `kinds`:
-    temperature, moisture, elevation, fertility, light, water and the biome index. All pure functions of the seed."""
+    temperature, moisture, elevation, fertility, light, water, the biome index and the landmark (index, strength; see
+    `landmarks`). All pure functions of the seed."""
     from procgen import dilate
     import biomes
     temperature = noise.temperature(x0, y0, width, height)
     moisture = noise.moisture(x0, y0, width, height)
     elevation = noise.heights(x0, y0, width, height)
-    biome = biomes.classify(temperature, moisture, elevation, noise.region(x0, y0, width, height))
+    biome = biomes.classify(temperature, moisture, elevation)
     water = np.zeros((width, height), dtype=float)
     reach = kinds == 0
     water[reach] = WATER_PROXIMITY[0]
@@ -145,8 +143,10 @@ def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: i
         reach = dilate(reach)
         water[reach & (water == 0)] = WATER_PROXIMITY[distance]
     fertility = np.clip(np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[biome] / 1.6, 0.0, 1.0)
-    return dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
-                light=np.ones((width, height)), water=water, biome=biome)
+    env = dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
+               light=np.ones((width, height)), water=water, biome=biome)
+    env["landmark"], env["landmark_strength"] = landmarks.field(noise, x0, y0, width, height, env)
+    return env
 
 
 def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_W, height: int = CHUNK_H) -> dict:
@@ -187,8 +187,7 @@ GROUND_COVER: Dict[str, Tuple[Tuple[int, int], ...]] = {
     "glacial": _DRY, "tundra": _DRY + ((1, 9),), "taiga": _TUFTS + _FERNS, "steppe": _DRY + ((7, 9), (8, 9)),
     "temperate_forest": _TUFTS + _FERNS + _LEAVES, "grassland": _TUFTS, "shrubland": _DRY + ((7, 9), (8, 9)),
     "savanna": _DRY + ((7, 9), (8, 9)), "jungle": _TUFTS + _FERNS + _LEAVES + _LEAVES, "badlands": _DRY, "desert": _DRY,
-    "swamp": _TUFTS + _FERNS + _LEAVES, "bog": _TUFTS + _FERNS, "volcanic": _DRY, "crystalline": _DRY,
-    "fungal": _TUFTS + ((2, 10), (3, 10), (2, 10)),
+    "swamp": _TUFTS + _FERNS + _LEAVES, "bog": _TUFTS + _FERNS,
 }
 """The little plants drawn on open ground, by biome: tufts of grass, ferns, leaves, toadstools (sprites of the sheet).
 They are part of the terrain graphics, not objects: free to draw, nothing to save, nothing to pick up."""
@@ -246,18 +245,22 @@ def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.nd
         landscape["dark"]["fg"][band] = np.clip(colour * 0.5, 0, 255).astype(np.uint8)
 
 
-def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, biome: np.ndarray, open_ground: np.ndarray, vegetation: np.ndarray) -> None:
+def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, open_ground: np.ndarray, vegetation: np.ndarray) -> None:
     """Scatter little plants over open ground (see `GROUND_COVER`): a sprite, tinted from the ground under it."""
     import biomes
     chance = np.clip(COVER_BASE + COVER_PER_VEGETATION * vegetation, 0.0, COVER_MAX)
     covered = open_ground & (noise.scatter(2, *area) < chance)
     pick, turn, tone = noise.scatter(3, *area), noise.scatter(4, *area), noise.scatter(5, *area)
-    for index, key in enumerate(biomes.BIOME_IDS):
-        mask = covered & (biome == index)
+    # A landmark's own cover takes over where the landmark is strong (the edge mixes both, tile by tile).
+    own = (env["landmark"] > 0) & (noise.scatter(6, *area) < env["landmark_strength"])
+    groups = [(covered & ~own & (env["biome"] == index), GROUND_COVER[key]) for index, key in enumerate(biomes.BIOME_IDS)]
+    groups += [(covered & own & (env["landmark"] == number), landmarks.LANDMARKS[key].cover)
+               for key, number in landmarks.LANDMARK_INDEX.items()]
+    for mask, cells in groups:
         count = int(mask.sum())
         if not count:
             continue
-        sprites = np.array([sprite_id(*cell) for cell in GROUND_COVER[key]], dtype=np.int32)
+        sprites = np.array([sprite_id(*cell) for cell in cells], dtype=np.int32)
         chosen = sprites[(pick[mask] * len(sprites)).astype(int)]
         flip = turn[mask] < 0.5
         for layer, brighten in (("light", (1.0, 1.55)), ("dark", (1.0, 1.4))):
@@ -284,22 +287,24 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # Climate: the biome tints the open ground and decides how thickly it is vegetated.
     import biomes
     env = environment_for(noise, x0 - m, y0 - m, pw, ph, kinds)
-    ground = biomes.ground_colors(env["biome"])
+    ground = landmarks.blend_ground(biomes.ground_colors(env["biome"]), env["landmark"], env["landmark_strength"])
     open_ground = kinds == 1
     landscape["light"]["fg"][open_ground] = (ground[open_ground] * 0.8).astype(np.uint8)
     landscape["light"]["bg"][open_ground] = (ground[open_ground] * 0.10).astype(np.uint8)
     landscape["dark"]["fg"][open_ground] = (ground[open_ground] * 0.4).astype(np.uint8)
-    density = np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[env["biome"]]
+    density = landmarks.blend_density(np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[env["biome"]],
+                                      env["landmark"], env["landmark_strength"])
 
     # Vegetation: wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
     # the biome (barren desert ... dense jungle).
-    random_map = np.random.rand(pw, ph)
+    random_map = noise.scatter(7, x0 - m, y0 - m, pw, ph)   # a coordinate hash, so chunk borders show no seam
     threshold = 0.1 + (1.0 - density) * 0.45
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     area = (x0 - m, y0 - m, pw, ph)
     _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground)
-    _cover_ground(noise, area, landscape, env["biome"], open_ground, density)
+    # (ground cover never goes under a tree: a tree and a tuft of grass would share a tile)
+    _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
 
@@ -506,7 +511,8 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
             continue
         biome = biomes.BIOME_IDS[int(env["biome"][lx, ly])]
-        material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome)
+        stone_landmark = landmarks.key_of(int(env["landmark"][lx, ly])) if env["landmark_strength"][lx, ly] > 0.3 else ""
+        material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome, stone_landmark)
         world.add_entity(Stuff(defs.PIECE_STONE, material), x, y)
 
 
