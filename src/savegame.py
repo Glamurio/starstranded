@@ -90,8 +90,18 @@ def _references(world: World) -> Tuple[Dict[int, tuple], Dict[tuple, object]]:
 
 
 def _definitions(world: World) -> list:
+    """The shared definitions, the same list (and order) on every layer: the planet's first, so that a planet creature or
+    fruit lying in a cave or sky chunk is saved as a reference to the planet's own object, not as a private copy."""
+    found: list = []
+    game_world = getattr(world.engine, "game_world", None)
+    planet = getattr(game_world, "planet", None)
+    if planet is not None:
+        found.extend(planet.definitions())
     source = world.source
-    return list(source.definitions()) if hasattr(source, "definitions") else []
+    for definition in (source.definitions() if hasattr(source, "definitions") else []):
+        if not any(definition is known for known in found):
+            found.append(definition)
+    return found
 
 
 def _members(chunk: Chunk, player) -> set:
