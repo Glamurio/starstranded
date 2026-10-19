@@ -277,7 +277,7 @@ GROUND_COVER: Dict[str, Tuple[Tuple[int, int], ...]] = {
 }
 """The little plants drawn on open ground, by biome: tufts of grass, ferns, leaves, toadstools (sprites of the sheet).
 They are part of the terrain graphics, not objects: free to draw, nothing to save, nothing to pick up."""
-COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.06, 0.30, 0.5
+COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.05, 0.22, 0.4
 """Share of open ground that carries cover: `COVER_BASE + COVER_PER_VEGETATION * biome.vegetation` (at most `COVER_MAX`)."""
 
 SHORE_WET = (0.40, 0.22, 0.09)
@@ -347,7 +347,7 @@ def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, o
         sprites = np.array([sprite_id(*cell) for cell in cells], dtype=np.int32)
         chosen = sprites[(pick[mask] * len(sprites)).astype(int)]
         flip = turn[mask] < 0.5
-        for layer, brighten in (("light", (1.0, 1.55)), ("dark", (1.0, 1.4))):
+        for layer, brighten in (("light", (0.85, 1.2)), ("dark", (0.8, 1.1))):
             shade = (brighten[0] + tone[mask] * (brighten[1] - brighten[0]))[:, None]
             landscape[layer]["sprite"][mask] = chosen
             landscape[layer]["flip"][mask] = flip

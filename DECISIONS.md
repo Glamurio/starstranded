@@ -806,3 +806,8 @@ Appearance, species identity and behaviour are already separate fields of `Fauna
 **Why.** Painted fence/crop/wall tiles were scenery: they could not be broken, harvested or regrown, and the farmhouse was grey stone. Reusing `Wall` and `Plant` costs a few lines and saves with the chunk like every other entity.
 **Alternative.** A new `Crop` component with tilling/planting state. Rejected for now: that is the full farming system, recorded below as a follow-up.
 **Follow-up (not built).** A real farming system: tilling, sowing seeds from the player's inventory, watering/irrigation, seasons and growth stages, crop failure and pests, farmer settlers who tend and harvest, trade of produce.
+
+## Quieter ground cover
+**What.** Ground-cover tufts were brightened 1.0–1.55× over the ground colour and covered up to half of open ground; now 0.85–1.2× (dark view 0.8–1.1×) and at most 40% (`COVER_PER_VEGETATION` 0.22).
+**Why.** The post-change blind review (docs/readability/blind-review-after.md) still named the lavender tufts as competing with real objects.
+**Alternative.** Removing tufts entirely, or drawing them as terrain-only bg texture. Kept them: they tell biomes apart.
