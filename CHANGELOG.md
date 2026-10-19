@@ -5,6 +5,7 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 
 ## World exploration round, 19 Oct 2026
 - New (debug runs only, `--debug`): God Mode on F10 with Ctrl / Alt jumps; see the README.
+- New: continents, seas and mountain ranges (every seed's map changes); the landing site is always dry, mild and has a pond nearby; the air is colder on high ground.
 - New: landmarks, large regions on top of the climate (mushroom forest, cactus desert, crystal badlands, volcanic mountains, decaying landscape, flowering meadow) with their own ground, plant cover, stones and warmth; none near the landing site. The volcanic / crystalline / fungal biomes are removed.
 - New: seven plants and seven animals that live only in one landmark (the fungal tree now grows only in mushroom forests).
 - Changed: ground cover no longer appears under trees; tree layouts differ from before for the same seed (the roll is now chunk-independent).

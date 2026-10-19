@@ -17,6 +17,7 @@ import numpy as np  # type: ignore
 import tcod
 
 import landmarks
+import relief
 import shafts
 from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the long-standing import path)
 import tile_types
@@ -37,7 +38,9 @@ DEEP_COLOR = (58, 104, 148)
 brightness on purpose: a stark light/dark edge clashes with the land."""
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
-HEIGHT_LIMITS = (-1.1, -0.3, 0.3, 1.1)  # water | floor | wall (values outside stay wall, as before)
+OUTCROP_ABOVE = 0.28
+
+# Terrain kinds come from `relief.elevation`: water below `relief.SEA_LEVEL`, open ground up to `relief.ROCK_LEVEL`, rock above.
 
 
 @contextlib.contextmanager
@@ -54,6 +57,10 @@ def seeded_rng(seed: int) -> Iterator[None]:
         np.random.set_state(numpy_state)
 
 
+_SHIFTS: Dict[int, Tuple[int, int]] = {}
+"""Per seed, where the relief is read from (found once, see `relief.find_shift`)."""
+
+
 class TerrainNoise:
     """The floor's four noise generators (two for height, two for vegetation, as the single-map generator had)."""
 
@@ -61,8 +68,12 @@ class TerrainNoise:
         self.floor_seed = floor_seed
         self.noises = [
             tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(floor_seed, i) % 2**31)
-            for i in range(landmarks.NOISE_BASE + len(landmarks.LANDMARK_IDS))   # 0-7 terrain and climate, then one per landmark
+            for i in range(landmarks.NOISE_BASE + len(landmarks.LANDMARK_IDS))   # 0-15 terrain and climate, then one per landmark
         ]
+        self.shift = _SHIFTS.get(floor_seed)
+        if self.shift is None:
+            self.shift = (0, 0)
+            self.shift = _SHIFTS[floor_seed] = relief.find_shift(self)
 
     def scatter(self, salt: int, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """A pseudo-random number in [0, 1) for every tile of a world rectangle, a pure function of (seed, salt, x, y): the same
@@ -97,11 +108,11 @@ class TerrainNoise:
 
     def temperature(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Climate temperature, about -1 (frozen) .. 1 (scorching), varying over a few hundred tiles."""
-        return np.clip(1.7 * self.sample(2, 0.006, x0, y0, width, height), -1.3, 1.3)
+        return np.clip(1.7 * self.sample(2, 0.006, x0 + self.shift[0], y0 + self.shift[1], width, height), -1.3, 1.3)
 
     def moisture(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Climate moisture, about -1 (arid) .. 1 (soaked)."""
-        return np.clip(1.7 * self.sample(5, 0.007, x0, y0, width, height), -1.3, 1.3)
+        return np.clip(1.7 * self.sample(5, 0.007, x0 + self.shift[0], y0 + self.shift[1], width, height), -1.3, 1.3)
 
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
@@ -114,10 +125,12 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
     Correct for every tile of the rectangle except its outermost ring (dilation needs the neighbour).
     """
     from procgen import dilate
-    heights = noise.heights(x0, y0, width, height)
-    kinds = np.full((width, height), 2, dtype=np.int8, order="F")
-    for kind, (low, high) in enumerate(zip(HEIGHT_LIMITS[:-1], HEIGHT_LIMITS[1:])):
-        kinds[(heights > low) & (heights <= high)] = kind
+    height_map = relief.elevation(noise, x0, y0, width, height)
+    # (rock is the mountains plus the odd outcrop of the local noise, so there is stone to mine on any plain)
+    rock = (height_map > relief.ROCK_LEVEL) | (noise.heights(x0, y0, width, height) > OUTCROP_ABOVE)
+    wet = relief.basin_height(noise, x0, y0, width, height) < relief.SEA_LEVEL
+    kinds = np.where(wet, 0, np.where(rock, 2, 1)).astype(np.int8)
+    kinds = np.asfortranarray(kinds)
     kinds[dilate(kinds == 0)] = 0
     return kinds
 
@@ -132,9 +145,11 @@ def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: i
     `landmarks`). All pure functions of the seed."""
     from procgen import dilate
     import biomes
-    temperature = noise.temperature(x0, y0, width, height)
     moisture = noise.moisture(x0, y0, width, height)
-    elevation = noise.heights(x0, y0, width, height)
+    elevation = relief.elevation(noise, x0, y0, width, height)
+    # (the air cools with the smooth height only: rough detail would make temperature, and so the biome, jump from tile to tile)
+    cooling = relief.LAPSE * np.maximum(relief.smooth_elevation(noise, x0, y0, width, height) - relief.SNOWLINE, 0.0)
+    temperature = noise.temperature(x0, y0, width, height) - cooling
     biome = biomes.classify(temperature, moisture, elevation)
     water = np.zeros((width, height), dtype=float)
     reach = kinds == 0

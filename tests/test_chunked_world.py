@@ -159,7 +159,7 @@ def test_terrain_is_continuous_across_chunk_borders(seed, neighbour, monkeypatch
         | (stitched["light"]["sprite"] == tile_types.down_stairs.sprite)
     )
     same = ~random_cells
-    assert same.mean() > 0.6
+    assert same.mean() > 0.3      # (seas and mountains are 'surrounded' too: their centre sprites are random)
     for field in ("walkable", "transparent"):
         assert np.array_equal(stitched[field][same], big[field][same]), field
     assert np.array_equal(stitched["light"]["sprite"][same], big["light"]["sprite"][same])

@@ -24,12 +24,13 @@ from typing import Dict, List, Tuple
 
 import numpy as np  # type: ignore
 
+import relief
 from ecology import Habitat, suitability
 
 RGB = Tuple[int, int, int]
 Cell = Tuple[int, int]
-NOISE_BASE = 8
-"""Noise generators 0-7 of `worldgen.TerrainNoise` are the terrain and climate ones; landmark `i` uses `NOISE_BASE + i`."""
+NOISE_BASE = 16
+"""Noise generators 0-15 of `worldgen.TerrainNoise` are the terrain and climate ones; landmark `i` uses `NOISE_BASE + i`."""
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ _landmark("mushroom_forest", "Mushroom forest", "Damp, dim ground under towering
           vegetation=1.7, stones=("dark",), music="mushroom_forest")
 _landmark("cactus_desert", "Cactus desert", "Baked sand, bare red rock and a scatter of cacti.",
           Habitat(temperature=(0.25, 1.2), moisture=(-1.2, -0.25)),
-          threshold=0.0, ground=(222, 156, 84), ground_mix=0.65, cover=_DRY, vegetation=0.8, ambient=4,
+          threshold=0.0, ground=(222, 156, 84), ground_mix=0.65, cover=_DRY, vegetation=5.0, ambient=4,
           stones=("red", "pale"), music="cactus_desert")
 _landmark("crystal_badlands", "Crystalline badlands", "Broken rock and cold, glittering crystal under a hard sky.",
           Habitat(temperature=(-0.5, 0.5), moisture=(-1.2, 0.25), elevation=(-0.15, 1.2)),
@@ -92,10 +93,12 @@ _landmark("flowering_meadow", "Flowering meadow", "Open, airy grass in pale colo
 
 LANDMARK_INDEX: Dict[str, int] = {key: i + 1 for i, key in enumerate(LANDMARK_IDS)}
 """Landmark key -> its number in landmark arrays (0 means no landmark)."""
-SPAWN = (35, 20)
+SPAWN = relief.SPAWN
 SPAWN_CLEAR, SPAWN_FULL = 60, 160
 """Landmarks fade out towards the landing site: none within `SPAWN_CLEAR` tiles of it, full strength from `SPAWN_FULL`
 (a volcanic field or a crystal waste under the first camp would be a cruel start)."""
+COAST_FADE = 0.25
+"""Height above sea level over which a landmark fades in from the shore."""
 MIN_STRENGTH = 0.04
 """Below this a tile counts as outside every landmark (the faint tail of a soft edge)."""
 
@@ -110,19 +113,21 @@ def climate_of(noise, x0: int, y0: int, width: int, height: int, env: dict) -> d
     """The climate a landmark is judged against: `env` with only the smooth large-scale relief as elevation (the tile-to-tile
     roughness of `env["elevation"]` would speckle the edges). Fertility (a step per biome) and shore distance are not in any
     landmark's habitat, so climate alone shapes a landmark."""
-    return dict(env, elevation=noise.sample(0, 0.05, x0, y0, width, height))
+    return dict(env, elevation=relief.smooth_elevation(noise, x0, y0, width, height))
 
 
 def field(noise, x0: int, y0: int, width: int, height: int, env: dict) -> Tuple[np.ndarray, np.ndarray]:
     """`(index, strength)` of the landmark at every tile of a world rectangle: `index` is 0 or `LANDMARK_INDEX[key]`,
     `strength` 0..1. `env` holds the rectangle's climate arrays (temperature, moisture, elevation, fertility, light, water)."""
     climate = climate_of(noise, x0, y0, width, height, env)
+    # no landmark far out at sea: they fade over the last stretch of coast
+    dry = smooth((relief.basin_height(noise, x0, y0, width, height) - relief.SEA_LEVEL) / COAST_FADE)
     best = np.zeros((width, height), dtype=np.float64)
     index = np.zeros((width, height), dtype=np.int8)
     for i, key in enumerate(LANDMARK_IDS):
         landmark = LANDMARKS[key]
         wants = smooth((noise.sample(NOISE_BASE + i, landmark.scale, x0, y0, width, height) - landmark.threshold) / landmark.fade)
-        strength = wants * suitability(landmark.climate, climate)
+        strength = wants * suitability(landmark.climate, climate) * dry
         better = strength > best
         best = np.where(better, strength, best)
         index = np.where(better, np.int8(i + 1), index)

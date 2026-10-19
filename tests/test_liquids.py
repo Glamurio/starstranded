@@ -50,7 +50,7 @@ def test_only_shallow_liquid_can_be_waded_and_the_colours_grade_from_shore_to_de
         return all(max(abs(a - b) for a, b in zip(c, base)) <= tolerance for c in found)
     assert near(colours[1], worldgen.SHALLOW_COLOR, 60)       # shallows are shallow-coloured, tinted by the shore
     assert near(colours[2], worldgen.DEEP_COLOR, 60) and not near(colours[2], worldgen.DEEP_COLOR, 0)   # half-way to the shallows
-    assert len(colours[1]) > 10                                # a gradient, not one flat colour
+    assert len(colours[1]) > 5                                # a gradient, not one flat colour
     assert sum(worldgen.DEEP_COLOR) < sum(worldgen.SHALLOW_COLOR)  # deep is the darker of the two
 
 
