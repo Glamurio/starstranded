@@ -23,7 +23,7 @@ def test_generation_is_deterministic():
 def test_every_flora_template_has_a_variant_and_a_material(p):
     assert {s.key.split(":")[2] for s in p.flora} == {t.key for t in pl.FLORA_TEMPLATES}
     for s in p.flora:
-        assert ((s.material or s.fiber) is not None or s.category.name == "FLOWER") and s.habitat is not None   # a flower has a bloom instead
+        assert ((s.material or s.fiber) is not None or s.category.name == "FLOWER") and (s.habitat is not None or s.key.endswith("crop:0"))   # a flower has a bloom instead; the farm crop has no wild habitat
         assert s.material is None or s.material.name == s.name  # the wood is named after its tree
 
 

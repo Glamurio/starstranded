@@ -99,7 +99,7 @@ FORMS: Dict[str, Tuple[str, ...]] = {
     "cypress": ("cypress", "cedar", "juniper"), "palm": ("palm", "fan palm"), "coast_palm": ("palm", "beach palm"),
     "fungal_tree": ("toadstool", "giant mushroom", "morel", "shelf fungus"), "cactus": ("cactus", "cereus", "succulent"),
     "barrel_cactus": ("barrel cactus", "pincushion"), "reeds": ("reed", "rush", "sedge", "cane"),
-    "bush": ("bush", "shrub", "scrub"), "thorns": ("thornbush", "bramble", "briar", "thistle"),
+    "crop": ("beet", "turnip", "radish", "carrot"), "bush": ("bush", "shrub", "scrub"), "thorns": ("thornbush", "bramble", "briar", "thistle"),
     "spore_bush": ("puffball", "spore bush"), "shard_bush": ("glass thorn", "shard bush"), "ash_shrub": ("ash shrub", "cinder bush"),
     "dead_tree": ("dead tree", "snag"), "beach_grass": ("dune grass", "marram", "sedge"),
     "meadow_flower": ("flower", "bell", "star", "aster", "daisy"), "meadow_bloom": ("bell", "aster", "star", "lily"),
@@ -121,6 +121,7 @@ FORM_FRUITS: Dict[str, Tuple[Tuple[Tuple[int, int], str], ...]] = {
     "cactus": (((17, 21), "prickly pear"),), "cereus": (((17, 21), "prickly pear"),), "succulent": (((17, 21), "prickly pear"),),
     "barrel cactus": (((17, 21), "prickly pear"),), "pincushion": (((17, 21), "prickly pear"),),
     "reed": (((22, 21), "seed head"),), "rush": (((22, 21), "seed head"),), "sedge": (((22, 21), "seed head"),), "cane": (((22, 21), "seed head"),),
+    "beet": (((2, 21), "root"),), "turnip": (((2, 21), "root"),), "radish": (((2, 21), "root"),), "carrot": (((2, 21), "root"),),
     "dune grass": (((22, 21), "seed head"),), "marram": (((22, 21), "seed head"),),
     "bush": (((18, 21), "berry"), ((24, 21), "berry")), "shrub": (((18, 21), "berry"),), "scrub": (((18, 21), "berry"),),
     "thornbush": (((18, 21), "sloe"),), "bramble": (((18, 21), "blackberry"),), "briar": (((6, 21), "hip"),), "thistle": (((22, 21), "seed head"),),
@@ -147,6 +148,9 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
     FloraTemplate("reeds", PlantCategory.SHRUB, ((6, 9),), Habitat((-0.3, 1.0), (0.0, 1.0), water=(0.6, 1.0)), variants=1, rarity=2.0, fruit_chance=0.3, max_hp=6, growth_cycle=5, name_family="grass",
                   color_range=((100, 140, 60), (170, 190, 100))),
     FloraTemplate("bush", PlantCategory.SHRUB, ((105, 0),), Habitat((-0.5, 0.8), (-0.4, 1.0), fertility=(0.2, 1.0)), variants=2, rarity=2.0, max_hp=8, growth_cycle=5, name_family="shrub"),
+    # the crop of a farm's field: never grows wild (no habitat), see `Planet.crop` and settlements.populate
+    FloraTemplate("crop", PlantCategory.SHRUB, ((8, 9),), None, rarity=0.0, fruit_chance=1.0, max_hp=4, growth_cycle=5, name_family="grass",
+                  color_range=((150, 140, 40), (210, 190, 80))),
     # flowers: small ground plants with one bloom each to pick (food now, medicine and cooking later)
     FloraTemplate("meadow_flower", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat((-0.5, 0.7), (-0.2, 1.0), fertility=(0.2, 1.0)),
                   variants=4, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower",
@@ -340,7 +344,7 @@ class Planet:
 
     def species_weights(self, env: Mapping[str, object], category: Optional[PlantCategory] = None) -> Tuple[List[PlantSpecies], np.ndarray]:
         """Flora of the given category with their spawn weight for each tile of `env` (arrays): shape (n_species, *tile_shape)."""
-        pool = [s for s in self.flora if (category is None and s.category is not PlantCategory.FLOWER) or s.category is category]
+        pool = [s for s in self.flora if s.habitat is not None and ((category is None and s.category is not PlantCategory.FLOWER) or s.category is category)]
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
         if category is None and pool and "biome" in env:
             share = np.array([biomes.TREE_SHARE[k] for k in biomes.BIOME_IDS])[np.asarray(env["biome"])]
@@ -348,6 +352,11 @@ class Planet:
                 if species.category is PlantCategory.TREE:
                     weights[i] = weights[i] * share
         return pool, weights
+
+    @property
+    def crop(self) -> PlantSpecies:
+        """The plant this planet's farmers grow (a root vegetable that is never found wild)."""
+        return next(s for s in self.flora if s.habitat is None)
 
     def fauna_weights(self, env: Mapping[str, object]) -> Tuple[List[UnitSpecies], np.ndarray]:
         pool = [s for s in self.fauna if s.habitat is not None]        # (the cave creatures live below, see `cave_fauna`)
@@ -459,7 +468,7 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         color = tuple(int(lo[i] + (hi[i] - lo[i]) * t) for i in range(3))
     else:
         color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
-    if template.key not in ("fungal_tree", "dead_tree", "ash_shrub"):   # (fungus, dead wood and ash keep their own colours)
+    if template.key not in ("fungal_tree", "dead_tree", "ash_shrub", "crop"):   # (fungus, dead wood and ash keep their own colours)
         color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04) + 0.1 * index)    # (a template's variants differ in colour)
     slot = index % len(template.sprites)
     sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])
@@ -530,7 +539,7 @@ def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index
     sprite, shape_word = rng.choice(options)
     # a fruit keeps its parent's colour family, lighter or deeper (so the name's colour word is true)
     fruit_color = tuple(max(30, min(255, int(c * rng.uniform(0.85, 1.25)) + rng.randint(-12, 30))) for c in plant_color)
-    toxic = rng.random() < 0.25
+    toxic = rng.random() < 0.25 and template.key != "crop"     # (a crop is bred to be safe)
     if namer.culture == "human" and parent.modifier:
         label = namer.fruit_of(f"fruit:{template.key}:{index}", parent, (shape_word,))
     else:

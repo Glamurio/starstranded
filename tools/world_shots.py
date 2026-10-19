@@ -59,6 +59,19 @@ def find_spot(noise, spec, radius=700):
     return None if best is None else best[1:]
 
 
+def find_settlement(engine, kind):
+    """The centre of the nearest farm (spec `farm`) or town (`town:x`) to the start."""
+    import settlements
+    from chunks import CHUNK_H, CHUNK_W
+    source = engine.game_world.world_at(0).source
+    kind = kind or "farm"
+    keys = sorted(((x, y) for x in range(-12, 13) for y in range(-12, 13)), key=lambda k: abs(k[0]) + abs(k[1]))
+    for key in keys:
+        if settlements.kind_of(source.floor_seed, key) == ("farm" if kind == "farm" else "town") and settlements.layout(source.floor_seed, key):
+            return key[0] * CHUNK_W + CHUNK_W // 2, key[1] * CHUNK_H + CHUNK_H // 2
+    return None
+
+
 def main(args):
     seed = 41
     if args and args[0].isdigit():
@@ -76,7 +89,7 @@ def main(args):
     session.handlers = [handler]
     noise = engine.game_world.world_at(0).source.noise
     for spec in args:
-        spot = find_spot(noise, spec)
+        spot = find_settlement(engine, spec[5:]) if spec.startswith("town:") or spec.startswith("farm") else find_spot(noise, spec)
         if spot is None:
             print(spec, "-> not found")
             continue

@@ -800,3 +800,9 @@ Appearance, species identity and behaviour are already separate fields of `Fauna
 **Why:** hunted-out ground stayed empty forever and animals never reproduced.
 **Not done:** ages, genes, herd movement, predator/prey balance, and cave animals (surface planet species only; Selenites, robots and settlers do not breed). Saves from before this have no capacity and so are not tracked.
 **Alternative:** simulating distant chunks with the full AI; rejected (cost) when a per-day abstraction gives the same visible result.
+
+## Farms are built of entities, not painted tiles
+**What.** A farm's solid and living parts are entities: the field fence is a `crafting.Fence` (solid, see-through, 12 hp, breaks into a branch), the farmhouse walls are ordinary wooden `Wall` entities (so they have a material, hit points, and can be broken), and each crop row tile holds a real plant of the planet's crop (`Planet.crop`, a root vegetable generated from a `crop` FloraTemplate with no habitat, so it never grows wild, never toxic). Crops are walkable, bear fruit, and regrow through the normal plant cycle. Towns keep their stone-tile houses.
+**Why.** Painted fence/crop/wall tiles were scenery: they could not be broken, harvested or regrown, and the farmhouse was grey stone. Reusing `Wall` and `Plant` costs a few lines and saves with the chunk like every other entity.
+**Alternative.** A new `Crop` component with tilling/planting state. Rejected for now: that is the full farming system, recorded below as a follow-up.
+**Follow-up (not built).** A real farming system: tilling, sowing seeds from the player's inventory, watering/irrigation, seasons and growth stages, crop failure and pests, farmer settlers who tend and harvest, trade of produce.

@@ -544,7 +544,7 @@ class NoiseWorldSource:
                 scenery.populate(self, world, chunk, env, reserved, ruin_chunk=chunk.key in structures.ruin_chunks(self.floor_seed))
                 self._spawn_fauna(world, chunk, env, reserved)
                 self._place_sites(world, chunk)
-                settlements.populate(world, chunk, self.floor_seed)
+                settlements.populate(world, chunk, self.floor_seed, self.planet)
                 self._scatter_flowers(world, chunk, env, reserved)
                 self._scatter_lily_pads(world, chunk)
         for entity in chunk.entities:

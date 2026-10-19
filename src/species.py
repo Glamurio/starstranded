@@ -295,6 +295,7 @@ BED = register(ItemKind("bed", "Bed", sprite=(0, 36), color=_WOOD, station="bed"
 WORKBENCH = register(ItemKind("workbench", "Workbench", sprite=(54, 20), color=_WOOD, station="workbench"))
 FURNACE = register(ItemKind("furnace", "Furnace", sprite=(28, 38), color=(140, 140, 150), station="furnace"))
 TORCH = register(ItemKind("torch", "Torch", sprite=(4, 42), color=color.orange, lit_color=color.orange, light_radius=5))
+FENCE = register(ItemKind("fence", "Fence", sprite=(6, 40), color=(150, 110, 70)))
 WALL_BLOCK = register(ItemKind("wall_block", "Wall", sprite=(12, 0), color=(150, 150, 150)))
 CIRCUIT = register(ItemKind("circuit", "Circuit board", sprite=(78, 7), color=(80, 200, 120)))
 POWER_CELL = register(ItemKind("power_cell", "Power cell", sprite=(52, 9), color=(120, 220, 120)))

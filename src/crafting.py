@@ -354,6 +354,40 @@ class Wall(Entity):
         return noun_title(self.material.name, "wall")
 
 
+class Fence(Wall):
+    """A wooden field fence: it stops you walking through but not looking, and is quickly broken (it gives a branch)."""
+
+    HIT_POINTS = 12
+
+    def __init__(self):
+        Entity.__init__(self, defs.FENCE)
+        self.parts = {"wood": DEFAULT_WOOD}
+        self.quality = 1.0
+        self.consumed = {}
+        self.material: Material = DEFAULT_WOOD
+        self.max_hp = self.hp = self.HIT_POINTS
+        self.color = self.shade = defs.FENCE.color
+        self._ground = None
+        self.dead = False
+        self.blocks_movement = True
+        self.blocks_sight = False
+
+    def on_added_to_map(self, game_map) -> None:
+        tile = game_map.tile_at(self.x, self.y)
+        if self._ground is None:
+            self._ground = (bool(tile["walkable"]), bool(tile["transparent"]), tile["dark"].item())
+        game_map.modify_tile(self.x, self.y, walkable=False)
+
+    def collapse(self) -> None:
+        world, x, y = self.parent, self.x, self.y
+        Wall.collapse(self)
+        if world is not None:
+            world.add_entity(Branch(), x, y)
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        return "Fence"
+
+
 # ─── Recipe system ───────────────────────────────────────────────────
 
 def material_of(item) -> Optional[Material]:

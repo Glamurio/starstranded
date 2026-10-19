@@ -30,19 +30,18 @@ def test_the_roll_is_a_pure_function_of_the_seed():
     assert [settlements.kind_of(SEED + 1, k) for k in KEYS] != [settlements.kind_of(SEED, k) for k in KEYS]
 
 
-def test_a_farm_has_a_fenced_field_with_crops_a_gate_and_a_house():
+def test_a_farm_has_a_field_a_gate_and_a_house_in_the_terrain():
     farms = found("farm")
     assert farms
     for key, lay in farms[:4]:
         tiles, trees = shafts.surface_layer(SEED, key)
         x, y, w, h = lay.fence
-        assert tiles[x, y]["walkable"] is np.False_ and tiles[x + w - 1, y + h - 1]["light"]["sprite"] == tt.fence.sprite
+        assert tiles[x + 1, y + 1]["light"]["sprite"] == tt.farmland.sprite     # (fence, crops and house walls are entities)
         gx, gy = lay.gate
         assert tiles[gx, gy]["walkable"]                                   # the gate is open
-        assert (tiles["light"]["sprite"] == tt.crops.sprite).sum() > 20
         assert not trees[x:x + w, y:y + h].any()
         house = lay.houses[0]
-        assert tiles[house.door]["walkable"] and not tiles[house.x, house.y]["walkable"]
+        assert tiles[house.door]["walkable"]
         assert lay.houses[0].x + lay.houses[0].w <= CHUNK_W and y + h <= CHUNK_H
 
 
@@ -99,7 +98,7 @@ def test_nothing_wild_grows_or_lies_on_built_ground():
         assert built
         for entity in chunk.entities:
             local = (entity.x - chunk.x0, entity.y - chunk.y0)
-            if local in built:
+            if local in built and getattr(entity, "kind", None) is not world.source.planet.crop:      # (the field's own crop belongs)
                 assert not isinstance(entity, (Plant, Stuff)), (kind, type(entity).__name__, local)
                 assert not (isinstance(entity, Unit) and entity.kind.faction == "wildlife"), (kind, local)
 
@@ -116,3 +115,42 @@ def test_houses_hold_supplies_and_settlers_live_there():
         assert len(rations) >= len(layout.houses)
         for ration in rations:
             assert any(h.x < ration.x - chunk.x0 < h.x + h.w - 1 and h.y < ration.y - chunk.y0 < h.y + h.h - 1 for h in layout.houses)
+
+
+def test_a_farm_is_built_of_fence_timber_and_crop_entities():
+    import components.plant
+    from crafting import Fence, Wall
+    key, world, chunk = _load("farm")
+    lay = settlements.layout(SEED, key)
+    at = lambda lx, ly: world.get_entities_at_location(chunk.x0 + lx, chunk.y0 + ly)
+    fences = [e for e in chunk.entities if isinstance(e, Fence)]
+    assert len(fences) == len(settlements._fence_tiles(lay))
+    assert all(not world.is_walkable(f.x, f.y) and world.tile_at(f.x, f.y)["transparent"] for f in fences)   # solid, see-through
+    gx, gy = lay.gate
+    assert world.is_walkable(chunk.x0 + gx, chunk.y0 + gy)
+    walls = [e for e in chunk.entities if isinstance(e, Wall) and not isinstance(e, Fence)]
+    assert len(walls) == sum(len(settlements._wall_tiles(h)) for h in lay.houses)
+    assert all(w.material.name != "" and not world.is_walkable(w.x, w.y) for w in walls)
+    dx, dy = lay.houses[0].door
+    assert world.is_walkable(chunk.x0 + dx, chunk.y0 + dy)
+    crops = [e for e in chunk.entities if isinstance(e, components.plant.Plant) and e.kind is world.source.planet.crop]
+    assert len(crops) == len(settlements._crop_tiles(lay))
+    assert all(world.is_walkable(c.x, c.y) and c.fruit is not None for c in crops)
+
+
+def test_a_broken_fence_gives_wood_and_opens_the_way():
+    from crafting import Branch, Fence
+    key, world, chunk = _load("farm")
+    fence = next(e for e in chunk.entities if isinstance(e, Fence))
+    x, y = fence.x, fence.y
+    fence.handle_health(-fence.max_hp)
+    assert world.is_walkable(x, y) and not any(isinstance(e, Fence) for e in world.get_entities_at_location(x, y))
+    assert any(isinstance(e, Branch) for e in world.get_entities_at_location(x, y))
+
+
+def test_the_crop_never_grows_wild():
+    import planet as pl
+    p = pl.generate_planet(8, "human")
+    assert p.crop.habitat is None and p.crop.fruit is not None and p.crop.fruit.toxicity == 0
+    pool, _ = p.species_weights({k: np.zeros((2, 2)) for k in ("temperature", "moisture", "fertility", "water", "elevation", "light")})
+    assert p.crop not in pool

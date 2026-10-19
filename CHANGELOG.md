@@ -4,6 +4,7 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 
 
 ## World readability round, 19 Oct 2026
+- Farms: fences are breakable wooden fence entities, farmhouses have timber walls, and the field rows are real harvestable, regrowing crop plants (never found wild).
 - Changed: lakes, rivers and seas come in a wide range of vivid colours again (blue, teal, green, yellow, violet, magenta); a lake keeps its colour and different places differ.
 - Changed: ground colours ease into each other over a few tiles at biome borders instead of a hard line.
 - Changed: plants, fruit and creatures are named with the real name of their colour; creatures are named for the animal they look like.
