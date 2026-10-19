@@ -37,9 +37,14 @@ DEFAULT_LEATHER = Material(
     elasticity=3, insulation=5, thermal_conductivity=2, flammability=5, combustibility=3, burn_yield=20.0, burn_duration=5)
 
 
+SAME_NOUN = {"stone": ("rock",), "wood": ("tree",), "fibre": ("fiber",)}
+"""Words that already say what the piece is: a "grey rock" is not a "grey rock stone"."""
+
+
 def noun_title(name: str, noun: str) -> str:
-    """"Rustore ore" is just "Rustore ore"; "Dunstone" + "Stone" is "Dunstone"."""
-    if name.lower().endswith(noun.lower()):
+    """"Rustore ore" is just "Rustore ore"; "Dunstone" + "Stone" is "Dunstone"; "grey rock" + "Stone" is "grey rock"."""
+    lowered = name.lower()
+    if lowered.endswith(noun.lower()) or lowered.split(" ")[-1] in SAME_NOUN.get(noun.lower(), ()):
         return name
     return f"{name} {noun.lower()}"
 

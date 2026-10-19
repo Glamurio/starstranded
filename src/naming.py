@@ -289,7 +289,7 @@ class Namer:
         for _ in range(8):
             word = self._word(rng, colour)
             text = f"{word} {shape}" if self.culture == "human" and shape else f"{word}-{self._word(rng, 'plant')}"
-            text = _tidy(text) if self.culture != "human" else f"{word} {shape}"
+            text = _plain(self.culture, _tidy(text) if self.culture != "human" else f"{word} {shape}")
             if _norm(text) not in self.used:
                 self.used.add(_norm(text))
                 self.glosses[text] = f"{colour} {shape or 'fruit'}"
@@ -351,7 +351,7 @@ class Namer:
             text = self._join(self._word(rng, colour), self._word(rng, noun), compound=self.culture != "human" or rng.random() < 0.5)
             gloss = f"{colour} {noun}"
             reasons = ()
-        return Name(_tidy(text), gloss, reasons)
+        return Name(_plain(self.culture, _tidy(text)), gloss, reasons)
 
     def _join(self, a: str, b: str, compound: bool) -> str:
         if not compound:
@@ -408,6 +408,12 @@ def _well_formed(text: str) -> bool:
 
 
 PROPER_WORDS = ("Human", "Selenite", "Mau", "Selenites", "Harmonic", "Egyptian")
+
+
+def _plain(culture: str, text: str) -> str:
+    """Only people's names are capitalised: the name of a plant, creature or material is written in lower case, whatever
+    language it was built from. (A corporate catalogue code such as "Fenlith-5B" is a code, not a word.)"""
+    return text if culture == "corporate" else text.lower()
 
 
 def lower_first(text: str) -> str:

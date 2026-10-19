@@ -62,7 +62,9 @@ def test_a_planet_of_names_is_unique_and_well_formed():
             family = rng.choice(["wood", "stone", "metal", "fiber", "animal", "furred", "tree", "shrub"])
             n = namer.name(f"{culture}{i}", family, (rng.randrange(256), rng.randrange(256), rng.randrange(256)), random_props(rng))
             texts.append(n.text)
-            assert 4 <= len(n.text) <= 28 and n.text[0].isupper(), n.text
+            assert 4 <= len(n.text) <= 28, n.text
+            if culture != "corporate":
+                assert n.text[0].islower(), n.text         # only people's names are capitalised
             assert "  " not in n.text and "--" not in n.text and not n.text.endswith("-"), n.text
         assert len({naming._norm(t) for t in texts}) == len(texts), f"duplicate names in {culture}"
 
