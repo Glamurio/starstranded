@@ -31,6 +31,9 @@ os.makedirs(OUT, exist_ok=True)
 def find_spot(noise, spec, radius=700):
     """The open-ground tile nearest the origin that satisfies `spec` (searching a coarse grid, then refining)."""
     kind, _, key = spec.partition(":")
+    if kind == "at":                    # at:X,Y
+        x, y = key.split(",")
+        return int(x), int(y)
     best = None
     for y0 in range(-radius, radius, 100):
         for x0 in range(-radius, radius, 100):
@@ -61,6 +64,9 @@ def main(args):
     if args and args[0].isdigit():
         seed, args = int(args[0]), args[1:]
     random.seed(seed)
+    if os.environ.get("NO_BLEND"):
+        import world
+        world.BLEND_BORDERS = False
     session = Session.create(headless=True)
     engine = setup_game.new_game(characters.create_character("Pascal", "human", "survivalist", sponsor="heavy_industries"), session=session)
     engine.session = session
@@ -77,7 +83,7 @@ def main(args):
         debug.teleport(engine, *spot)
         engine.mouse_location = (spot[0] + 4, spot[1])
         session.draw(handler)
-        name = "w_" + spec.replace(":", "_")
+        name = "w_" + spec.replace(":", "_").replace(",", "_") + os.environ.get("SHOT_SUFFIX", "")
         pygame.image.save(session.display.surface, os.path.join(OUT, f"{name}.png"))
         print(spec, "->", spot, name)
 

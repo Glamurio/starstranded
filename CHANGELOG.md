@@ -5,6 +5,7 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 
 ## World readability round, 19 Oct 2026
 - Changed: lakes, rivers and seas come in a wide range of vivid colours again (blue, teal, green, yellow, violet, magenta); a lake keeps its colour and different places differ.
+- Changed: ground colours ease into each other over a few tiles at biome borders instead of a hard line.
 
 ## Session, sight and faction round, 19 Oct 2026
 - Fixed: Continue after Save & Quit to Main Menu no longer throws you straight back to the menu.

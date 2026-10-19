@@ -9,6 +9,7 @@ import numpy as np  # type: ignore
 import pygame
 
 import atlas as atlas_module
+import blend
 from atlas import TILE
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chebyshev, chunk_key, keys_around
 from config import DEFAULT_CONFIG, GameConfig
@@ -38,6 +39,7 @@ def distance(p1, p2, diag=True, euclidean=False):
 
 
 # Terrain cells are grouped by one packed int64 key: sprite id + 1 (14 bits), flip (1), foreground rgb (24), background rgb (24).
+BLEND_BORDERS = True      # ease ground colours across biome borders when drawing (blend.py)
 SPRITE_BITS = 14
 SPRITE_MASK = (1 << SPRITE_BITS) - 1
 FLIP_SHIFT = SPRITE_BITS
@@ -132,6 +134,7 @@ class World(SpatialContainer):
     """
 
     def __init__(self, engine: Engine, source: ChunkSource, *, floor: int = 1, seed: int = 0, z: int = 0):
+        self._soft_stamp, self._soft_result = None, None   # the last border-softened colours (see _soften_borders)
         self.engine = engine
         self.z = z  # the layer: 0 surface, < 0 caves, > 0 upper floors
         self.source = source
@@ -561,6 +564,8 @@ class World(SpatialContainer):
             )
             fg = gfx["fg"].astype(np.int64)
             bg = gfx["bg"].astype(np.int64)
+            if BLEND_BORDERS:
+                bg, fg = self._soften_borders(bg, fg, visible | explored, rect)
             keys = (
                 (gfx["sprite"].astype(np.int64) + 1)
                 | (gfx["flip"].astype(np.int64) << FLIP_SHIFT)
@@ -619,6 +624,26 @@ class World(SpatialContainer):
         for x, y in hidden:
             canvas.badge(x - x0, y - y0)
         self._render_night(canvas, rect, visible, window.lit_region(rect))
+
+    def _soften_borders(self, bg: np.ndarray, fg: np.ndarray, shown: np.ndarray, rect: Rect) -> Tuple[np.ndarray, np.ndarray]:
+        """Ease the ground colours across biome borders (see `blend.soften`). The ground tiles are the walkable dry ones, taken
+        from a window a few tiles wider than the view, so the result does not change as the camera moves."""
+        m = blend.RADIUS
+        x0, y0, width, height = rect
+        stamp = (rect, tuple((c.key, c.terrain_version) for c in self.chunks_in_rect(rect)), hash(shown.tobytes()), hash(bg.tobytes()))
+        if self._soft_stamp == stamp:                    # nothing moved or changed since the last frame
+            return self._soft_result
+        wide = (x0 - m, y0 - m, width + 2 * m, height + 2 * m)
+        ground = self.region("walkable", wide) & (self.region("liquid", wide) == 0)
+        light = self.region("light", wide)
+        wide_bg, wide_fg = light["bg"].astype(np.int64), light["fg"].astype(np.int64)
+        wide_bg[m:m + width, m:m + height] = bg
+        wide_fg[m:m + width, m:m + height] = fg
+        ground[m:m + width, m:m + height] &= shown
+        new_bg, new_fg = blend.soften(wide_bg, wide_fg, ground)
+        inside = (slice(m, m + width), slice(m, m + height))
+        self._soft_stamp, self._soft_result = stamp, (new_bg[inside], new_fg[inside])
+        return self._soft_result
 
     def _look_down(self, gfx: np.ndarray, mask: np.ndarray, rect: Rect) -> None:
         """Replace the graphics of the cells in `mask` (open tiles: no floor) by what lies below them: the next layer's terrain,
