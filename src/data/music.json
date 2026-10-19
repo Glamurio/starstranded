@@ -1,6 +1,6 @@
 {
  "_help": "Music manifest. Put the audio files in the music folder (settings 'music_dir', else the STARSTRANDED_MUSIC environment variable, else the 'music' folder beside src/). Each pool lists tracks as a path below that folder, or {\"file\": path, \"weight\": 2, \"length\": seconds}. A landmark's pool is named by its 'music' key; 'ambient' plays everywhere else. Empty pools fall back (landmark -> ambient, combat category -> default category). See src/music.py for the rules.",
- "root": "music",
+ "root": "data/music",
  "fade_ms": {
   "landmark": 3000,
   "combat_in": 700,
@@ -16,14 +16,14 @@
   "resume_min_left": 10.0
  },
  "pools": {
-  "ambient": [],
-  "mushroom_forest": [],
-  "cactus_desert": [],
-  "crystal_badlands": [],
-  "volcanic_mountains": [],
-  "decayed_land": [],
-  "beach": [],
-  "flowering_meadow": []
+  "ambient": ["RIOT.mp3"],
+  "mushroom_forest": ["Lullaby.ogg"],
+  "cactus_desert": ["BLOODSTAIN.ogg"],
+  "crystal_badlands": ["pcpassc_dc3023.mp3"],
+  "volcanic_mountains": ["Fresh.ogg"],
+  "decayed_land": ["MUDAI.mp3"],
+  "beach": ["Toadstool.mp3"],
+  "flowering_meadow": ["HosizoraTheme.mp3"]
  },
  "combat": {
   "priority": [
@@ -41,9 +41,9 @@
    ]
   },
   "pools": {
-   "wildlife": [],
-   "humanoid": [],
-   "robot": []
+   "wildlife": ["Minesweeper.ogg"],
+   "humanoid": ["MRRDRR.ogg"],
+   "robot": ["Broadcast Signal Intrusion.ogg"]
   }
  }
 }

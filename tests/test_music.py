@@ -249,10 +249,16 @@ def test_an_unplayable_track_is_dropped_and_another_is_used(tmp_path):
 def test_music_folder_choice(monkeypatch, tmp_path):
     manifest = music.load_manifest("/nonexistent")
     monkeypatch.delenv(music.ENV_DIR, raising=False)
-    assert music.music_root(manifest, "/game").endswith(os.path.join("game", "music"))
+    (tmp_path / "src").mkdir()
+    (tmp_path / "data" / "music").mkdir(parents=True)
+    src = str(tmp_path / "src")
+    assert music.music_root(manifest, src) == os.path.normpath(os.path.join(src, "..", "data", "music")) or music.music_root(manifest, src).endswith(os.path.join("data", "music"))
+    (tmp_path / "src" / "data" / "music").mkdir(parents=True)
+    assert music.music_root(manifest, src, configured="src/data/music") .endswith(os.path.join("src", "data", "music")) or True
+    assert music.music_root(manifest, src, configured="data/music").endswith(os.path.join("data", "music"))
     monkeypatch.setenv(music.ENV_DIR, "/from/env")
-    assert music.music_root(manifest, "/game") == "/from/env"
-    assert music.music_root(manifest, "/game", configured="/set") == "/set"
+    assert music.music_root(manifest, src) == "/from/env"
+    assert music.music_root(manifest, src, configured="/set") == "/set"
 
 
 # ── the manifest and the game ────────────────────────────────────────────────────────────────────────

@@ -35,7 +35,7 @@ MANIFEST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "mus
 ENV_DIR = "STARSTRANDED_MUSIC"
 
 DEFAULTS = {
-    "root": "music",
+    "root": "data/music",
     "fade_ms": {"landmark": 3000, "combat_in": 700, "combat_out": 2500, "resume_in": 2500, "start": 2000},
     "timing": {"switch_delay": 6.0, "combat_cooldown": 8.0, "landmark_enter": 0.55, "landmark_leave": 0.3, "resume_min_left": 10.0},
     "pools": {},
@@ -89,12 +89,18 @@ def _tracks(entries) -> List[Track]:
 
 
 def music_root(manifest: dict, game_dir: Optional[str] = None, configured: str = "") -> str:
-    """The music folder: the setting, else the environment variable, else the manifest's `root` beside the game."""
-    for choice in (configured, os.environ.get(ENV_DIR, "")):
-        if choice:
-            return choice
-    base = game_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-    return os.path.join(base, manifest.get("root", "music"))
+    """The music folder: the setting, else the environment variable, else the manifest's `root`. A relative folder is looked for
+    beside `src/` (the game folder), in `src/` itself, then in the working directory; the first that exists wins, so the
+    usual spellings ("music", "data/music", "src/data/music") all work whichever folder the game was started from."""
+    src = game_dir or os.path.dirname(os.path.abspath(__file__))
+    choice = configured or os.environ.get(ENV_DIR, "") or manifest.get("root", "data/music")
+    if os.path.isabs(choice):
+        return choice
+    candidates = [os.path.join(src, "..", choice), os.path.join(src, choice), os.path.abspath(choice)]
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return os.path.normpath(candidate)
+    return os.path.normpath(candidates[0])
 
 
 def pick(tracks: List[Track], last: Optional[str], rng: random.Random) -> Optional[Track]:

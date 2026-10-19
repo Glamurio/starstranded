@@ -53,17 +53,24 @@ def membership(value, rng: Range, soft: float = SOFT):
     return np.minimum(below, above)
 
 
+LEGACY_BIOMES = {"fungal": "mushroom_forest", "volcanic": "volcanic_mountains", "crystalline": "crystal_badlands"}
+"""Biomes of earlier versions that are landmarks now (so an old save's species still find a home)."""
+
+
 def suitability(habitat: Habitat, env: Env):
     """Weight 0..1 of living in `env` (scalars or arrays). Product of all requirement memberships."""
     weight = 1.0
     for name in ("temperature", "moisture", "elevation", "fertility", "light", "water"):
         weight = weight * membership(env[name], getattr(habitat, name))
-    if habitat.substrate:
-        from biomes import BIOME_INDEX
-        allowed = np.array([BIOME_INDEX[k] for k in habitat.substrate])
+    from biomes import BIOME_INDEX
+    from landmarks import LANDMARK_INDEX
+    substrate = [k for k in habitat.substrate if k in BIOME_INDEX]
+    # (a save made before landmarks existed names biomes that became landmarks: they now mean the landmark)
+    landmark_keys = tuple(habitat.landmarks) + tuple(LEGACY_BIOMES[k] for k in habitat.substrate if k in LEGACY_BIOMES)
+    if substrate:
+        allowed = np.array([BIOME_INDEX[k] for k in substrate])
         weight = weight * np.isin(np.asarray(env["biome"]), allowed)
-    if habitat.landmarks:
-        from landmarks import LANDMARK_INDEX
-        allowed = np.array([LANDMARK_INDEX[k] for k in habitat.landmarks])
+    if landmark_keys:
+        allowed = np.array([LANDMARK_INDEX[k] for k in landmark_keys])
         weight = weight * np.isin(np.asarray(env.get("landmark", 0)), allowed) * np.asarray(env.get("landmark_strength", 1.0))
     return weight

@@ -22,7 +22,7 @@ class Settings:
     sfx_volume: int = 7
     fullscreen: bool = False
     theme: str = "ion"
-    music_dir: str = ""       # folder of the music files; empty: STARSTRANDED_MUSIC, else the "music" folder beside src/
+    music_dir: str = ""       # folder of the music files; empty: STARSTRANDED_MUSIC, else the manifest root (src/data/music)
 
     def clamp(self) -> "Settings":
         for name in ("master_volume", "music_volume", "sfx_volume"):

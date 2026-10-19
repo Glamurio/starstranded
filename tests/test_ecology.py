@@ -38,3 +38,16 @@ def test_light_and_water_and_arrays():
     t = np.linspace(0, 1, 5)
     out = suitability(reed, env(water=t))
     assert out.shape == (5,) and out[0] == 0.0 and out[-1] == 1.0 and np.all(np.diff(out) >= 0)
+
+
+def test_a_save_that_names_a_retired_biome_still_loads():
+    """Saves from before landmarks have species with substrate 'fungal' (now the mushroom forest); that must not crash."""
+    import numpy as np
+    import landmarks
+    from ecology import Habitat, suitability
+    env = dict(temperature=np.zeros(3), moisture=np.zeros(3), elevation=np.zeros(3), fertility=np.ones(3), light=np.ones(3),
+               water=np.zeros(3), biome=np.zeros(3, dtype=int),
+               landmark=np.array([0, landmarks.LANDMARK_INDEX["mushroom_forest"], 0]), landmark_strength=np.ones(3))
+    weights = suitability(Habitat(substrate=("fungal",)), env)
+    assert weights.tolist() == [0.0, 1.0, 0.0]
+    assert suitability(Habitat(substrate=("nonexistent",)), env).tolist() == [1.0, 1.0, 1.0]     # unknown: no restriction
