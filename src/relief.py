@@ -108,11 +108,20 @@ def continent(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -
     return land - POND_DEPTH * smooth(1.0 - np.hypot(xs, ys / 0.7) / POND_RADIUS)
 
 
+PASS_SCALE = 0.018
+
+
+def passes(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
+    """0.25..1 multiplier on the ridge line: ~50-tile saddles where a range sags into a walkable pass."""
+    gap = smooth((_shifted(noise, 9, PASS_SCALE, x0, y0, width, height, step) - 0.05) / 0.30)
+    return 1.0 - 0.75 * gap
+
+
 def range_potential(noise, x0: int, y0: int, width: int, height: int, step: int = 1) -> np.ndarray:
     """Where a range would stand, whatever lies there: 0..1 along the ridge lines of the range zones."""
     ridge = _shifted(noise, 7, RANGE_SCALE, x0, y0, width, height, step)
     zone = smooth((_shifted(noise, 8, RANGE_MASK_SCALE, x0, y0, width, height, step) - 0.02) / 0.22)
-    return smooth(1.0 - np.abs(ridge) / RIDGE_HALF_WIDTH) ** 1.4 * zone
+    return smooth(1.0 - np.abs(ridge) / RIDGE_HALF_WIDTH) ** 1.4 * zone * passes(noise, x0, y0, width, height, step)
 
 
 def ranges(noise, x0: int, y0: int, width: int, height: int, c: np.ndarray, free: bool = True, step: int = 1) -> np.ndarray:
@@ -121,7 +130,7 @@ def ranges(noise, x0: int, y0: int, width: int, height: int, c: np.ndarray, free
     zone = smooth((_shifted(noise, 8, RANGE_MASK_SCALE, x0, y0, width, height, step) - 0.02) / 0.22)
     profile = smooth(1.0 - np.abs(ridge) / RIDGE_HALF_WIDTH) ** 1.4
     land = smooth((c - SEA_LEVEL + 0.05) / 0.35)
-    return profile * zone * land * (spawn_freedom(x0, y0, width, height, step) if free else 1.0)
+    return profile * zone * land * passes(noise, x0, y0, width, height, step) * (spawn_freedom(x0, y0, width, height, step) if free else 1.0)
 
 
 def elevation(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:

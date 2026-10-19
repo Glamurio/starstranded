@@ -21,6 +21,12 @@ def paint(seed: int, x0: int, y0: int, width: int, height: int) -> np.ndarray:
     shade = 0.75 + 0.25 * np.clip(env["elevation"], 0, 1.2)[..., None]
     image = ground * shade
     image[kinds == 2] = np.array([95, 90, 95]) * (0.7 + 0.3 * np.clip(env["elevation"], 0, 1.5))[kinds == 2][:, None]
+    volcanic = (env["landmark"] == landmarks.LANDMARK_INDEX["volcanic_mountains"]) * env["landmark_strength"]
+    snow = (worldgen.relief.smooth((env["elevation"] - worldgen.SNOW_FROM) / worldgen.SNOW_SPAN) * (1.0 - np.clip(volcanic * 1.5, 0, 1)))[..., None]
+    ash = np.clip(volcanic * 1.2, 0, 0.85)[..., None]
+    rock = kinds == 2
+    image = np.where(rock[..., None], image * (1 - ash) + np.array(worldgen.ASH_COLOR) * ash, image)
+    image = np.where(rock[..., None], image * (1 - snow) + np.array(worldgen.SNOW_COLOR) * snow, image)
     image[kinds == 0] = (40, 90, 170)
     sx, sy = 35 - x0, 20 - y0
     if 4 <= sx < width - 4 and 4 <= sy < height - 4:
