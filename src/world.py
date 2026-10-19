@@ -562,6 +562,7 @@ class World(SpatialContainer):
                 choicelist=[light, self.region("dark", rect)],
                 default=tile_types.SHROUD,
             )
+            self._clear_dots_under_objects(gfx, rect)
             fg = gfx["fg"].astype(np.int64)
             bg = gfx["bg"].astype(np.int64)
             if BLEND_BORDERS:
@@ -622,6 +623,21 @@ class World(SpatialContainer):
         for x, y in hidden:
             canvas.badge(x - x0, y - y0)
         self._render_night(canvas, rect, visible, window.lit_region(rect))
+
+    def _clear_dots_under_objects(self, gfx: np.ndarray, rect: Rect) -> None:
+        """Where something stands on bare ground (the plain dotted floor), draw no dot under it: the object sits on blank ground."""
+        x0, y0, width, height = rect
+        dot = int(tile_types.floor.sprite)
+        bare = gfx["sprite"] == dot
+        if not bare.any():
+            return
+        occupied = np.zeros((width, height), dtype=bool)
+        for chunk in self.chunks_in_rect(rect):
+            for entity in chunk.entities:
+                sx, sy = entity.x - x0, entity.y - y0
+                if 0 <= sx < width and 0 <= sy < height and not getattr(entity, "decal", False):
+                    occupied[sx, sy] = True
+        gfx["sprite"][occupied & bare] = tile_types.NO_SPRITE
 
     def _soften_borders(self, bg: np.ndarray, fg: np.ndarray, shown: np.ndarray, rect: Rect) -> Tuple[np.ndarray, np.ndarray]:
         """Ease the ground colours across biome borders (see `blend.soften`). The ground tiles are the walkable dry ones, taken

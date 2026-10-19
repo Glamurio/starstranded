@@ -33,7 +33,8 @@ def expected_tile(entities, tile=None):
     import tile_types
     tile = tile or tile_types.floor
     sprites = SESSION.canvas.sprites
-    surface = sprites.get_on(tile.sprite, False, tuple(tile.light_fg), tuple(tile.light_bg)).copy()
+    bare = tile is tile_types.floor and any(not getattr(e, "decal", False) for e in entities)     # (no dot under an object on bare ground)
+    surface = sprites.get_on(tile_types.NO_SPRITE if bare else tile.sprite, False, tuple(tile.light_fg), tuple(tile.light_bg)).copy()
     for entity in entities:
         if entity.is_corpse and entity.category.name == "UNIT":
             surface.blit(sprites.get_remains(entity.sprite_id, False, entity.shade), (0, 0))
