@@ -372,7 +372,7 @@ class MineAction(ActionWithDirection):
         item = make_piece(piece, rock)
         inventory = user.inventory
         if inventory.is_full():
-            world.add_entity(item, self.dest_x, self.dest_y)
+            world.add_entity(item, user.x, user.y)
             where = "it falls at your feet"
         else:
             inventory.add(item)
