@@ -8,6 +8,7 @@ used (``print``, ``draw_frame``, ``draw_rect``), which keeps the screen code rea
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import pygame
@@ -29,21 +30,78 @@ WHITE: RGB = (255, 255, 255)
 BLACK: RGB = (0, 0, 0)
 
 class Theme:
-    """The window look (after Caves of Qud): dark teal glass, pale-teal double borders, warm gold for titles and keys."""
-    BG = (11, 36, 38)
-    PANEL = (17, 52, 54)
-    BORDER = (170, 205, 195)
-    BORDER_DIM = (70, 112, 108)
-    ORNAMENT = (232, 205, 120)
-    TEXT = (205, 222, 212)
-    DIM = (120, 150, 145)
-    TITLE = (245, 225, 150)
-    KEY = (255, 210, 100)
-    HILITE = (44, 112, 104)
+    """The window look. The colours below are the *active* palette; `Theme.apply(name)` swaps in one of `PALETTES`
+    (chosen in Settings). The default, "Ion", is a cold sci-fi look: near-black navy glass, electric-cyan borders and
+    hot-orange accents."""
+    BG = (8, 12, 24)
+    PANEL = (14, 22, 40)
+    BORDER = (60, 200, 235)
+    BORDER_DIM = (28, 84, 120)
+    ORNAMENT = (255, 140, 50)
+    TEXT = (200, 224, 240)
+    DIM = (110, 140, 168)
+    TITLE = (120, 235, 255)
+    KEY = (255, 170, 70)
+    HILITE = (22, 72, 110)
     HILITE_TEXT = (255, 255, 255)
-    GOOD = (110, 215, 120)
-    BAD = (235, 100, 90)
-    WARN = (240, 190, 80)
+    GOOD = (90, 225, 150)
+    BAD = (255, 90, 100)
+    WARN = (255, 195, 70)
+    HP = (225, 70, 80)
+    HUNGER = (240, 160, 50)
+    THIRST = (70, 165, 255)
+    BAR_EMPTY = (26, 36, 56)
+
+    NAME = "ion"
+
+    @classmethod
+    def apply(cls, name: str) -> str:
+        """Make palette `name` the active one (unknown names fall back to the default); returns the name used."""
+        palette = PALETTES.get(name) or PALETTES[DEFAULT_THEME]
+        for key, value in palette.colors.items():
+            setattr(cls, key, value)
+        cls.NAME = name if name in PALETTES else DEFAULT_THEME
+        return cls.NAME
+
+
+@dataclass(frozen=True)
+class Palette:
+    label: str
+    colors: dict
+
+
+def _palette(label, **colors):
+    return Palette(label, dict(colors))
+
+
+PALETTES = {
+    "ion": _palette("Ion (cyan)", BG=(8, 12, 24), PANEL=(14, 22, 40), BORDER=(60, 200, 235), BORDER_DIM=(28, 84, 120),
+                    ORNAMENT=(255, 140, 50), TEXT=(200, 224, 240), DIM=(110, 140, 168), TITLE=(120, 235, 255), KEY=(255, 170, 70),
+                    HILITE=(22, 72, 110), HILITE_TEXT=(255, 255, 255), GOOD=(90, 225, 150), BAD=(255, 90, 100), WARN=(255, 195, 70),
+                    HP=(225, 70, 80), HUNGER=(240, 160, 50), THIRST=(70, 165, 255), BAR_EMPTY=(26, 36, 56)),
+    "phosphor": _palette("Phosphor (green)", BG=(4, 14, 8), PANEL=(8, 26, 14), BORDER=(80, 230, 120), BORDER_DIM=(30, 100, 52),
+                         ORNAMENT=(200, 255, 120), TEXT=(170, 235, 190), DIM=(90, 150, 104), TITLE=(190, 255, 170), KEY=(240, 255, 120),
+                         HILITE=(24, 90, 44), HILITE_TEXT=(255, 255, 255), GOOD=(120, 240, 130), BAD=(255, 100, 90), WARN=(240, 220, 90),
+                         HP=(220, 80, 70), HUNGER=(220, 170, 60), THIRST=(70, 190, 230), BAR_EMPTY=(14, 38, 22)),
+    "amber": _palette("Amber (terminal)", BG=(18, 10, 4), PANEL=(32, 18, 6), BORDER=(255, 176, 60), BORDER_DIM=(120, 76, 24),
+                      ORNAMENT=(255, 220, 140), TEXT=(240, 205, 150), DIM=(160, 120, 70), TITLE=(255, 210, 110), KEY=(255, 240, 170),
+                      HILITE=(100, 58, 14), HILITE_TEXT=(255, 255, 255), GOOD=(170, 230, 110), BAD=(255, 100, 80), WARN=(255, 220, 90),
+                      HP=(230, 80, 60), HUNGER=(240, 170, 50), THIRST=(90, 170, 230), BAR_EMPTY=(46, 28, 10)),
+    "hull": _palette("Hull (steel)", BG=(16, 18, 22), PANEL=(26, 30, 36), BORDER=(190, 200, 215), BORDER_DIM=(84, 92, 106),
+                     ORNAMENT=(255, 120, 40), TEXT=(214, 220, 228), DIM=(130, 140, 154), TITLE=(255, 255, 255), KEY=(255, 150, 60),
+                     HILITE=(60, 70, 88), HILITE_TEXT=(255, 255, 255), GOOD=(110, 220, 140), BAD=(255, 90, 80), WARN=(255, 190, 70),
+                     HP=(225, 75, 75), HUNGER=(235, 160, 55), THIRST=(80, 165, 245), BAR_EMPTY=(36, 40, 48)),
+    "violet": _palette("Violet (neon)", BG=(14, 8, 26), PANEL=(24, 14, 44), BORDER=(190, 120, 255), BORDER_DIM=(86, 54, 130),
+                       ORNAMENT=(80, 235, 220), TEXT=(226, 210, 244), DIM=(144, 124, 172), TITLE=(255, 170, 240), KEY=(120, 245, 225),
+                       HILITE=(70, 40, 116), HILITE_TEXT=(255, 255, 255), GOOD=(110, 235, 160), BAD=(255, 90, 120), WARN=(255, 205, 90),
+                       HP=(235, 70, 110), HUNGER=(245, 165, 60), THIRST=(90, 170, 255), BAR_EMPTY=(36, 24, 62)),
+    "classic": _palette("Classic (teal and gold)", BG=(11, 36, 38), PANEL=(17, 52, 54), BORDER=(170, 205, 195), BORDER_DIM=(70, 112, 108),
+                        ORNAMENT=(232, 205, 120), TEXT=(205, 222, 212), DIM=(120, 150, 145), TITLE=(245, 225, 150), KEY=(255, 210, 100),
+                        HILITE=(44, 112, 104), HILITE_TEXT=(255, 255, 255), GOOD=(110, 215, 120), BAD=(235, 100, 90), WARN=(240, 190, 80),
+                        HP=(210, 70, 70), HUNGER=(230, 150, 50), THIRST=(70, 150, 235), BAR_EMPTY=(22, 62, 64)),
+}
+DEFAULT_THEME = "ion"
+THEME_ORDER = tuple(PALETTES)
 
 
 _FRAME = {"tl": 0xDA, "tr": 0xBF, "bl": 0xC0, "br": 0xD9, "h": 0xC4, "v": 0xB3}
@@ -282,18 +340,40 @@ class Canvas:
             pygame.draw.rect(self.surface, Theme.ORNAMENT, pygame.Rect(cx - 5, cy - 5, 10, 10), 2)
             pygame.draw.rect(self.surface, Theme.ORNAMENT, pygame.Rect(cx - 2, cy - 2, 4, 4))
         if title:
-            title = title[: max(0, self.chars(width) - 8)]
-            width_px = self.font.width(title)
-            cx = rect.centerx
-            notch = pygame.Rect(cx - width_px // 2 - 22, outer.top - 4, width_px + 44, 10)
+            # the title sits ON the top border: the line breaks only as wide as the text, with a diamond at each end
+            title = title[: max(0, self.chars(width) - 8)].strip()
+            label = self.font.text(title, Theme.TITLE)
+            lw, lh = label.get_size()
+            cx, cy = rect.centerx, outer.top
+            notch = pygame.Rect(cx - lw // 2 - 22, cy - lh // 2 - 1, lw + 44, lh + 2)
             pygame.draw.rect(self.surface, Theme.BG, notch)
-            self._print_line(x + width // 2, y, title, Theme.TITLE, None, CENTER)
-            for side in (notch.left + 6, notch.right - 6):
-                pygame.draw.polygon(self.surface, Theme.ORNAMENT, [(side, outer.top + 1), (side + 4, outer.top - 3), (side + 8, outer.top + 1), (side + 4, outer.top + 5)])
+            self.surface.blit(label, (cx - lw // 2, cy - lh // 2))
+            for side in (notch.left + 9, notch.right - 9):
+                pygame.draw.polygon(self.surface, Theme.ORNAMENT, [(side - 4, cy), (side, cy - 4), (side + 4, cy), (side, cy + 4)])
 
     def draw_outline(self, x: int, y: int, width: int, height: int, color: RGB, thickness: int = 2) -> None:
         """A plain coloured rectangle on the edges of the cell rectangle (map overlays such as the blast area)."""
         pygame.draw.rect(self.surface, color, self.cell_rect(x, y, width, height), thickness)
+
+    def rule(self, x: int, y: int, width: int) -> None:
+        """An engraved divider across `width` cells of row `y`: a thin line with a small ornament at each end."""
+        py = y * CELL + CELL // 2
+        left, right = x * CELL + 14, (x + width) * CELL - 14
+        pygame.draw.line(self.surface, Theme.BORDER_DIM, (left, py), (right, py), 1)
+        pygame.draw.line(self.surface, Theme.BORDER_DIM, (left, py + 3), (right, py + 3), 1)
+        for px in (left, right):
+            pygame.draw.polygon(self.surface, Theme.ORNAMENT, [(px - 4, py + 1), (px, py - 3), (px + 4, py + 1), (px, py + 5)])
+
+    def segments(self, x: int, y: int, width: int, lit: int, color: RGB, count: int = 10) -> None:
+        """A bar of `count` separate blocks across `width` cells of row `y`, the first `lit` filled with `color`."""
+        gap = 4
+        total = width * CELL
+        size = (total - gap * (count - 1)) // count
+        top = y * CELL + 4
+        for i in range(count):
+            rect = pygame.Rect(x * CELL + i * (size + gap), top, size, CELL - 8)
+            self.surface.fill(color if i < lit else Theme.BAR_EMPTY, rect)
+            pygame.draw.rect(self.surface, Theme.BORDER_DIM if i >= lit else color, rect, 1)
 
     def hints(self, x: int, y: int, hints, width: Optional[int] = None) -> None:
         """A row of `[key] action` hints starting at cell (x, y); with `width` (cells) it is centred in that width."""
@@ -329,8 +409,8 @@ class Canvas:
             bottom -= 2
         return x + 2, top, width - 4, bottom - top
 
-    def fill_theme(self, x: int, y: int, width: int, height: int, color: RGB = Theme.BG) -> None:
-        self.fill(x, y, width, height, color)
+    def fill_theme(self, x: int, y: int, width: int, height: int, color: Optional[RGB] = None) -> None:
+        self.fill(x, y, width, height, color or Theme.BG)
 
     def tab_row(self, x: int, y: int, width: int, tabs, active: int) -> None:
         """Tabs along the top of a window: `tabs` is a list of `(key, name)` (only the name is drawn); the active one is lit.

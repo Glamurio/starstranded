@@ -19,11 +19,13 @@ class Settings:
     music_volume: int = 7
     sfx_volume: int = 7
     fullscreen: bool = False
+    theme: str = "ion"
 
     def clamp(self) -> "Settings":
         for name in ("master_volume", "music_volume", "sfx_volume"):
             setattr(self, name, max(0, min(MAX_VOLUME, int(getattr(self, name)))))
         self.fullscreen = bool(self.fullscreen)
+        self.theme = str(self.theme)
         return self
 
     def effective(self, channel: str) -> float:
@@ -54,6 +56,8 @@ def save(settings: Settings, path: str = None) -> None:
 def apply(settings: Settings, session=None) -> None:
     """Put the settings into effect: fullscreen on the window, volume on the mixer if it is running."""
     import pygame
+    import ui
+    ui.Theme.apply(settings.theme)
     if session is not None and session.display is not None and pygame.display.get_surface() is not None:
         if bool(pygame.display.is_fullscreen()) != settings.fullscreen:
             try:

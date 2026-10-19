@@ -7,7 +7,7 @@ arrays. The stitched terrain is cached and rebuilt only when the player's chunk 
 loaded/unloaded, or a chunk's `terrain_version` changes (see `World.modify_tile`). `explored` and `blocked` are
 not cached here: they are read from the chunks on demand (`World.region`).
 
-`Camera` maps world tiles to cells of the 70x40 map viewport: it is centred on the player and, for bounded maps
+`Camera` maps world tiles to cells of the 58x45 map viewport: it is centred on the player and, for bounded maps
 (`World.bounds`), clamped so a map no larger than the viewport is drawn at the top-left as before.
 """
 from __future__ import annotations
@@ -21,9 +21,9 @@ from chunks import CHUNK_H, CHUNK_W, chunk_origin, keys_around
 if TYPE_CHECKING:
     from world import World
 
-VIEW_W = 70
-VIEW_H = 40
-"""Size of the map viewport in cells (the screen minus the side and bottom panels)."""
+VIEW_W = 58
+VIEW_H = 45
+"""Size of the map viewport in cells: the 80x45 screen minus the right-hand HUD panel (`hud.PANEL_W` cells wide)."""
 
 Rect = Tuple[int, int, int, int]  # x0, y0, width, height (world tiles)
 

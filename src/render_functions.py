@@ -72,7 +72,7 @@ def layer_name(z: int) -> str:
     return f"Cave {-z}" if z < 0 else f"Floor {z}"
 
 def render_names_at_mouse_location(
-    canvas: Canvas, x: int, y: int, engine: Engine, width: int = 0
+    canvas: Canvas, x: int, y: int, engine: Engine, width: int = 0, rows: int = 1
 ) -> None:
     """Names of everything on the tile under the cursor, topmost first; cut with "..." if wider than `width` cells."""
     mouse_x, mouse_y = engine.mouse_location
@@ -82,6 +82,13 @@ def render_names_at_mouse_location(
     )
     from ui import Theme
     limit = canvas.chars(width) if width else 0
+    if rows > 1 and limit:
+        lines = canvas.wrap(names_at_mouse_location, width)[:rows]
+        if len(canvas.wrap(names_at_mouse_location, width)) > rows and lines:
+            lines[-1] = lines[-1][: max(0, limit - 3)] + "..."
+        for k, line in enumerate(lines):
+            canvas.print(x, y + k, line, fg=Theme.TITLE)
+        return
     if limit and len(names_at_mouse_location) > limit:
         names_at_mouse_location = names_at_mouse_location[: max(0, limit - 3)] + "..."
 
@@ -124,8 +131,8 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     width = 26
     if rock is not None:
         tile = game_map.tile_at(x, y)["light"]
-        bx = sx + 2 if sx + 2 + width <= 70 else sx - width - 1
-        by = max(0, min(sy - 2, 40 - 11))
+        bx = sx + 2 if sx + 2 + width <= camera.width else sx - width - 1
+        by = max(0, min(sy - 2, camera.height - 11))
         canvas.draw_frame(bx, by, width, 11)
         widgets.sprite_slot(canvas, bx + (width - 4) // 2, by + 1, int(tile["sprite"]), tuple(int(c) for c in tile["fg"]))
         canvas.print(bx + width // 2, by + 5, rock_face_title(engine, rock)[: canvas.chars(width) - 4], fg=Theme.TITLE, alignment=CENTER)
@@ -146,8 +153,8 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     english = lore.english_name(engine.game_world.planet, top.get_title()) if top is not None else None
     rows = sum(len(canvas.wrap(text, width - 2)) for text, _ in lines)
     height = 2 + (5 if top is not None else 1) + (1 if english else 0) + rows + 1
-    bx = sx + 2 if sx + 2 + width <= 70 else sx - width - 1
-    by = max(0, min(sy - 2, 40 - height))
+    bx = sx + 2 if sx + 2 + width <= camera.width else sx - width - 1
+    by = max(0, min(sy - 2, camera.height - height))
     canvas.draw_frame(bx, by, width, height)
     row = by + 1
     if top is not None:

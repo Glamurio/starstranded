@@ -80,7 +80,7 @@ def layering_shots() -> None:
     safeguard on and off."""
     from components.consumable import Meat
     from components.plant import Shrub, Tree
-    from components.unit import Animal
+    from components.unit import Selenite as Animal   # the rabbit is gone; Selenites stand in
     from config import GameConfig
 
     def corpse(engine, x, y):
@@ -156,10 +156,10 @@ def main() -> None:
     shot(inventory, "inventory")
     press(inventory, Key.ESCAPE)
 
-    # loot window: a rabbit corpse carrying meat, one tile from the player
+    # loot window: a Selenite corpse carrying meat, one tile from the player
     from components.consumable import Meat
-    from components.unit import Animal
-    rabbit = Animal()
+    from components.unit import Selenite
+    rabbit = Selenite()
     rabbit.place(player.x + 1, player.y, engine.game_map)
     rabbit.hp = 0
     rabbit.die(None)

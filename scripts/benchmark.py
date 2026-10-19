@@ -145,7 +145,8 @@ def scenario(units: int = 0, kind: str = "passive", trees: int = 60):
     plant = fruiting_tree_factory()
     for x, y in spots[1 : trees + 1]:
         plant(game_map, x, y)
-    from components.unit import Animal, Selenite
+    from components.unit import Selenite
+    Animal = Selenite   # the rabbit is gone; Selenites stand in
     for i, (x, y) in enumerate(spots[trees + 1 :]):
         unit = Selenite(name=f"S{i}") if kind == "hostile" else Animal()
         put(game_map, unit, x, y)
@@ -302,7 +303,7 @@ def bench_chunked(repeat: int, turns: int) -> dict:
     """
     import actions
     from chunks import CHUNK_H, CHUNK_W, chebyshev, keys_around
-    from components.unit import Animal
+    from components.unit import Selenite as Animal   # the rabbit is gone; Selenites stand in
 
     res: dict = {}
     engine = seeded_engine()

@@ -15,6 +15,7 @@ from chunks import CHUNK_H, CHUNK_W, chebyshev, chunk_key, keys_around
 from components.consumable import Meat
 from animals import Animal
 from config import GameConfig
+from view import VIEW_H, VIEW_W
 from index_helpers import assert_index_consistent
 from simulation import steps_between
 from worldgen import FlatWorldSource, NoiseWorldSource, generate_terrain, seeded_rng
@@ -88,12 +89,12 @@ def test_camera_follows_and_mouse_maps_to_world_tiles():
     for _ in range(100):
         step(e, 1, 0)
     camera = e.camera
-    # the camera shows one whole page (a chunk-sized, grid-aligned screenful) and stays put while you walk inside it
-    assert camera.x0 % CHUNK_W == 0 and camera.y0 % CHUNK_H == 0 and camera.contains(e.player.x, e.player.y)
+    # the camera shows one whole page (a viewport-sized, grid-aligned screenful) and stays put while you walk inside it
+    assert camera.x0 % VIEW_W == 0 and camera.y0 % VIEW_H == 0 and camera.contains(e.player.x, e.player.y)
     handler = ih.MainGameEventHandler(e)
     handler.handle_events(MouseMotion(Point(10, 5)))
     assert tuple(e.mouse_location) == camera.to_world(10, 5) == (camera.x0 + 10, camera.y0 + 5)
-    handler.handle_events(MouseMotion(Point(75, 5)))  # side panel: not a map tile
+    handler.handle_events(MouseMotion(Point(VIEW_W + 5, 5)))  # side panel: not a map tile
     assert tuple(e.mouse_location) == (camera.x0 + 10, camera.y0 + 5)
 
 
@@ -102,12 +103,12 @@ def test_page_camera_flips_at_the_edge_and_not_before():
     first = e.camera
     start_x = e.player.x
     seen = {(first.x0, first.y0)}
-    for _ in range(3 * CHUNK_W):
+    for _ in range(3 * VIEW_W):
         step(e, 1, 0)
         cam = e.camera
         assert cam.contains(e.player.x, e.player.y)
         if cam.x0 == first.x0:
-            assert e.player.x < first.x0 + CHUNK_W   # it only changes page when the player leaves it
+            assert e.player.x < first.x0 + VIEW_W   # it only changes page when the player leaves it
         seen.add((cam.x0, cam.y0))
     assert len(seen) >= 3 and e.player.x > start_x
 

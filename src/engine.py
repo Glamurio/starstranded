@@ -188,23 +188,10 @@ class Engine:
         return Camera.follow(self.game_map, self.player.x, self.player.y)
 
     def render(self, canvas: Canvas) -> None:
-        """Draw the map, the bottom panel (status bars, names under the cursor, message log) and the side panel."""
+        """Draw the map and the right-hand HUD panel (`hud.draw`)."""
         self.game_map.render(canvas)
-        self._draw_panels(canvas)
-
-        player = self.player
-        for row, (value, maximum, full, empty, label) in zip((40, 42, 44), (
-            (player.hp, player.max_hp, color.hp_bar_filled, color.hp_bar_empty, "HP"),
-            (player.hunger, player.max_hunger, color.hunger_bar_filled, color.hunger_bar_empty, "Hunger"),
-            (player.thirst, player.max_thirst, color.thirst_bar_filled, color.thirst_bar_empty, "Thirst"),
-        )):
-            render_functions.render_bar(
-                canvas, current_value=value, maximum_value=maximum, x=0, y=row, total_width=20,
-                bg_full=full, bg_empty=empty, fg_color=color.bar_text, fg_text=label,
-            )
-
-        render_functions.render_names_at_mouse_location(canvas, x=21, y=40, engine=self, width=canvas.width - 21)
-        self.message_log.render(canvas, x=21, y=41, width=canvas.width - 21, height=4)
+        import hud
+        hud.draw(canvas, self)
         overlay, self.hover_overlay = getattr(self, "hover_overlay", None), None
         if overlay is not None:
             overlay()   # the walking path: drawn before the tooltip so that it never lies over it
@@ -212,29 +199,3 @@ class Engine:
             render_functions.render_tooltip(canvas, self)
         except Exception:   # the tooltip is a courtesy: never let it break the frame
             pass
-
-        render_functions.render_dungeon_level(canvas, self.game_world.current_z, (71, 1))
-        day, time = lighting.clock_text(self.game_world.current_time, self.config).split(", ")
-        canvas.print(71, 2, day)
-        canvas.print(71, 3, time)
-        canvas.print(71, 4, f"X {player.x}")
-        canvas.print(71, 5, f"Y {player.y}")
-        row = 6
-        if player.poison > 0:
-            canvas.print(71, row, "Poisoned", fg=color.enemy_atk)
-            row += 1
-        import survival
-        for text, shade in survival.status_lines(self):
-            canvas.print(71, row, text[:19], fg=message_log.legible(shade))
-            row += 1
-
-    @staticmethod
-    def _draw_panels(canvas: Canvas) -> None:
-        """The dark glass behind the side panel and the bottom panel, with a thin rule where they meet the map."""
-        import pygame
-        from ui import Theme
-        canvas.fill(70, 0, 10, 40, Theme.BG)
-        canvas.fill(0, 40, 80, 5, Theme.BG)
-        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (70 * 24, 0), (70 * 24, 40 * 24), 2)
-        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (0, 40 * 24), (80 * 24, 40 * 24), 2)
-        pygame.draw.line(canvas.surface, Theme.BORDER_DIM, (21 * 24 - 8, 40 * 24), (21 * 24 - 8, 45 * 24), 1)

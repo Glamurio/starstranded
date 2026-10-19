@@ -207,7 +207,7 @@ class SettingsMenu(input_handlers.BaseEventHandler):
     """Audio levels and fullscreen. UP/DOWN pick a row, LEFT/RIGHT change it, ESC saves and goes back."""
 
     ROWS = (("Master volume", "master_volume"), ("Music volume", "music_volume"), ("Effects volume", "sfx_volume"),
-            ("Fullscreen", "fullscreen"))
+            ("Fullscreen", "fullscreen"), ("Colour theme", "theme"))
 
     def __init__(self, session=None, back=None, settings=None):
         self.settings = settings if settings is not None else settings_module.load()
@@ -219,6 +219,11 @@ class SettingsMenu(input_handlers.BaseEventHandler):
         field = self.ROWS[self.row][1]
         if field == "fullscreen":
             self.settings.fullscreen = not self.settings.fullscreen
+        elif field == "theme":
+            from ui import THEME_ORDER
+            order = list(THEME_ORDER)
+            at = order.index(self.settings.theme) if self.settings.theme in order else 0
+            self.settings.theme = order[(at + (1 if step >= 0 else -1)) % len(order)]
         else:
             setattr(self.settings, field, getattr(self.settings, field) + step)
         self.settings.clamp()
@@ -242,8 +247,8 @@ class SettingsMenu(input_handlers.BaseEventHandler):
         from ui import Theme
         canvas.blit_image(background_image())
         self.row_rects = []
-        x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 7, 40
-        ix, iy, iw, ih = canvas.window(x, y, width, 14, title="Settings", hints=[("Up/Down", "row"), ("Left/Right", "change"), ("Esc", "back")])
+        x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 8, 40
+        ix, iy, iw, ih = canvas.window(x, y, width, 16, title="Settings", hints=[("Up/Down", "row"), ("Left/Right", "change"), ("Esc", "back")])
         for i, (label, field) in enumerate(self.ROWS):
             value = getattr(self.settings, field)
             selected = i == self.row
@@ -254,6 +259,9 @@ class SettingsMenu(input_handlers.BaseEventHandler):
             canvas.print(ix, row, label, fg=Theme.HILITE_TEXT if selected else Theme.TEXT)
             if field == "fullscreen":
                 canvas.print(ix + iw - 1, row, "on" if value else "off", fg=Theme.HILITE_TEXT if selected else Theme.TEXT, alignment=RIGHT)
+            elif field == "theme":
+                from ui import PALETTES
+                canvas.print(ix + iw - 1, row, PALETTES.get(value, PALETTES["ion"]).label, fg=Theme.HILITE_TEXT if selected else Theme.TEXT, alignment=RIGHT)
             else:
                 bar_x = (ix + iw - 10) * 24
                 for step in range(settings_module.MAX_VOLUME):
