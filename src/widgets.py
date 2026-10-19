@@ -222,10 +222,16 @@ def item_rows(entries: Sequence, equipped: Callable = lambda item: False) -> Lis
         if category not in groups:
             continue
         rows.append(Row(category, header=True))
+        stacks: dict = {}                      # identical things share one row: "kindle wood branch x5"
         for item in groups[category]:
-            title = item.get_title()
+            held = equipped(item)
+            unique = held or getattr(item, "has_inventory", False)
+            stacks.setdefault((id(item) if unique else None, item.get_title(), item.sprite_id), []).append(item)
+        for (_, title, _), same in stacks.items():
+            item = same[0]
             right = "equipped" if equipped(item) else ("more >" if getattr(item, "has_inventory", False) else "")
-            rows.append(Row(title, icon=(item.sprite_id, item.color, getattr(item, "flipped", False)), right=right, data=item))
+            label = f"{title} x{len(same)}" if len(same) > 1 else title
+            rows.append(Row(label, icon=(item.sprite_id, item.color, getattr(item, "flipped", False)), right=right, data=item))
     return rows
 
 
@@ -337,7 +343,7 @@ class Choices:
 
 
 HINT_KEYS = {"Esc": "ESCAPE", "Enter": "RETURN", "Tab": "TAB", "Space": "SPACE", "any key": "RETURN",
-             "g": "G", "R": "R", "Z": "Z", "S": "S", "H": "H", "F": "F", "Home/End": "HOME"}
+             "g": "G", "s": "S", "d": "D", "R": "R", "Z": "Z", "S": "S", "H": "H", "F": "F", "Home/End": "HOME"}
 # hints that name several keys, a range or a gesture (Up/Down, a-z, Left/Right ...) are not clickable: the list itself is
 
 

@@ -664,7 +664,9 @@ class InventoryEventHandler(AskUserEventHandler):
         x0, y0 = 4 + 3 * self.offset, 2 + self.offset
         self.console_x, self.console_y = x0, y0
         self.menu_width, self.menu_height = self.WIDTH, self.HEIGHT
-        hints = [("a-z", "choose"), ("Enter", "select")]
+        hints = [("a-z", "choose"), ("Enter", "select"), ("s", "scan")]
+        if is_player:
+            hints.append(("d", "drop"))
         if self.TABBED and is_player:
             hints.append(("Tab", "next screen"))
         if not is_player and self.entries_amount and hasattr(self, "on_items_selected"):
@@ -678,7 +680,8 @@ class InventoryEventHandler(AskUserEventHandler):
             canvas.print(ix, iy + 1, "(nothing here)", fg=Theme.DIM)
             return
         equipped = lambda item: isinstance(item, Equippable) and item.equipped  # noqa: E731
-        self.list = widgets.ListView(widgets.item_rows(self.inventory_entries, equipped), reserved=self.RESERVED)
+        keep = self.RESERVED + "s" + ("d" if is_player else "")    # (the letters of the scan and drop keys)
+        self.list = widgets.ListView(widgets.item_rows(self.inventory_entries, equipped), reserved=keep)
         shown = self.menu_i if self.menu_i is not None and 0 <= self.menu_i < self.entries_amount else None
         if shown is not None:
             for index, row in enumerate(self.list.rows):
@@ -730,6 +733,9 @@ class InventoryEventHandler(AskUserEventHandler):
         if event.sym == Key.G and hasattr(self, "on_items_selected"):
             return self.on_items_selected(self.inventory_entries)
 
+        if event.sym in (Key.S, Key.D) and self.entries_amount:
+            return self._scan_or_drop(event.sym == Key.S)
+
         if Key.A <= event.sym <= Key.Z and self.entries_amount:   # a letter chooses the entry shown with it
             import widgets
             lv = getattr(self, "list", None)
@@ -748,6 +754,25 @@ class InventoryEventHandler(AskUserEventHandler):
         if event.sym in (Key.UP, Key.DOWN):
             return None
         return super().ev_keydown(event)
+
+    def _highlighted(self):
+        """The entry under the cursor (or the one the list has selected)."""
+        if self.menu_i is not None and 0 <= self.menu_i < len(self.inventory_entries):
+            return self.inventory_entries[self.menu_i]
+        row = self.list.current if getattr(self, "list", None) is not None else None
+        return row.data if row is not None else None
+
+    def _scan_or_drop(self, scan: bool) -> Optional[ActionOrHandler]:
+        """The S and D keys (and their hints, which can be clicked): scan the highlighted thing, or drop it from your own pack."""
+        thing = self._highlighted()
+        player = self.engine.player
+        if thing is None:
+            return None
+        if scan:
+            return actions.ScanThingAction(player, thing)
+        if self.inventory is not None and self.inventory.parent == player and isinstance(thing, Item):
+            return actions.DropItem(player, thing)
+        return None
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         """Called when the user selects a valid item."""

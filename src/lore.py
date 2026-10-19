@@ -174,28 +174,38 @@ def learn_names(run, materials: Iterable[Material]) -> None:
 
 
 # ── scanning ────────────────────────────────────────────────────────────────────────────────────────────────
-def subject_at(engine, x: int, y: int):
-    """What a scan of tile (x, y) looks at: (subject key, title, facts) or None. Creatures first, then plants, loose
-    items, liquid, and finally the rock face itself."""
-    import resources
-    from components.consumable import Fruit
+def subject_of(engine, entity):
+    """What scanning `entity` looks at: (subject key, title, facts) or None. A creature (alive or a corpse), a plant, a piece
+    of material, or meat (which teaches about the animal it came from)."""
+    from components.consumable import Meat
     from items import Composite, Stuff
+    planet = engine.game_world.planet
+    kind = getattr(entity, "kind", None)
+    category = getattr(entity.category, "name", "")
+    if category == "UNIT" and entity is not engine.player and is_planetary(getattr(kind, "key", None)):
+        return species_subject(kind), kind.name, facts_for_unit(kind)
+    if category == "PLANT" and is_planetary(getattr(kind, "key", None)):
+        return plant_subject(kind), kind.name, facts_for_plant(kind)
+    if isinstance(entity, Stuff):
+        return material_subject(entity.substance), entity.substance.name, facts_for_material(entity.substance, planet)
+    if isinstance(entity, Composite):
+        return material_subject(entity.designation), entity.designation.name, facts_for_material(entity.designation, planet)
+    source = getattr(entity, "source", None) if isinstance(entity, Meat) else None
+    if source is not None and is_planetary(getattr(source, "key", None)):
+        return species_subject(source), source.name, facts_for_unit(source)
+    return None
+
+
+def subject_at(engine, x: int, y: int):
+    """What a scan of tile (x, y) looks at: (subject key, title, facts) or None. Creatures first (the dead too), then plants,
+    loose items, liquid, and finally the rock face itself."""
+    import resources
     world = engine.game_map
     planet = engine.game_world.planet
-    player = engine.player
     for entity in world.stack_at(x, y):
-        if entity is player:
-            continue
-        kind = getattr(entity, "kind", None)
-        category = getattr(entity.category, "name", "")
-        if category == "UNIT" and entity.is_alive and is_planetary(getattr(kind, "key", None)):
-            return species_subject(kind), kind.name, facts_for_unit(kind)
-        if category == "PLANT" and not getattr(entity, "dead", False) and is_planetary(getattr(kind, "key", None)):
-            return plant_subject(kind), kind.name, facts_for_plant(kind)
-        if isinstance(entity, Stuff):
-            return material_subject(entity.substance), entity.substance.name, facts_for_material(entity.substance, planet)
-        if isinstance(entity, Composite):
-            return material_subject(entity.designation), entity.designation.name, facts_for_material(entity.designation, planet)
+        found = subject_of(engine, entity)
+        if found is not None:
+            return found
     tile = world.tile_at(x, y)
     if tile is not None and int(tile["liquid"]):
         liquid = LiquidKind(int(tile["liquid"]))
@@ -207,10 +217,11 @@ def subject_at(engine, x: int, y: int):
     return None
 
 
-def scan(engine, x: int, y: int):
-    """Scan a tile with the player's scanner, skills and tags. Returns (title, newly learned [(fact, level)]) or None if
-    there is nothing to read there. Learning something practises the skill it needed."""
-    found = subject_at(engine, x, y)
+def scan(engine, x: int, y: int, entity=None):
+    """Scan a tile (or, with `entity`, that one thing: an item in a pack, a corpse on the ground) with the player's scanner,
+    skills and tags. Returns (title, newly learned [(fact, level)]) or None if there is nothing to read there. Learning
+    something practises the skill it needed."""
+    found = subject_of(engine, entity) if entity is not None else subject_at(engine, x, y)
     if found is None:
         return None
     subject, title, facts = found

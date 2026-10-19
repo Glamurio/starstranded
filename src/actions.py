@@ -713,7 +713,10 @@ class ScanAction(Action):
             raise exceptions.Impossible("That is out of scanner range.")
         if not engine.game_map.is_visible(self.x, self.y):
             raise exceptions.Impossible("You cannot see that.")
-        result = lore.scan(engine, self.x, self.y)
+        self._read(lore.scan(engine, self.x, self.y))
+
+    def _read(self, result) -> None:
+        user, engine = self.entity, self.engine
         if result is None:
             raise exceptions.Impossible("There is nothing to scan there.")
         title, learned = result
@@ -727,6 +730,24 @@ class ScanAction(Action):
         for fact, level in learned:
             label = fact.key.replace("_", " ")
             log(f"  {label} ({level.name.lower()})", color.player_atk)
+
+
+class ScanThingAction(ScanAction):
+    """Scan one particular thing: an item in a pack, or a body or item in a list of what lies around. One turn; the thing
+    has to be in your pack or within the scanner's range."""
+
+    def __init__(self, entity: Unit, thing):
+        Action.__init__(self, entity)
+        self.thing = thing
+
+    def perform(self) -> None:
+        import lore
+        user = self.entity
+        carried = self.thing in getattr(getattr(user, "inventory", None), "items", ())
+        x, y = getattr(self.thing, "x", None), getattr(self.thing, "y", None)
+        if not carried and x is not None and max(abs(x - user.x), abs(y - user.y)) > self.SCAN_RANGE:
+            raise exceptions.Impossible("That is out of scanner range.")
+        self._read(lore.scan(self.engine, 0, 0, entity=self.thing))
 
 
 class TrackAction(Action):

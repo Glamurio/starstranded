@@ -711,3 +711,8 @@ The plan above was implemented as written, with these specifics and deviations:
 - Foliage: plants are drawn through `atlas.get_foliage` (55% of their colour, 90% brightness, alpha 205) so they sit back from items, units and structures.
 - Remains: the skull-and-bones overlay (`atlas.draw_bones`) is gone; remains are still the creature lying on its side.
 - Wreckage: a random multiple of 45 degrees and an optional mirror (`Wreckage.rotation`, `pose_flip`), drawn by `atlas.get_rotated`, scaled so the turned picture fits its tile. Older saves keep the old upright pose.
+
+## Scanning from menus, stacks, lower-case names
+- Scan: `lore.subject_of(engine, entity)` is the one place that says what a thing teaches; corpses and meat (which teaches about the animal) now count. `ScanThingAction` scans a specific thing (in a pack, or in a list of what lies around). Every inventory window has `[s] scan` (and `[d] drop` in your own pack) in its hint bar: clickable, and the keys S/D. The list's letter hotkeys skip s and d.
+- Stacks: `widgets.item_rows` merges identical things (same title and sprite, not equipped, not containers) into one row, "kindle wood branch x5". The items stay separate objects; selecting, scanning or dropping a stack acts on one of them.
+- Names: `naming.Namer` returns lower-case names (only people's names and corporate catalogue codes are capitalised). `items.noun_title` no longer repeats the noun ("grey rock", not "grey rock stone").
