@@ -5,3 +5,5 @@ __pycache__/
 docs/_scratch/
 settings.json
 shots/
+src/data/sprites.json.bak
+src/data/sprites.json.tmp

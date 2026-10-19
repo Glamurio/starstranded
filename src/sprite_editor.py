@@ -64,15 +64,21 @@ class SpriteEditor(input_handlers.BaseEventHandler):
         key = self.key
         if key is None:
             return
-        spriteconfig.set(key, pos)
-        self.message = f"{key} = {pos[0]},{pos[1]}"
+        try:
+            spriteconfig.set(key, pos)
+            self.message = f"{key} = {pos[0]},{pos[1]}"
+        except OSError as error:      # an unreadable sprites.json is never overwritten (see spriteconfig.save)
+            self.message = f"NOT SAVED: {error}"
         self.refresh()
 
     def reset(self) -> None:
         key = self.key
         if key is not None:
-            spriteconfig.reset(key)
-            self.message = f"{key} reset"
+            try:
+                spriteconfig.reset(key)
+                self.message = f"{key} reset"
+            except OSError as error:
+                self.message = f"NOT SAVED: {error}"
             self.refresh()
 
     def cell_at(self, x: int, y: int) -> Optional[tuple]:

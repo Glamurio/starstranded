@@ -15,6 +15,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
+import shutil
 from typing import Dict, List, Optional, Tuple
 
 Pos = Tuple[int, int]
@@ -22,18 +23,24 @@ Pos = Tuple[int, int]
 PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sprites.json")
 DEFAULTS: Dict[str, Pos] = {}
 _overrides: Optional[Dict[str, Pos]] = None
+_load_failed = False       # the file exists but could not be read: never write over it
+_backed_up = False         # the file on disk was copied to sprites.json.bak once in this run
 
 
 def _load() -> Dict[str, Pos]:
-    global _overrides
+    global _overrides, _load_failed
     if _overrides is None:
         _overrides = {}
+        _load_failed = False
         try:
             with open(PATH, encoding="utf-8") as handle:
                 for key, pos in json.load(handle).items():
                     _overrides[key] = (int(pos[0]), int(pos[1]))
+        except FileNotFoundError:
+            pass              # no file: draw everything with its default
         except (OSError, ValueError, TypeError, IndexError):
-            _overrides = {}   # missing or broken config: draw everything with its default
+            _overrides = {}   # broken config: draw with the defaults, but keep the file (see save)
+            _load_failed = True
     return _overrides
 
 
@@ -73,16 +80,27 @@ def reset(key: str, *, save_now: bool = True) -> None:
 
 
 def save() -> None:
+    """Write the overrides. Safe by construction: a file that could not be read is never overwritten, the file as it was
+    when this run first saved is kept as ``sprites.json.bak``, and the new content replaces the old atomically."""
+    global _backed_up
     data = {key: list(pos) for key, pos in sorted(_load().items())}
-    with open(PATH, "w", encoding="utf-8") as handle:
+    if _load_failed:
+        raise OSError(f"{PATH} could not be read; fix or remove it by hand (nothing was written)")
+    if not _backed_up and os.path.exists(PATH):
+        shutil.copyfile(PATH, PATH + ".bak")
+        _backed_up = True
+    temp = PATH + ".tmp"
+    with open(temp, "w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=1)
         handle.write("\n")
+    os.replace(temp, PATH)
 
 
 def reload() -> None:
     """Forget what was read (tests, or after the file was edited by hand)."""
-    global _overrides
+    global _overrides, _backed_up
     _overrides = None
+    _backed_up = False
 
 
 def catalog() -> List[str]:

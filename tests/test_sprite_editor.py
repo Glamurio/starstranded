@@ -116,3 +116,21 @@ def test_no_match_draws_without_error(config):
     assert editor.key is None
     draw(editor)
     editor.ev_mousebuttondown(events.MouseButtonDown(Point(60, 20)))   # nothing to assign: no crash
+
+
+def test_saving_keeps_the_previous_file_as_a_backup(config):
+    config.write_text('{"item.beacon": [1, 2], "unit.selenite": [3, 4]}\n')
+    spriteconfig.reload()
+    spriteconfig.set("item.beacon", (5, 6))
+    backup = config.with_name(config.name + ".bak")
+    assert backup.read_text() == '{"item.beacon": [1, 2], "unit.selenite": [3, 4]}\n'
+    spriteconfig.set("item.beacon", (7, 8))          # later saves in the same run keep the first backup
+    assert "unit.selenite" in backup.read_text()
+
+
+def test_an_unreadable_file_is_never_overwritten(config):
+    config.write_text('{"item.beacon": [1, 2],')     # broken by hand or half written
+    spriteconfig.reload()
+    with pytest.raises(OSError):
+        spriteconfig.set("item.beacon", (5, 6))
+    assert config.read_text() == '{"item.beacon": [1, 2],'
