@@ -15,6 +15,9 @@ Requires Python 3.13+.
 - **Screenshots of every screen:** `python scripts/screenshots.py [outdir]` (default `docs/phase3`).
 - **Benchmark:** `python scripts/benchmark.py [--json out.json] [--quick]` (see `BENCHMARKS.md`); `--src PATH` runs it against
   another checkout's `src/` for A/B comparisons.
+- **Debug tools / God Mode:** `python src/main.py --debug` (or set `STARSTRANDED_DEBUG=1`). **F10** toggles God Mode (no damage or needs,
+  walk through walls and water, a click walks in a straight line); with it on, **Ctrl + move key** jumps 10 tiles and **Alt + move key**
+  jumps one chunk. Terrain is generated exactly as in an ordinary run; nothing is saved. See `src/debug.py`.
 - **Saves** go to `src/savegame/` (a folder: manifest + one file per visited chunk).
 - **Configuration:** `src/config.py` (`GameConfig`: FOV and path radius, simulation tiers, clutter safeguard).
 

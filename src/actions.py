@@ -250,10 +250,17 @@ class MovementAction(ActionWithDirection):
 
         self.dest_x, self.dest_y = self.path.pop(0)
 
-        if self.entity.refuses_liquid(self.dest_x, self.dest_y):
-            raise exceptions.Impossible(f"{self.entity.get_title()} will not wade into the liquid.")
-        if not self.engine.can_move(self.dest_x, self.dest_y):
-            raise exceptions.Impossible("That way is blocked.")
+        import debug
+        if self.entity is self.engine.player and debug.is_god(self.engine):
+            from chunks import chunk_key
+            self.engine.game_map.load_chunk(chunk_key(self.dest_x, self.dest_y))   # God Mode walks through anything, even the unloaded
+            if not self.engine.game_map.in_bounds(self.dest_x, self.dest_y):
+                raise exceptions.Impossible("Nothing can be reached there.")
+        else:
+            if self.entity.refuses_liquid(self.dest_x, self.dest_y):
+                raise exceptions.Impossible(f"{self.entity.get_title()} will not wade into the liquid.")
+            if not self.engine.can_move(self.dest_x, self.dest_y):
+                raise exceptions.Impossible("That way is blocked.")
 
         self.entity.move(self.dest_x, self.dest_y)
         turns = self.entity.step_turns(dark=self.entity is self.engine.player and lighting.is_dark_at(self.engine))
@@ -289,6 +296,11 @@ class BumpAction(ActionWithDirection):
 
         if self.target_unit and not self.target_unit == self.entity and self.target_unit.is_alive and distance <= 1:
             return MeleeAction(self.entity, self.dest_x, self.dest_y).perform()
+
+        import debug
+        if self.entity is self.engine.player and debug.is_god(self.engine):
+            return MovementAction(self.entity, self.dest_x, self.dest_y,
+                                  debug.straight_path(self.entity, self.dest_x, self.dest_y)).perform()
 
         # A wielded weapon (an axe, say) lets you cut down a plant that is in the way; bare hands just bump.
         plant = self.target_plant

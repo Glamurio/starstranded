@@ -68,6 +68,9 @@ def on_enter(unit: Unit, world: World) -> None:
     tile = world.tile_at(unit.x, unit.y)
     if tile is None or int(tile["liquid"]) != LiquidKind.ACIDIC:
         return
+    import debug
+    if debug.protects(unit):
+        return
     visible = world.is_visible(unit.x, unit.y)
     unit.hp = max(0, unit.hp - ACID_WADE_DAMAGE)
     if visible:

@@ -898,6 +898,9 @@ class GameWorld:
         if unit == self.engine.player:
             for _ in range(time):   # needs are paid minute by minute: a 5-minute job costs five minutes of hunger
                 self.current_time += 1
+                import debug
+                if debug.is_god(self.engine):
+                    continue   # God Mode: time passes, needs do not
                 if not self.current_time % 4:
                     unit.handle_hunger(-1)
                 if not self.current_time % 2:

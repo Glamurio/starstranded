@@ -41,6 +41,10 @@ def draw(canvas, engine) -> None:
     if player.poison > 0:
         canvas.print(ix, row, "Poisoned", fg=Theme.BAD)
         row += 1
+    import debug
+    if debug.is_god(engine):
+        canvas.print(ix, row, "GOD MODE", fg=Theme.TITLE)
+        row += 1
     for text, shade in survival.status_lines(engine):
         if row > 8:
             break

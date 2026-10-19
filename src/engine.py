@@ -46,6 +46,7 @@ class Engine:
         self.message_log = MessageLog()
         self.mouse_location = Point(0, 0)
         self.player = player
+        self.god_mode = False    # debug runs only (see `debug`); never saved
         self.continued = False   # True when loaded from the active save slot (its death deletes that save)
 
 

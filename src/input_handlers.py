@@ -1174,7 +1174,12 @@ class MainGameEventHandler(EventHandler):
         ):
             pass
 
-        if key in MOVE_KEYS:
+        import debug
+        if key == Key.F10 and debug.enabled():
+            debug.toggle_god(self.engine)
+        elif key in MOVE_KEYS and debug.is_god(self.engine) and modifier & (Mod.CTRL | Mod.ALT):
+            debug.jump(self.engine, *MOVE_KEYS[key], whole_chunk=bool(modifier & Mod.ALT))
+        elif key in MOVE_KEYS:
             dest_x, dest_y = MOVE_KEYS[key][0] + player.x, MOVE_KEYS[key][1] + player.y
             action = actions.BumpAction(player, dest_x, dest_y)
         elif key in WAIT_KEYS:

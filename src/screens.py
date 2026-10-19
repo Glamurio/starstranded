@@ -220,7 +220,8 @@ class HelpHandler(AskUserEventHandler):
     def on_render(self, canvas: Canvas) -> None:
         from ui import Theme
         super().on_render(canvas)
-        rows = [(keys, canvas.wrap(what, 40)) for keys, what in CONTROLS]
+        import debug
+        rows = [(keys, canvas.wrap(what, 40)) for keys, what in CONTROLS + (debug.HELP_LINES if debug.enabled() else ())]
         height = sum(len(lines) for _, lines in rows) + len(rows) + 5
         ix, iy, iw, ih = canvas.window(4, 3, 62, height, title="Controls", hints=[("Esc", "close")])
         row = iy

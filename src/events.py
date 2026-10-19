@@ -35,6 +35,7 @@ class Key:
     ESCAPE = pygame.K_ESCAPE
     BACKSPACE = pygame.K_BACKSPACE
     TAB = pygame.K_TAB
+    F10 = pygame.K_F10
     PERIOD = pygame.K_PERIOD
     COMMA = pygame.K_COMMA
     LESS = pygame.K_LESS

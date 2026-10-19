@@ -3,6 +3,9 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## World exploration round, 19 Oct 2026
+- New (debug runs only, `--debug`): God Mode on F10 with Ctrl / Alt jumps; see the README.
+
 ## Fixes after the review, 19 Oct 2026
 - Fixed: every step logged "That way is blocked."; dying or reaching an ending during a walk is now noticed at once and stops the walk.
 - Fixed: dying with a full pack no longer breaks the death (no "You died!", game-over a turn late).

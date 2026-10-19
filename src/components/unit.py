@@ -237,6 +237,9 @@ class Unit(Entity):
         return amount_recovered
 
     def handle_health(self, amount: int, entity: Optional[Entity]) -> None:
+        import debug
+        if amount < 0 and debug.protects(self):
+            return
         self.hp = clamp((self.hp + amount), 0, self.max_hp)
         if self.hp == 0 and self.is_alive:
             self.die(entity)
@@ -260,6 +263,9 @@ class Unit(Entity):
 
         Only the player gets the message, once, when hunger first reaches 0.
         """
+        import debug
+        if amount < 0 and debug.protects(self):
+            return
         prev_hunger = self.hunger
         self.hunger = clamp((self.hunger + amount), 0, self.max_hunger)
         if self.hunger == 0:
@@ -274,6 +280,9 @@ class Unit(Entity):
 
         Only the player gets the message, once, when thirst first reaches 0.
         """
+        import debug
+        if amount < 0 and debug.protects(self):
+            return
         prev_thirst = self.thirst
         self.thirst = clamp((self.thirst + amount), 0, self.max_thirst)
         if self.thirst == 0:
