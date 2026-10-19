@@ -162,30 +162,65 @@ class FaunaTemplate:
     xp: int = 20
     damage_type: DamageType = DamageType.BLUNT
     radius: int = 8
+    base: str = ""                   # for a landmark variant: the key of the baseline template it was generated from
+    tint: Optional[Tuple[int, int, int]] = None   # pulls the rolled colour towards this one (a variant takes on its landmark)
 
 
 FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.15, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=3.0, name_family="small_herbivore", xp=10),
     FaunaTemplate("grazer", (4, 18), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
     FaunaTemplate("strider", (5, 18), Habitat((0.0, 0.9), (-0.5, 0.2)), Diet.HERBIVORE, AIKind.PASSIVE, 11, 3, rarity=1.0, name_family="grazer", xp=30),
-    FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.HOSTILE, 10, 3, rarity=1.0, name_family="animal", xp=35, hide_kind="skin"),
-    FaunaTemplate("hunter", (10, 20), Habitat((-0.9, 0.5), (-0.5, 1.0), fertility=(0.1, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 9, 3, rarity=0.9, name_family="predator", damage_type=DamageType.SHARP, xp=40),
-    FaunaTemplate("stalker", (0, 18), Habitat((-0.3, 1.0), (0.1, 1.0), fertility=(0.4, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 4, rarity=0.6, name_family="predator", damage_type=DamageType.SHARP, xp=50),
+    FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.PASSIVE, 10, 3, rarity=1.0, name_family="animal", xp=35, hide_kind="skin"),
+    FaunaTemplate("hunter", (10, 20), Habitat((-0.9, 0.5), (-0.5, 1.0), fertility=(0.1, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 16, 6, rarity=0.5, name_family="predator", damage_type=DamageType.SHARP, xp=40),
+    FaunaTemplate("stalker", (0, 18), Habitat((-0.3, 1.0), (0.1, 1.0), fertility=(0.4, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 14, 7, rarity=0.35, name_family="predator", damage_type=DamageType.SHARP, xp=50),
     FaunaTemplate("scuttler", (7, 18), Habitat((-0.2, 1.0), (0.1, 1.0), water=(0.4, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 6, 2, defense=1, rarity=1.5, name_family="crawler", xp=20, hide_kind="chitin"),
-    FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.HOSTILE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
-    FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 6, 3, rarity=0.9, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
+    FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.PASSIVE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
+    FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=0.5, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
     FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10, hide_kind="feather"),
     # landmark fauna: found only inside their landmark
-    FaunaTemplate("sporehopper", (3, 20), Habitat(landmarks=("mushroom_forest",)), Diet.HERBIVORE, AIKind.PASSIVE, 3, 2, rarity=5.0, name_family="small_herbivore", xp=12, hide_kind="skin"),
-    FaunaTemplate("dune_burrower", (2, 19), Habitat(landmarks=("cactus_desert",)), Diet.CARNIVORE, AIKind.HOSTILE, 8, 4, defense=1, rarity=3.0, name_family="crawler", damage_type=DamageType.PIERCE, xp=35, hide_kind="chitin"),
-    FaunaTemplate("shardback", (7, 18), Habitat(landmarks=("crystal_badlands",)), Diet.HERBIVORE, AIKind.PASSIVE, 12, 3, defense=3, rarity=4.0, name_family="crawler", xp=30, hide_kind="chitin"),
-    FaunaTemplate("ember_beetle", (2, 19), Habitat(landmarks=("volcanic_mountains",)), Diet.CARNIVORE, AIKind.HOSTILE, 9, 4, defense=2, rarity=3.0, name_family="crawler", xp=40, hide_kind="chitin"),
-    FaunaTemplate("carrion_hound", (10, 20), Habitat(landmarks=("decayed_land",)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 4, rarity=3.0, name_family="predator", damage_type=DamageType.SHARP, xp=45),
-    FaunaTemplate("shore_crab", (7, 18), Habitat(landmarks=("beach",)), Diet.OMNIVORE, AIKind.PASSIVE, 5, 2, defense=2, rarity=5.0, name_family="crawler", xp=18, hide_kind="chitin"),
-    FaunaTemplate("sea_flitter", (5, 20), Habitat(landmarks=("beach",)), Diet.CARNIVORE, AIKind.PASSIVE, 3, 1, rarity=4.0, name_family="bird", xp=10, hide_kind="feather"),
-    FaunaTemplate("meadow_grazer", (4, 18), Habitat(landmarks=("flowering_meadow",)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=4.0, name_family="grazer", xp=22),
-    FaunaTemplate("bloom_flitter", (5, 20), Habitat(landmarks=("flowering_meadow",)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=4.0, name_family="bird", xp=10, hide_kind="feather"),
 )
+
+# A landmark's own animals are not hand-written: they are the baseline creatures above, generated again for the landmark through the
+# same pipeline (`_make_fauna`) with the landmark's traits applied, so a "meadow grazer" is a grazer that grew up in a meadow.
+@dataclass(frozen=True)
+class LandmarkFauna:
+    bases: Tuple[str, ...]            # baseline templates that get a variant here
+    tint: Tuple[int, int, int]        # colour the variants are pulled towards
+    covering: str = ""                # replaces a fur or skin covering ("" = keep the baseline's)
+    hp: float = 1.0                   # multiplies hit points
+    power: int = 0                    # added to the power of hostile variants
+    defense: int = 0                  # added to everyone's defence
+
+
+LANDMARK_FAUNA: Dict[str, LandmarkFauna] = {
+    "mushroom_forest": LandmarkFauna(("hopper", "scuttler", "stalker"), (150, 100, 200), covering="skin", hp=0.9),
+    "cactus_desert": LandmarkFauna(("strider", "scuttler", "serpent"), (220, 160, 90), covering="scale", defense=1),
+    "crystal_badlands": LandmarkFauna(("grazer", "scuttler", "hunter"), (120, 150, 230), covering="scale", hp=1.2, defense=2),
+    "volcanic_mountains": LandmarkFauna(("strider", "scuttler", "hunter"), (170, 60, 40), covering="scale", power=1, defense=1),
+    "decayed_land": LandmarkFauna(("rooter", "strider", "hunter"), (110, 100, 110), hp=0.9, power=1),
+    "beach": LandmarkFauna(("scuttler", "flitter", "rooter"), (230, 215, 170), defense=1),
+    "flowering_meadow": LandmarkFauna(("grazer", "flitter", "hopper"), (240, 170, 200)),
+}
+LANDMARK_FAUNA_RARITY = 4.0
+"""A variant is this many times as common as its baseline inside its landmark (it lives nowhere else)."""
+
+
+def landmark_variants(templates: Tuple[FaunaTemplate, ...] = FAUNA_TEMPLATES) -> Tuple[FaunaTemplate, ...]:
+    """The templates of the landmark animals: each baseline named in `LANDMARK_FAUNA`, re-made for its landmark."""
+    from dataclasses import replace
+    by_key = {t.key: t for t in templates}
+    out = []
+    for landmark, traits in LANDMARK_FAUNA.items():
+        for key in traits.bases:
+            base = by_key[key]
+            hostile = base.ai is AIKind.HOSTILE
+            covering = traits.covering if traits.covering and base.hide_kind in ("fur", "skin") else base.hide_kind
+            out.append(replace(
+                base, key=f"{key}.{landmark}", base=key, habitat=Habitat(landmarks=(landmark,)), hide_kind=covering, tint=traits.tint,
+                max_hp=max(1, round(base.max_hp * traits.hp)), power=base.power + (traits.power if hostile else 0),
+                defense=base.defense + traits.defense, rarity=base.rarity * LANDMARK_FAUNA_RARITY))
+    return tuple(out)
+
 
 COVERING_RANGES = {   # property ranges of each body covering's material
     "fur": dict(insulation=(5, 8), tenacity=(3, 5), toughness=(2, 4), hardness=(0.5, 1.5), flammability=(5, 8),
@@ -323,7 +358,7 @@ def generate_planet(seed: int, culture: str = "human") -> Planet:
 
     # fauna
     fauna: List[UnitSpecies] = []
-    for template in FAUNA_TEMPLATES:
+    for template in FAUNA_TEMPLATES + landmark_variants():
         fauna.append(_make_fauna(rng, namer, add, template))
 
     return Planet(
@@ -416,6 +451,8 @@ def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index
 
 def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) -> UnitSpecies:
     color = tuple(rng.randint(70, 230) for _ in range(3))
+    if template.tint:
+        color = tuple(round(c * 0.35 + t * 0.65) for c, t in zip(color, template.tint))
     ranges = COVERING_RANGES[template.hide_kind]
     family = Family.HIDE
     props = _roll(rng, ranges)
@@ -430,8 +467,8 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     noun = defs.COVERINGS[template.hide_kind][1]
     hide = add(Material(f"hide:{template.key}", f"{name.text} {noun}", family, color, **props, **fuel))
     return UnitSpecies(
-        f"planet:fauna:{template.key}", name.text, sprite=spriteconfig.get(f"fauna.{template.key}", template.sprite),
-        corpse_sprite=spriteconfig.get(f"fauna.{template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
+        f"planet:fauna:{template.key}", name.text, sprite=spriteconfig.get(f"fauna.{template.base or template.key}", template.sprite),
+        corpse_sprite=spriteconfig.get(f"fauna.{template.base or template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
         level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,
         habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity, covering=template.hide_kind,

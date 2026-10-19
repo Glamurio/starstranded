@@ -32,7 +32,7 @@ enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
 }
 
 cave_enemy_chances: Dict[int, List[Tuple[Callable[[], Entity], int]]] = {
-    0: [(units.Selenite, 100)],
+    0: [(units.Selenite, 100), (units.Robot, 15)],
 }
 """Creatures of the caves: Selenites (carnivores; they hunt you)."""
 

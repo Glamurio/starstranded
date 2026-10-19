@@ -75,7 +75,7 @@ class Background:
 
 BACKGROUNDS: Dict[str, Background] = {b.key: b for b in (
     Background("bounty_hunter", "Bounty Hunter", "Tracks marked targets for corporate bounty boards. Armed, with a tracker.",
-               ((Skill.MARKSMANSHIP, 3), (Skill.SURVIVAL, 1)), grants("target_tracker"), ("pistol", "ammo")),
+               ((Skill.MARKSMANSHIP, 3), (Skill.SURVIVAL, 1), (Skill.COMBAT, 2)), grants("target_tracker"), ("pistol", "ammo")),
     Background("biologist", "Biologist", "Field xenobiologist: knows animals and plants, and reads them with a scanner.",
                ((Skill.BIOLOGY, 3), (Skill.CHEMISTRY, 1)), grants("botanical_expertise", "species_identification"),
                ("medkit",)),
@@ -89,7 +89,7 @@ BACKGROUNDS: Dict[str, Background] = {b.key: b for b in (
                ((Skill.LINGUISTICS, 3),), grants("universal_translator"), ()),
     # justified extras: each fills a gap in the escape routes
     Background("survivalist", "Survivalist", "Left alone on frontier worlds before. Fire, shelter and first aid.",
-               ((Skill.SURVIVAL, 3), (Skill.BIOLOGY, 1)), grants("first_aid"), ("hatchet", "medkit")),
+               ((Skill.SURVIVAL, 3), (Skill.BIOLOGY, 1), (Skill.COMBAT, 1)), grants("first_aid"), ("hatchet", "medkit")),
     Background("pilot", "Pilot", "Flew freight under contract. Knows a ship's systems: the repair route needs one.",
                ((Skill.ENGINEERING, 3),), grants("pilot_training"), ()),
     Background("archaeologist", "Archaeologist", "Digs up precursor sites for relic collectors.",

@@ -209,7 +209,10 @@ class MeleeAction(ActionWithDirection):
             return
 
         damage_type = attacker.damage_type
-        damage = resolve(attacker.power, getattr(target, "defense", 0), damage_type, target.resistances())
+        from skills import Skill
+        skills = getattr(attacker, "skills", None)
+        training = skills.level(Skill.COMBAT) if skills is not None else 0
+        damage = resolve(attacker.power + training, getattr(target, "defense", 0), damage_type, target.resistances())
         damage = material_damage(attacker, target, damage, damage_type)
         if damage > 0 and hasattr(target, "damage_multiplier"):
             damage = max(1, round(damage * target.damage_multiplier(damage_type)))
@@ -231,6 +234,8 @@ class MeleeAction(ActionWithDirection):
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
             )
+        if attacker is self.engine.player and self.target_unit is not None:
+            attacker.practice(Skill.COMBAT, 1)   # every blow against a creature is practice
 
         self.engine.game_world.pass_time(unit=self.entity, time=1)
 

@@ -548,6 +548,8 @@ def _scatter_lily_pads(self, world: "World", chunk: Chunk) -> None:
 
 FAUNA_PER_CHUNK = 9
 SELENITE_EXILE_CHANCE = 0.04
+ROBOT_CHANCE = 0.02
+"""Chance per animal spawn that a (hostile) machine stands there instead."""
 """Chance per animal spawn that an exiled Selenite stands there instead (the old demo enemy, kept as a rare hostile)."""
 
 
@@ -563,6 +565,9 @@ def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> Non
             continue
         if random.random() < SELENITE_EXILE_CHANCE:
             world.add_entity(units.Selenite(), x, y)
+            continue
+        if random.random() < ROBOT_CHANCE:
+            world.add_entity(units.Robot(), x, y)
             continue
         point = {k: v[lx:lx + 1, ly:ly + 1] for k, v in env.items()}
         _, weights = self.planet.fauna_weights(point)

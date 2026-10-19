@@ -21,6 +21,7 @@ class Skill(Enum):
     LINGUISTICS = "linguistics"    # languages, inscriptions, ancient writing
     SURVIVAL = "survival"          # shelter, fire, foraging, weather
     MARKSMANSHIP = "marksmanship"  # ranged weapons and tracking prey
+    COMBAT = "combat"              # fighting hand to hand: adds to the power of every melee hit
 
     def __str__(self) -> str:
         return self.value
