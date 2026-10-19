@@ -41,8 +41,6 @@ def expected_tile(entities, tile=None):
             surface.blit(sprites.get_foliage(entity.sprite_id, entity.flipped, entity.shade, 0), (0, 0))
         elif entity.category.name == "PLANT":
             surface.blit(sprites.get_foliage(entity.sprite_id, entity.flipped, entity.shade, entity.prominence), (0, 0))
-        elif entity.category.name in ("UNIT", "ITEM"):
-            surface.blit(sprites.get_halo(entity.sprite_id, entity.flipped, entity.shade), (0, 0))
         else:
             surface.blit(sprites.get(entity.sprite_id, entity.flipped, entity.shade), (0, 0))
     return pygame.surfarray.array3d(surface)
