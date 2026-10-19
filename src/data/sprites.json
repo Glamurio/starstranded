@@ -1,1 +1,166 @@
-{}
+{
+ "item.ammo": [
+  68,
+  22
+ ],
+ "item.artifact": [
+  57,
+  26
+ ],
+ "item.campfire": [
+  0,
+  42
+ ],
+ "item.cargo_pod": [
+  84,
+  4
+ ],
+ "item.circuit": [
+  78,
+  7
+ ],
+ "item.club": [
+  27,
+  27
+ ],
+ "item.furnace": [
+  28,
+  38
+ ],
+ "item.gate": [
+  12,
+  1
+ ],
+ "item.hull_plate": [
+  75,
+  7
+ ],
+ "item.leather": [
+  1,
+  25
+ ],
+ "item.lens": [
+  61,
+  9
+ ],
+ "item.medkit": [
+  58,
+  9
+ ],
+ "item.nav_unit": [
+  75,
+  18
+ ],
+ "item.omnitool": [
+  68,
+  23
+ ],
+ "item.piece_brick": [
+  31,
+  33
+ ],
+ "item.piece_chitin": [
+  72,
+  25
+ ],
+ "item.piece_clay": [
+  14,
+  5
+ ],
+ "item.piece_coal": [
+  4,
+  13
+ ],
+ "item.piece_cord": [
+  100,
+  1
+ ],
+ "item.piece_fiber": [
+  2,
+  27
+ ],
+ "item.piece_glass": [
+  2,
+  24
+ ],
+ "item.piece_ingot": [
+  6,
+  25
+ ],
+ "item.piece_ore": [
+  1,
+  13
+ ],
+ "item.piece_sand": [
+  5,
+  13
+ ],
+ "item.piece_scale": [
+  4,
+  22
+ ],
+ "item.piece_stone": [
+  20,
+  5
+ ],
+ "item.piece_wire": [
+  55,
+  9
+ ],
+ "item.power_cell": [
+  52,
+  9
+ ],
+ "item.ration": [
+  54,
+  21
+ ],
+ "item.ruin": [
+  26,
+  23
+ ],
+ "item.salvage_tool": [
+  59,
+  25
+ ],
+ "item.ship": [
+  76,
+  4
+ ],
+ "item.shovel": [
+  0,
+  31
+ ],
+ "item.spear": [
+  40,
+  27
+ ],
+ "item.survey_kit": [
+  62,
+  26
+ ],
+ "item.torch": [
+  4,
+  42
+ ],
+ "item.wall_block": [
+  12,
+  0
+ ],
+ "item.wooden_floor": [
+  8,
+  5
+ ],
+ "item.workbench": [
+  54,
+  20
+ ],
+ "item.wreckage": [
+  19,
+  6
+ ],
+ "unit.selenite": [
+  118,
+  1
+ ]
+}
