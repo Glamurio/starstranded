@@ -722,3 +722,8 @@ The plan above was implemented as written, with these specifics and deviations:
 
 ## God Mode: full sight, nobody notices you
 - `lighting.compute_visibility` returns the whole loaded window as seen and lit in God Mode. `behavior.ignores_player` makes `preys_on`, `_hunt_player` and so `find_threat` skip the player, so creatures neither hunt nor flee; click-walks no longer stop for hostiles, stairs followers and combat music ignore them as well.
+
+## Swimming
+- Deep liquid (depth 2+, not lava) can be swum by the player (`liquids.swimmable`): each step takes twice as long (`SWIM_COST`), the held-breath system of bad air is reused (`survival._breath_turn`; `breath_turns` stat, Selenites x3) and drains while you are under; at 20% breath a step deeper is refused, at 0 you take drowning damage. A Breath meter shows on the HUD (row 9) whenever breath is held.
+- Wet: wading sets `unit.wet` to 20 turns, swimming to 80; it counts down once you are out (three times faster by a fire), shows as "Wet" in the status lines and makes you feel 5 degrees colder. Older saves have `wet = 0` by default.
+- Click paths cross water at cost 6 per tile, so a pond is crossed and a lake is walked around.

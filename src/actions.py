@@ -236,6 +236,23 @@ class MeleeAction(ActionWithDirection):
 
 class MovementAction(ActionWithDirection):
 
+    def _swim_step(self) -> bool:
+        """Is this step a swim the player may make (deep water, nothing in the way, breath to spare)? Refuses a step into
+        deep water when the breath is nearly gone: the way back to land is always open."""
+        import liquids
+        engine = self.engine
+        if self.entity is not engine.player or not engine.game_map.in_bounds(self.dest_x, self.dest_y):
+            return False
+        if not liquids.swimmable(engine.game_map.tile_at(self.dest_x, self.dest_y)):
+            return False
+        if engine.game_map.get_entities_at_location(self.dest_x, self.dest_y, True):
+            return False
+        capacity = self.entity.capabilities.stat("breath_turns")
+        breath = self.entity.breath
+        if breath is not None and breath <= max(2.0, 0.2 * capacity) * liquids.SWIM_COST:
+            raise exceptions.Impossible("You are running out of breath: get out of the water!")
+        return True
+
     def __init__(self, entity: Unit, dest_x: int, dest_y: int, path: Optional[List[Tuple]] = None):
         super().__init__(entity, dest_x, dest_y)
 
@@ -259,11 +276,19 @@ class MovementAction(ActionWithDirection):
         else:
             if self.entity.refuses_liquid(self.dest_x, self.dest_y):
                 raise exceptions.Impossible(f"{self.entity.get_title()} will not wade into the liquid.")
-            if not self.engine.can_move(self.dest_x, self.dest_y):
+            swimming = self._swim_step()
+            if not swimming and not self.engine.can_move(self.dest_x, self.dest_y):
                 raise exceptions.Impossible("That way is blocked.")
 
         self.entity.move(self.dest_x, self.dest_y)
         turns = self.entity.step_turns(dark=self.entity is self.engine.player and lighting.is_dark_at(self.engine))
+        if self.entity is self.engine.player:
+            import liquids
+            import survival
+            tile = self.engine.game_map.tile_at(self.dest_x, self.dest_y)
+            if liquids.swimmable(tile):
+                turns = turns * liquids.SWIM_COST if turns else 1       # swimming takes twice as long as walking
+            survival.soak(self.entity, tile)
         if turns:
             self.engine.game_world.pass_time(unit=self.entity, time=turns)
         elif self.entity is self.engine.player:

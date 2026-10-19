@@ -94,6 +94,10 @@ class Engine:
         cost = (window.in_bounds[crop] & (window.walkable[crop] | ~explored)).astype(np.int32)
         if not ignore_obstacles:
             cost = np.where(cost > 0, cost + 10 * world.region("blocked", rect), 0).astype(np.int32)
+        if origin is self.player:      # the player can swim deep water, at a price (so a path crosses a pond but rounds a lake)
+            liquid = world.region("liquid", rect)
+            swim = (liquid != 0) & (liquid != 5) & (world.region("depth", rect) >= 2) & window.in_bounds[crop]
+            cost = np.where(swim & (cost == 0), 6, cost).astype(np.int32)
         if origin is not self.player:  # creatures do not wade through acid (the player cannot tell it from other liquid)
             cost[world.region("liquid", rect) == 3] = 0
 

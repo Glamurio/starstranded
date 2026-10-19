@@ -45,6 +45,22 @@ SIP_THIRST = 40
 FLASK_SIPS = 3
 
 
+SWIM_DEPTH = 2
+"""Liquid at least this deep is swum, not waded."""
+SWIM_COST = 2
+"""Swimming takes this many times as long as walking."""
+WET_SHALLOW, WET_SWIM = 20, 80
+"""Turns you stay wet after wading / swimming (it counts down while you are out of the water)."""
+WET_CHILL = 5.0
+"""Degrees colder a wet body feels (a fire nearby dries you faster)."""
+
+
+def swimmable(tile) -> bool:
+    """Deep water the player can swim in: any liquid at `SWIM_DEPTH` or more except lava (acid still burns, hot water scalds)."""
+    return (tile is not None and int(tile["liquid"]) not in (0, LiquidKind.LAVA) and int(tile["depth"]) >= SWIM_DEPTH
+            and not bool(tile["walkable"]))
+
+
 def describe(tile) -> Optional[str]:
     """What the player sees of a liquid tile ("Liquid, shallow"); never its kind."""
     depth = int(tile["depth"])

@@ -51,6 +51,10 @@ def draw(canvas, engine) -> None:
         canvas.print(ix, row, text[: canvas.chars(iw)], fg=message_log.legible(shade))
         row += 1
 
+    if player.breath is not None:       # held breath (diving, or foul air): a meter that empties
+        capacity = max(1.0, player.capabilities.stat("breath_turns"))
+        canvas.print(ix, 9, "Breath", fg=Theme.TEXT)
+        canvas.segments(ix + 8, 9, iw - 8, segments_lit(max(0, player.breath), capacity), Theme.THIRST if player.breath > 0.3 * capacity else Theme.BAD)
     canvas.rule(x0 + 1, 10, PANEL_W - 2)
     for k, (label, value, maximum, shade) in enumerate((
         ("HP", player.hp, player.max_hp, Theme.HP),

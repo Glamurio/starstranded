@@ -183,8 +183,8 @@ def test_status_lines_show_temperature_and_credits():
     lines = survival.status_lines(engine)
     assert lines[0][0] in ("Fine", "Cold", "Freezing", "Hot")
     assert any(text.endswith("cr") for text, _ in lines)
-    engine.player.breath = 7
-    assert ("Breath 7" in [t for t, _ in survival.status_lines(engine)])
+    engine.player.breath = 7        # held breath is a meter on the HUD now (see test_swimming), not a text line
+    assert not any("Breath" in t for t, _ in survival.status_lines(engine))
 
 
 def test_engine_render_with_status_panel(small_world):

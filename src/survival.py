@@ -80,6 +80,9 @@ def effective_temperature(engine, unit, sleeping: bool = False) -> float:
     warmth += shelter_warmth(world, unit.x, unit.y)
     if sleeping:
         warmth += BED_WARMTH
+    if getattr(unit, "wet", 0) > 0:
+        import liquids
+        warmth -= liquids.WET_CHILL        # a wet body loses heat
     return ambient + warmth
 
 
@@ -100,8 +103,8 @@ def status_lines(engine):
     lines = []
     label, shade = temperature_word(effective_temperature(engine, unit, sleeping=getattr(unit, "sleeping", False)))
     lines.append((label, shade))
-    if unit.breath is not None:
-        lines.append((f"Breath {max(0, unit.breath)}", color.enemy_atk))
+    if getattr(unit, "wet", 0) > 0:
+        lines.append(("Wet", color.light_blue))
     due = run.flags.get("rescue_due")
     if due is not None:
         lines.append((f"Rescue {max(0, due - engine.game_world.current_time)}", color.green))
@@ -118,6 +121,19 @@ def gas_at(master: int, z: int, x: int, y: int) -> bool:
     return (cell % 1000) / 1000.0 < GAS_CHANCE
 
 
+def soak(unit, tile) -> None:
+    """The player stepped onto `tile`: wading or swimming leaves them wet for a while."""
+    import liquids
+    if tile is None or not int(tile["liquid"]) or int(tile["liquid"]) == liquids.LiquidKind.LAVA:
+        return
+    unit.wet = max(unit.wet, liquids.WET_SWIM if liquids.swimmable(tile) else liquids.WET_SHALLOW)
+
+
+def is_swimming(unit) -> bool:
+    import liquids
+    return unit.game_map is not None and liquids.swimmable(unit.game_map.tile_at(unit.x, unit.y))
+
+
 def tick(engine, unit, turns: int = 1) -> None:
     """Apply `turns` turns of cold/heat and breathing to the player (called from `GameWorld.pass_time`)."""
     for _ in range(turns):
@@ -125,6 +141,7 @@ def tick(engine, unit, turns: int = 1) -> None:
             return
         _temperature_turn(engine, unit)
         _breath_turn(engine, unit)
+        _wet_turn(engine, unit)
 
 
 def _say(engine, text: str, fg=color.impossible) -> None:
@@ -150,17 +167,30 @@ def _temperature_turn(engine, unit) -> None:
             _say(engine, "The heat parches you.")
 
 
+def _wet_turn(engine, unit) -> None:
+    """Wetness dries off (three times as fast beside a fire) once you are out of the water."""
+    if unit.wet <= 0:
+        return
+    if is_swimming(unit):
+        return
+    dry = 3 if fire_warmth(unit.game_map, unit.x, unit.y) > 0 else 1
+    unit.wet = max(0, unit.wet - dry)
+    if unit.wet == 0:
+        _say(engine, "You have dried off.", color.green)
+
+
 def _breath_turn(engine, unit) -> None:
     world = unit.game_map
     capacity = unit.capabilities.stat("breath_turns")
     in_gas = gas_at(engine.game_world.master_seed, world.z, unit.x, unit.y)
-    if in_gas:
+    diving = is_swimming(unit)
+    if in_gas or diving:
         if unit.breath is None:
             unit.breath = capacity
-            _say(engine, "The air here is thick and foul. You hold your breath.")
+            _say(engine, "You take a breath and go under." if diving else "The air here is thick and foul. You hold your breath.")
         unit.breath -= 1
         if unit.breath <= 0:
-            _say(engine, "You choke on the foul air!", color.enemy_atk)
+            _say(engine, "You are drowning!" if diving else "You choke on the foul air!", color.enemy_atk)
             unit.handle_health(-SUFFOCATION_DAMAGE, None)
     elif unit.breath is not None:
         unit.breath = min(capacity, unit.breath + 2)
