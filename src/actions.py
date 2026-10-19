@@ -277,7 +277,7 @@ class MovementAction(ActionWithDirection):
             if self.engine.can_see(self.entity.x, self.entity.y, enemy.x, enemy.y, 8):
                 return False
 
-        return True
+        return bool(self.path)   # repeat only while there are steps left (a single step used to repeat into "blocked")
 
 
 class BumpAction(ActionWithDirection):

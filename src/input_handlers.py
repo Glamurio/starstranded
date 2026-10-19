@@ -189,8 +189,10 @@ class EventHandler(BaseEventHandler):
         if isinstance(action_or_state, BaseEventHandler):
             self.session.push(action_or_state) # Add handler to stack
 
-        if isinstance(action_or_state, actions.Action) and self.handle_action(action_or_state):
-            # A valid action was performed.
+        if isinstance(action_or_state, actions.Action) and (
+                self.handle_action(action_or_state)
+                or not self.engine.player.is_alive or self.engine.game_world.run.ending is not None):
+            # A valid action was performed (or it failed half-way after time had passed and the run ended).
             if self.engine.game_world.run.ending is not None:
                 import screens
                 return self._take_over(screens.EndingHandler(self.engine))
@@ -227,7 +229,7 @@ class EventHandler(BaseEventHandler):
         try:
             # Actions return `True` for repeat
             repeat = action.perform()
-            while repeat:
+            while repeat and self.engine.player.is_alive and self.engine.game_world.run.ending is None:
                 repeat = action.perform()
                 # time.sleep(0.05)
                 self.session.render(self)
