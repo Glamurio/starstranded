@@ -3,6 +3,14 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Fixes after the review, 19 Oct 2026
+- Fixed: every step logged "That way is blocked."; dying or reaching an ending during a walk is now noticed at once and stops the walk.
+- Fixed: dying with a full pack no longer breaks the death (no "You died!", game-over a turn late).
+- Changed: hunger, thirst, poison and heat now run for every minute of a long action, so crafting, mining and healing cost hunger and thirst like walking does.
+- Changed: eating a food from the pack takes a turn.
+- Fixed: the contract board stays at three open contracts; mined ore that does not fit lands at your feet; a wild creature forced into acid no longer crashes.
+- Fixed: planet creatures and fruit in caves keep sharing the planet's definitions after saving or unloading (smaller cave chunk files).
+
 ## Feedback round, 19 Oct 2026
 - New: right-hand HUD panel with the log, 10-segment bars and engraved borders; selectable colour themes (default sci-fi) in Settings.
 - New: Esc menu with Save & Quit to Main Menu / Save & Quit Game; menus are clickable; the death screen keeps mouse look; rock walls can be hovered and mined.
