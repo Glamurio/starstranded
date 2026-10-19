@@ -26,6 +26,7 @@ CHANCE = 0.16
 FARM_SHARE = 0.65
 """Of the settlements, the share that are farms (the rest are towns)."""
 MARGIN = 3
+MEDKIT_CHANCE = 0.3
 
 
 @dataclass(frozen=True)
@@ -156,6 +157,56 @@ def paint(master: int, key: ChunkKey, tiles: np.ndarray, tree_map: np.ndarray) -
         dx, dy = house.door
         step = 1 if dy >= house.y + house.h - 1 else -1
         tiles[dx, dy + step] = (tile_types.street if found.kind == "town" else tile_types.path).get_array()
+
+
+def built(master: int, key: ChunkKey) -> frozenset:
+    """Chunk-local tiles that people have built on (houses and a margin round them, the field, the streets): nothing wild is
+    scattered there."""
+    found = layout(master, key)
+    if found is None:
+        return frozenset()
+    tiles = set()
+    rects = [(h.x - 1, h.y - 1, h.w + 2, h.h + 3) for h in found.houses] + list(found.streets)
+    if found.kind == "farm":
+        rects.append(found.fence)
+    for x, y, w, h in rects:
+        tiles.update((i, j) for i in range(max(0, x), min(CHUNK_W, x + w)) for j in range(max(0, y), min(CHUNK_H, y + h)))
+    return frozenset(tiles)
+
+
+def populate(world, chunk, master: int) -> None:
+    """The people and supplies of a settlement: rations (and now and then a medkit) on the floors of its houses, and settlers
+    about the street (a town) or the farmyard. Uses the chunk's seeded `random`."""
+    import types
+    import components.unit as units
+    from components.consumable import Ration
+    import structures
+    found = layout(master, chunk.key)
+    if found is None:
+        return
+    nobody = types.SimpleNamespace(inventory=None)
+    for house in found.houses:
+        floor = [(x, y) for x in range(house.x + 1, house.x + house.w - 1) for y in range(house.y + 1, house.y + house.h - 1)]
+        for _ in range(random.randint(1, 2)):
+            x, y = floor.pop(random.randrange(len(floor)))
+            world.add_entity(Ration(), chunk.x0 + x, chunk.y0 + y)
+        if random.random() < MEDKIT_CHANCE:
+            x, y = random.choice(floor)
+            world.add_entity(structures.salvage_piece("medkit", nobody), chunk.x0 + x, chunk.y0 + y)
+    if found.kind == "town":
+        spots = [(x + random.randrange(w), y + random.randrange(h)) for x, y, w, h in found.streets for _ in range(8)]
+        count = random.randint(2, 4)
+    else:
+        fx, fy, fw, fh = found.fence
+        spots = [(fx + 1 + random.randrange(fw - 2), fy + 1 + random.randrange(fh - 2)) for _ in range(8)]
+        count = random.randint(1, 2)
+    for lx, ly in spots:
+        if count <= 0:
+            break
+        x, y = chunk.x0 + lx, chunk.y0 + ly
+        if world.is_walkable(x, y) and not world.is_blocked(x, y) and not world.get_entities_at_location(x, y):
+            world.add_entity(units.Settler(), x, y)
+            count -= 1
 
 
 def _house(tiles: np.ndarray, tree_map: np.ndarray, house: House) -> None:

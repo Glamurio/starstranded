@@ -59,7 +59,7 @@ class Inventory(BaseComponent):
             extra = type(item)(self, item.kind) if isinstance(item, Fruit) else plant.yield_piece()
             self.add(extra)
 
-    def drop(self, item: Item, target_xy: tuple[int, int]) -> None:
+    def drop(self, item: Item, target_xy: tuple[int, int], announce: bool = True) -> None:
         """
         Removes an item from the inventory and restores it to the game map, at the given location.
 
@@ -72,7 +72,7 @@ class Inventory(BaseComponent):
         item.place(tile[0], tile[1], self.game_map)
         self.contents = self.items + self.placeholders
         
-        if self.parent is self.engine.player:  # plants drop fruit too; only the player's own drops are announced
+        if announce and self.parent is self.engine.player:  # plants drop fruit too; only the player's own drops are announced
             self.engine.message_log.add_message(f"You dropped {item.get_title()}.")
 
     def add(self, item: Item, placeholder: bool = False, force: bool = False) -> None:

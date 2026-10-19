@@ -121,6 +121,9 @@ def act(unit: Unit, ai: BaseAI, cheap: bool = False) -> None:
     """One turn of `unit` (already upkept). May raise `exceptions.Impossible` (a blocked step; callers ignore it)."""
     engine = ai.engine
 
+    if not ai.is_hostile and _answer_attacker(unit, ai, cheap):
+        return
+
     if unit.diet is Diet.HERBIVORE or unit.diet is Diet.OMNIVORE:
         threat = find_threat(unit)
         if threat is not None and not ai.is_hostile:
@@ -143,6 +146,27 @@ def act(unit: Unit, ai: BaseAI, cheap: bool = False) -> None:
         return
 
     _idle(unit, ai, cheap)
+
+
+GRUDGE_RANGE = 12
+"""A peaceful creature stops running from whoever hurt it once it is this far away."""
+
+
+def _answer_attacker(unit, ai, cheap) -> bool:
+    """A peaceful creature that was hurt hits back when its attacker is next to it, and runs from it otherwise."""
+    from actions import MeleeAction
+    attacker = getattr(ai, "grudge", None)
+    if attacker is None:
+        return False
+    gap = max(abs(attacker.x - unit.x), abs(attacker.y - unit.y))
+    if not attacker.is_alive or gap > GRUDGE_RANGE or attacker.game_map is not unit.game_map or ignores_player(unit, attacker):
+        ai.grudge = None
+        return False
+    if gap <= 1 and unit.power > 0:
+        MeleeAction(unit, attacker.x, attacker.y).perform()
+        return True
+    _flee(unit, ai, attacker, cheap)
+    return True
 
 
 def use_stairs(unit) -> bool:

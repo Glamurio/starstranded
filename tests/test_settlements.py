@@ -72,3 +72,47 @@ def test_settlements_keep_off_water_and_chasms():
 def test_settlements_are_route_sites():
     key = found("farm")[0][0]
     assert routes.is_site(SEED, key)
+
+
+
+# ── life in a settlement ─────────────────────────────────────────────────────────────────────────────
+def _load(kind):
+    import setup_game
+    from engine import Engine
+    from worldgen import NoiseWorldSource
+    from world import GameWorld, World
+    key = found(kind)[0][0]
+    engine = Engine(player=setup_game.create_player())
+    engine.game_world = GameWorld(engine=engine, seed=5)
+    world = World(engine, NoiseWorldSource(SEED), floor=1, seed=SEED)
+    engine.game_map = world
+    return key, world, world.load_chunk(key)
+
+
+def test_nothing_wild_grows_or_lies_on_built_ground():
+    from components.plant import Plant
+    from components.unit import Unit
+    from items import Stuff
+    for kind in ("farm", "town"):
+        key, world, chunk = _load(kind)
+        built = settlements.built(SEED, key)
+        assert built
+        for entity in chunk.entities:
+            local = (entity.x - chunk.x0, entity.y - chunk.y0)
+            if local in built:
+                assert not isinstance(entity, (Plant, Stuff)), (kind, type(entity).__name__, local)
+                assert not (isinstance(entity, Unit) and entity.kind.faction == "wildlife"), (kind, local)
+
+
+def test_houses_hold_supplies_and_settlers_live_there():
+    from components.consumable import Ration
+    from components.unit import Settler
+    for kind, low in (("farm", 1), ("town", 2)):
+        key, world, chunk = _load(kind)
+        layout = settlements.layout(SEED, key)
+        people = [e for e in chunk.entities if isinstance(e, Settler)]
+        assert low <= len(people) <= 4 and all(p.faction == "federation" and not p.ai.is_hostile for p in people)
+        rations = [e for e in chunk.entities if isinstance(e, Ration)]
+        assert len(rations) >= len(layout.houses)
+        for ration in rations:
+            assert any(h.x < ration.x - chunk.x0 < h.x + h.w - 1 and h.y < ration.y - chunk.y0 < h.y + h.h - 1 for h in layout.houses)

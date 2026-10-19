@@ -206,6 +206,12 @@ ROBOT = register(UnitSpecies(
     diet=Diet.OMNIVORE, blood_color=(30, 30, 34), grants=grants("robot"), faction="robot",
 ))
 
+SETTLER = register(UnitSpecies(
+    "settler", "Settler", sprite=(117, 0), corpse_sprite=(24, 16), color=(235, 215, 190), shade_sigma=12,
+    max_hp=20, power=2, defense=1, level_up_base=100, xp_given=0, ai=AIKind.PASSIVE, name_origin="survey", diet=Diet.OMNIVORE,
+    grants=grants("humanoid"), faction="federation", inventory_capacity=10,
+))
+
 # ── Items ────────────────────────────────────────────────────────────────────────
 MEAT = register(ItemKind("meat", "Meat", sprite=(1, 21), color=color.red, hunger_amount=10, thirst_amount=5))
 LEATHER = register(ItemKind("leather", "Leather", sprite=(1, 25), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))

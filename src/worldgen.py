@@ -465,6 +465,9 @@ class NoiseWorldSource:
         before = set(chunk.entities)
         with seeded_rng(mix_seed(self.chunk_seed(chunk.key), 1)):
             reserved = {self.spawn_point} if chunk.key == (0, 0) else set()
+            if not self.legacy:
+                import settlements
+                reserved |= {(chunk.x0 + lx, chunk.y0 + ly) for lx, ly in settlements.built(self.floor_seed, chunk.key)}   # nothing wild on built ground
             if self.legacy:
                 for lx, ly in np.argwhere(tree_map).tolist():
                     if random.random() > 0.2:
@@ -480,6 +483,7 @@ class NoiseWorldSource:
                 self._scatter_stones(world, chunk, env, reserved)
                 self._spawn_fauna(world, chunk, env, reserved)
                 self._place_sites(world, chunk)
+                settlements.populate(world, chunk, self.floor_seed)
                 self._scatter_flowers(world, chunk, env, reserved)
                 self._scatter_lily_pads(world, chunk)
         for entity in chunk.entities:

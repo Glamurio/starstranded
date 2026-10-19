@@ -94,3 +94,29 @@ def test_d_does_nothing_in_someone_elses_inventory_but_s_scans():
     handler.menu_i = 0
     assert handler.ev_keydown(events.KeyDown(events.Key.D, 0)) is None
     assert isinstance(handler.ev_keydown(events.KeyDown(events.Key.S, 0)), actions.ScanThingAction)
+
+
+def test_d_drops_the_whole_stack_in_one_turn():
+    engine = new_game()
+    player = engine.player
+    kind = engine.game_world.planet.fauna[0]
+    meats = []
+    for dx in (2, 3, 4):
+        a = Unit(kind)
+        a.place(player.x + dx, player.y, engine.game_map)
+        kill(engine, a)
+        meats += [i for i in a.inventory.items if isinstance(i, Meat)][:1]
+    for meat in meats:
+        player.inventory.add(meat, force=True)
+    handler = ih.InventoryActivateHandler(engine, player.inventory)
+    engine.session.reset(handler)
+    from ui_helpers import SESSION
+    SESSION.draw(handler)
+    handler.menu_i = handler.inventory_entries.index(meats[0])
+    drop = handler.ev_keydown(events.KeyDown(events.Key.D, 0))
+    assert isinstance(drop, actions.DropStack) and len(drop.items) == 3
+    before = len(engine.message_log.messages)
+    drop.perform()
+    assert not any(m in player.inventory.items for m in meats)
+    assert all((m.x, m.y) == (player.x, player.y) for m in meats)
+    assert len(engine.message_log.messages) == before + 1          # one line for the whole stack

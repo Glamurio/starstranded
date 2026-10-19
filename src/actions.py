@@ -123,6 +123,25 @@ class DropItem(ItemAction):
         self.entity.inventory.drop(self.item, self.target_xy)
 
 
+class DropStack(Action):
+    """Drop every item of a stack (identical things sharing one row of the inventory) at your feet: one turn, one message."""
+
+    def __init__(self, entity: Unit, items):
+        super().__init__(entity)
+        self.items = list(items)
+
+    def perform(self) -> None:
+        from components.equippable import Equippable
+        held = [i for i in self.items if i in self.entity.inventory.items]
+        for item in held:
+            if isinstance(item, Equippable) and item.equipped:
+                self.entity.equipment.toggle_equip(item)
+            self.entity.inventory.drop(item, None, announce=False)
+        if held:
+            title = held[0].get_title()
+            self.engine.message_log.add_message(f"You dropped {title}." if len(held) == 1 else f"You dropped {title} x{len(held)}.")
+
+
 class EquipAction(Action):
     def __init__(self, entity: Unit, item: Item):
         super().__init__(entity)

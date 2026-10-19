@@ -47,3 +47,26 @@ def test_a_robot_hunts_a_wolf_it_can_see_but_a_wolf_ignores_the_robot(small_worl
     hostile_animal = Unit(next(k for k in generate_planet(5, "human").fauna if k.key.endswith(":hunter")))
     hostile_animal.place(20, 5, e.game_map)
     assert behavior.find_enemy(hostile_animal) is not robot
+
+
+def test_a_peaceful_animal_hits_back_when_cornered_and_runs_when_not(small_world):
+    import actions
+    import behavior
+    e = small_world(width=40, height=20)
+    kind = next(k for k in generate_planet(5, "human").fauna if k.key.endswith(":strider"))
+    grazer = Unit(kind)
+    grazer.place(10, 5, e.game_map)
+    e.player.place(11, 5)
+    grazer.hunger = grazer.max_hunger
+    grazer.thirst = grazer.max_thirst
+    hp = e.player.hp
+    behavior.act(grazer, grazer.ai)
+    assert e.player.hp == hp                                 # not provoked: it minds its own business
+    grazer.place(10, 5, e.game_map)                          # (it may have wandered off)
+    grazer.handle_health(-1, e.player)                       # the player hits it
+    assert grazer.ai.grudge is e.player
+    behavior.act(grazer, grazer.ai)
+    assert e.player.hp < hp                                  # next to its attacker: it hits back
+    e.player.place(25, 5)
+    behavior.act(grazer, grazer.ai)
+    assert grazer.x < 10 or grazer.ai.path                   # out of reach: it runs, it does not chase

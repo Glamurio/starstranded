@@ -13,7 +13,7 @@ from components.level import Level
 from components.consumable import Meat
 from capabilities import CapabilitySet, Grant
 from skills import SkillSet
-from species import AIKind, HUMAN, ROBOT, SELENITE, UnitSpecies
+from species import AIKind, HUMAN, ROBOT, SELENITE, SETTLER, UnitSpecies
 
 from utilities import clamp, generate_name, get_gaussian_shade, get_random_color
 
@@ -248,6 +248,9 @@ class Unit(Entity):
         if amount < 0 and debug.protects(self):
             return
         self.hp = clamp((self.hp + amount), 0, self.max_hp)
+        ai = getattr(self, "ai", None)
+        if amount < 0 and entity is not None and entity is not self and ai is not None and not ai.is_hostile and self.hp > 0:
+            ai.grudge = entity        # a peaceful creature remembers who hurt it (see `behavior.act`)
         if self.hp == 0 and self.is_alive:
             self.die(entity)
 
@@ -320,6 +323,12 @@ class Player(Unit):
 class Selenite(Unit):
     def __init__(self, name: Optional[str] = None):
         Unit.__init__(self, SELENITE, name)
+
+
+class Settler(Unit):
+    """A farmer or townsperson: a peaceful Federation human who lives in a settlement."""
+    def __init__(self, name: Optional[str] = None):
+        Unit.__init__(self, SETTLER, name)
 
 
 class Robot(Unit):

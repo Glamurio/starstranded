@@ -771,6 +771,10 @@ class InventoryEventHandler(AskUserEventHandler):
         if scan:
             return actions.ScanThingAction(player, thing)
         if self.inventory is not None and self.inventory.parent == player and isinstance(thing, Item):
+            rows = getattr(getattr(self, "list", None), "rows", ())
+            group = next((row.group for row in rows if row.data is thing), ())
+            if len(group) > 1:
+                return actions.DropStack(player, group)           # a stack goes down together
             return actions.DropItem(player, thing)
         return None
 

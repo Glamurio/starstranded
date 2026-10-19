@@ -3,6 +3,15 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Session, sight and faction round, 19 Oct 2026
+- Fixed: Continue after Save & Quit to Main Menu no longer throws you straight back to the menu.
+- Fixed: music stops when you leave a game for the menu and starts fresh in the next one.
+- Changed: music is half as loud by default; combat music ends one second after the last enemy is out of view.
+- New: Settings in the Esc pause menu; "Now Playing" in the HUD.
+- New: factions (Wildlife, Federation, Robot); humanoids are the Federation. Hostiles attack the nearest enemy-faction creature they can see (ten tiles, clear line), head for the last seen spot for a while and give up; they no longer home in on you from across the map.
+- New: peaceful animals hit back when attacked and cornered, and run otherwise.
+- New: settlers, rations and medkits in farms and towns; no wild plants, stones or animals on built ground; D drops a whole stack.
+
 ## Landmark follow-up round, 19 Oct 2026
 - Fixed: crash on old saves with `fungal` / `volcanic` / `crystalline` biomes; the music folder resolves to `data/music` again, so music plays.
 - New: clicking a tile at the edge of the chunk walks off it, so mouse-only play can leave the chunk.

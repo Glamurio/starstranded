@@ -41,6 +41,7 @@ class Row:
     right: str = ""
     color: Optional[tuple] = None
     data: object = None
+    group: tuple = ()           # an item row that stands for several identical items: all of them
 
 
 class ListView:
@@ -231,7 +232,7 @@ def item_rows(entries: Sequence, equipped: Callable = lambda item: False) -> Lis
             item = same[0]
             right = "equipped" if equipped(item) else ("more >" if getattr(item, "has_inventory", False) else "")
             label = f"{title} x{len(same)}" if len(same) > 1 else title
-            rows.append(Row(label, icon=(item.sprite_id, item.color, getattr(item, "flipped", False)), right=right, data=item))
+            rows.append(Row(label, icon=(item.sprite_id, item.color, getattr(item, "flipped", False)), right=right, data=item, group=tuple(same)))
     return rows
 
 
