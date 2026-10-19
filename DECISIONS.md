@@ -811,3 +811,8 @@ Appearance, species identity and behaviour are already separate fields of `Fauna
 **What.** Ground-cover tufts were brightened 1.0–1.55× over the ground colour and covered up to half of open ground; now 0.85–1.2× (dark view 0.8–1.1×) and at most 40% (`COVER_PER_VEGETATION` 0.22).
 **Why.** The post-change blind review (docs/readability/blind-review-after.md) still named the lavender tufts as competing with real objects.
 **Alternative.** Removing tufts entirely, or drawing them as terrain-only bg texture. Kept them: they tell biomes apart.
+
+## Crossfade channels are picked by number
+**What.** `CrossfadeBackend._begin` now chooses a mixer channel by index and remembers it (`index`), instead of comparing `Channel` objects.
+**Why.** pygame hands out a new `Channel` object each call, so "is this channel already used?" was always false. When a song ended, the next one landed on the same channel; the ended entry then faded out and stopped that channel, silencing the new song. The director saw silence, started another, and so on: the City Lights / 6ft flip-flop at the end of a song.
+**Alternative.** Keeping `find_channel` and comparing by `id()`; also unreliable.

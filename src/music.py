@@ -229,13 +229,15 @@ class CrossfadeBackend(Backend):
 
     def _begin(self, sound, fade: float, now: float) -> None:
         mixer = self.pygame.mixer
-        used = {e["channel"] for e in self.leaving} | ({self.current["channel"]} if self.current else set())
-        channel = mixer.find_channel(force=False) if mixer.get_num_channels() else None
-        if channel is None or channel in used:
-            channel = next((mixer.Channel(i) for i in range(mixer.get_num_channels()) if mixer.Channel(i) not in used), mixer.Channel(0))
+        used = {e["index"] for e in self.leaving} | ({self.current["index"]} if self.current else set())
+        # (channels are picked by number: `Channel` objects are new every time, so comparing them cannot tell that a channel is
+        # the one that a fading track still holds; a stop of that old track would then cut the new one off, over and over)
+        free = [i for i in range(mixer.get_num_channels()) if i not in used]
+        index = next((i for i in free if not mixer.Channel(i).get_busy()), free[0] if free else 0)
+        channel = mixer.Channel(index)
         if self.current is not None:
             self.leaving.append({**self.current, "from": self.current["level"], "since": now, "seconds": max(fade, 0.05)})
-        self.current = {"channel": channel, "sound": sound, "level": 0.0 if fade > 0 else 1.0}
+        self.current = {"channel": channel, "index": index, "sound": sound, "level": 0.0 if fade > 0 else 1.0}
         self._fade_in = (now, fade) if fade > 0 else None
         channel.set_volume(0.0 if fade > 0 else self.volume)
         channel.play(sound)

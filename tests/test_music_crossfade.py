@@ -101,3 +101,41 @@ def test_the_pygame_backend_fades_one_track_out_while_the_other_comes_in(tmp_pat
     assert backend.current["level"] == 1.0 and not backend.leaving                              # the old one is gone
     backend.stop()
     assert not backend.busy()
+
+
+def test_a_track_that_follows_a_finished_one_is_not_cut_off_by_the_old_one_fading_away(tmp_path, monkeypatch):
+    """The bug that flip-flopped two songs: the new track took the channel of the one that had just ended, and when that old
+    entry finished fading it stopped the channel, silencing the new track (so the director started another, and so on)."""
+    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
+    import time
+    import pygame
+    pygame.mixer.quit()
+    pygame.mixer.init(22050, -16, 2, 512)
+    clock = Clock()
+    backend = music.CrossfadeBackend(clock)
+    _wave(tmp_path / "short.wav", 0.3)
+    _wave(tmp_path / "long.wav", 5.0)
+
+    def settle():
+        for _ in range(300):
+            backend.update()
+            if backend._loading is None:
+                return
+            time.sleep(0.01)
+        raise AssertionError("track never loaded")
+
+    backend.set_volume(1.0)
+    backend.play(str(tmp_path / "short.wav"))
+    settle()
+    for _ in range(300):                                     # let it run out
+        if not backend.busy():
+            break
+        time.sleep(0.01)
+    assert not backend.busy()
+    backend.play(str(tmp_path / "long.wav"), 0.0, 0.5)
+    settle()
+    assert all(entry["index"] != backend.current["index"] for entry in backend.leaving)
+    clock.advance(2.0)
+    backend.update()
+    assert backend.busy() and not backend.leaving
+    backend.stop()
