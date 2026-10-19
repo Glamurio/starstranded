@@ -187,16 +187,22 @@ def navigation_lines(engine) -> list:
 
 
 def known_places(engine) -> list:
-    """`[(name, (x, y), color)]`: the places the player knows of (ship, cargo pod, ruins found)."""
+    """`[(name, (x, y), color, sprite)]`: the places the player knows of (ship, cargo pod, ruins and gate found); `sprite` is the
+    (column, row) of the picture the world map draws for it, the same one the place has in the world."""
+    import species as defs
+    from structures import RUIN_COUNT
     run = engine.game_world.run
     places = []
     if run.wreck:
-        places.append(("Your ship", run.wreck, (255, 200, 80)))
+        places.append(("Your ship", run.wreck, (255, 200, 80), defs.SHIP.sprite))
     if run.pod:
-        places.append(("Sponsor cargo pod", run.pod, (120, 220, 255)))
+        places.append(("Sponsor cargo pod", run.pod, (120, 220, 255), defs.CARGO_POD.sprite))
     for index, at in sorted((run.flags.get("sites") or {}).items()):
         if run.knowledge.is_known(f"ruin:{index}"):
-            places.append((f"Precursor ruin {index + 1}", at, (200, 140, 255)))
+            if index >= RUIN_COUNT:
+                places.append(("Precursor gate", at, (120, 230, 200), defs.GATE.sprite))
+            else:
+                places.append((f"Precursor ruin {index + 1}", at, (200, 140, 255), defs.RUIN.sprite))
     return places
 
 
@@ -279,13 +285,11 @@ class WorldMapHandler(AskUserEventHandler):
             surface.fill(shown, rect.inflate(-1, -1) if cell >= 6 else rect)
             if live and cell >= 6:
                 pygame.draw.rect(surface, (235, 245, 255), rect.inflate(-1, -1), 1)
-        for name, (x, y), tint in known_places(engine):
+        for name, (x, y), tint, sprite in known_places(engine):
             key = chunk_key(x, y)
             if key in known and kx0 <= key[0] < kx0 + columns and ky0 <= key[1] < ky0 + rows:
-                size = max(cell // 3, 2)
-                spot = pygame.Rect(0, 0, size, size)
-                spot.center = (area.x + (key[0] - kx0) * cell + cell // 2, area.y + (key[1] - ky0) * cell + cell // 2)
-                pygame.draw.rect(surface, tint, spot)
+                centre = (area.x + (key[0] - kx0) * cell + cell // 2, area.y + (key[1] - ky0) * cell + cell // 2)
+                self._draw_icon(canvas, surface, sprite, tint, centre, cell)
         px, py = self.home
         if kx0 <= px < kx0 + columns and ky0 <= py < ky0 + rows:             # you: a red-ringed white mark (blinks a little)
             rect = pygame.Rect(area.x + (px - kx0) * cell, area.y + (py - ky0) * cell, cell, cell)
@@ -298,6 +302,24 @@ class WorldMapHandler(AskUserEventHandler):
             pygame.draw.rect(surface, (255, 220, 90), rect, 2)
         surface.set_clip(clip)
         self._side_panel(canvas, known, ix, iy, iw, ih, side, visible)
+
+    ICON_MIN_CELL = 8
+    """Below this chunk size (pixels) a place is a plain coloured square; from here up it is its own picture."""
+
+    def _draw_icon(self, canvas, surface, sprite, tint, centre, cell: int) -> None:
+        """A place on the map: its sprite from the sheet in its colour on a dark disc, so it reads on any ground."""
+        import pygame
+        import atlas
+        if cell < self.ICON_MIN_CELL:
+            spot = pygame.Rect(0, 0, max(cell // 3, 2), max(cell // 3, 2))
+            spot.center = centre
+            pygame.draw.rect(surface, tint, spot)
+            return
+        size = max(12, min(cell + cell // 2, 36))
+        picture = pygame.transform.scale(canvas.sprites.get(atlas.sprite_id(*sprite), False, tint), (size, size))
+        pygame.draw.circle(surface, (10, 12, 20), centre, size // 2 + 1)
+        pygame.draw.circle(surface, tint, centre, size // 2 + 1, 1)
+        surface.blit(picture, picture.get_rect(center=centre))
 
     def _side_panel(self, canvas, known, ix, iy, iw, ih, side, visible) -> None:
         from ui import Theme
@@ -327,7 +349,7 @@ class WorldMapHandler(AskUserEventHandler):
         if side:
             lines.append(("", Theme.TEXT))
             lines.append((f"You: {player.x}, {player.y}" + (f" (layer {engine.game_world.current_z})" if engine.game_world.current_z else ""), Theme.TEXT))
-            for name, (px, py), tint in known_places(engine):
+            for name, (px, py), tint, _ in known_places(engine):
                 lines.append((f"{name}: {bearing(px - player.x, py - player.y)}", tint))
             lines.append(("", Theme.TEXT))
             lines.append(("White frame: in view now. Dim: explored. Blank: undiscovered.", Theme.DIM))

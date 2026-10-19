@@ -206,7 +206,7 @@ class FaunaTemplate:
 
 
 FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
-    FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.15, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=3.0, name_family="small_herbivore", xp=10),
+    FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.3, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=1.6, name_family="small_herbivore", xp=10),
     FaunaTemplate("grazer", (1, 20), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
     FaunaTemplate("strider", (5, 18), Habitat((0.0, 0.9), (-0.5, 0.2)), Diet.HERBIVORE, AIKind.PASSIVE, 11, 3, rarity=1.0, name_family="grazer", xp=30),
     FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.PASSIVE, 10, 3, rarity=1.0, name_family="animal", xp=35, hide_kind="skin"),
@@ -215,7 +215,7 @@ FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("scuttler", (7, 18), Habitat((-0.2, 1.0), (0.1, 1.0), water=(0.4, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 6, 2, defense=1, rarity=1.5, name_family="crawler", xp=20, hide_kind="chitin"),
     FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.PASSIVE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
     FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=0.5, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
-    FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10, hide_kind="feather"),
+    FaunaTemplate("flitter", (5, 20), Habitat((-0.4, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.0, name_family="bird", xp=10, hide_kind="feather"),
     # landmark fauna: found only inside their landmark
 )
 

@@ -192,3 +192,21 @@ def test_no_bridge_over_lava(new_engine):
     world.set_tile(player.x + 1, player.y, tile_types.water.get_array())
     world.modify_tile(player.x + 1, player.y, liquid=int(liquids.LiquidKind.LAVA), depth=3, walkable=False)
     assert "molten" in WoodenFloor().can_place_at(world, player.x + 1, player.y)
+
+
+def test_known_places_come_with_their_world_sprites_and_the_map_draws_them_as_icons():
+    import species as defs
+    engine = new_game()
+    engine.update_fov()
+    run = engine.game_world.run
+    run.wreck = (engine.player.x + 3, engine.player.y)
+    run.pod = (engine.player.x + 5, engine.player.y)
+    run.flags["sites"] = {0: (engine.player.x + 7, engine.player.y), 3: (engine.player.x + 9, engine.player.y)}
+    places = {name: sprite for name, _, _, sprite in screens.known_places(engine)}
+    assert places["Your ship"] == defs.SHIP.sprite and places["Sponsor cargo pod"] == defs.CARGO_POD.sprite
+    handler = screens.WorldMapHandler(engine)
+    handler.zoom = 24
+    canvas = _canvas(1280, 720)
+    handler.on_render(canvas)                                    # (an icon is blitted, not just a square: drawing must not fail)
+    area, cell, kx0, ky0 = handler._geometry
+    assert cell == 24
