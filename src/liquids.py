@@ -72,7 +72,7 @@ def on_enter(unit: Unit, world: World) -> None:
     unit.hp = max(0, unit.hp - ACID_WADE_DAMAGE)
     if visible:
         world.engine.message_log.add_message(
-            f"{'You are' if unit is world.engine.player else unit.name + ' is'} burned by the liquid!", (255, 120, 0)
+            f"{'You are' if unit is world.engine.player else unit.get_title() + ' is'} burned by the liquid!", (255, 120, 0)
         )
     equipment = getattr(unit, "equipment", None)
     armor = getattr(equipment, "armor", None) if equipment is not None else None
