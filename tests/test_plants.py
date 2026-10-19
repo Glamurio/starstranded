@@ -65,7 +65,8 @@ def test_plant_without_fruit_never_grows(small_world):
 def test_full_inventory_drops_an_item_on_an_adjacent_tile(small_world):
     e = small_world()
     t = make_fruiting_tree(e)
-    t.SHED_CHANCE = 1.0              # (a real tree almost never sheds: see test_a_full_tree_practically_never_sheds)
+    t.SHED_CHANCE = 1.0
+    t.SHEDS = True              # (a real tree almost never sheds: see test_a_full_tree_practically_never_sheds)
     for _ in range(10):
         t.inventory.add(Branch(t))
     assert t.inventory.is_full()
@@ -132,6 +133,7 @@ def test_a_full_plant_keeps_dropping_fruit_while_its_chunk_is_not_watched(small_
     e = small_world(width=20, height=20)
     t = make_fruiting_tree(e, 10, 10)
     t.SHED_CHANCE = 1.0
+    t.SHEDS = True
     t.inventory.capacity = 2
     e.game_map.plant_queue.schedule(t, 0)
     run_queue(e, 60)
@@ -180,6 +182,7 @@ def test_a_tree_never_drops_into_solid_rock(small_world):
             if (dx, dy) != (0, 0):
                 e.game_map.set_tile(5 + dx, 5 + dy, tile_types.wall.get_array())
     t.SHED_CHANCE = 1.0
+    t.SHEDS = True
     random.seed(1)
 
     def on_ground():

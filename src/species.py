@@ -96,6 +96,7 @@ class ItemKind(_Definition):
     tool_tags: Tuple[str, ...] = ()  # capabilities held while this tool is carried (see capabilities.py)
     station: Optional[str] = None    # capability a placed copy provides to crafters nearby (workbench, furnace)
     base_power: int = 0              # property-made weapons: power at a delivery rating of 5 (see items.Gear.power_bonus)
+    parent_key: Optional[str] = None  # fruit and blooms: the key of the PlantSpecies that bears it
 
 
 @dataclass(frozen=True)

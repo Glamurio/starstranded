@@ -102,6 +102,10 @@ def render_names_at_mouse_location(
 def tooltip_lines(entity) -> list:
     """What the hover tooltip says about one thing: its condition and attitude if it is a creature."""
     lines = []
+    import lore
+    state = lore.scan_state(entity.engine, entity) if getattr(entity, "engine", None) is not None else None
+    if state:
+        lines.append(f"{state}" + (" (X to scan)" if state != "scanned" else ""))
     if getattr(entity, "category", None) is not None and entity.category.name == "UNIT":
         if not entity.is_alive:
             lines.append("dead")

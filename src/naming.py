@@ -73,7 +73,7 @@ HUMAN: Dict[str, Tuple[str, ...]] = {
     "teal": ("Teal", "Verdigris", "Aqua"), "blue": ("Blue", "Azure", "Cobalt", "Sky"),
     "indigo": ("Indigo", "Midnight", "Navy"), "violet": ("Violet", "Lilac", "Plum"), "pink": ("Pink", "Rose", "Blush"),
     "brown": ("Brown", "Umber", "Chestnut"), "white": ("White", "Pale", "Ivory", "Snow"),
-    "black": ("Black", "Soot", "Ebony", "Coal"), "grey": ("Grey", "Ash", "Slate", "Dun"),
+    "black": ("Black", "Soot", "Ebony", "Jet"), "grey": ("Grey", "Ash", "Slate", "Dun"),
     "wood": ("wood", "timber"), "tree": ("tree", "bole"), "stone": ("stone", "rock"), "rock": ("rock", "crag"),
     "metal": ("metal", "steel"), "fibre": ("fibre", "strand"), "hide": ("hide", "skin"), "bone": ("bone",),
     "clay": ("clay", "mud"), "sand": ("sand", "grit"), "glass": ("glass",), "crystal": ("crystal", "spar"),
@@ -176,6 +176,8 @@ class Name:
     text: str
     gloss: str                      # what it means, in plain English ("blue spring-wood")
     reasons: Tuple[Tuple[str, str], ...] = ()   # (property, "high"/"low") justifications, for tests and the codex
+    modifier: str = ""              # organisms: the distinguishing word of "scarlet fir" (its children, the fruit, share it)
+    form: str = ""                  # organisms: what it looks like: "fir"
 
 
 def hue_name(color: RGB) -> str:
@@ -249,6 +251,17 @@ def provisional(family: str, color: RGB, culture: str = "human", furred: bool = 
     return f"{colour} {nouns.get(family, family)}"
 
 
+
+_ONSETS = ("v", "k", "th", "s", "m", "l", "r", "z", "n", "b", "d", "f", "g", "t", "h", "j", "sh")
+_VOWELS = ("a", "e", "i", "o", "u")
+_CODAS = ("n", "r", "l", "s", "x", "m", "k", "", "")
+
+
+def coined(rng: random.Random) -> str:
+    """An invented but pronounceable word ("vasmir", "thelon") for things that have no everyday name yet."""
+    return "".join(rng.choice(_ONSETS) + rng.choice(_VOWELS) + rng.choice(_CODAS) for _ in range(2))
+
+
 class Namer:
     """Names one planet's things for one culture, resolving collisions in call order."""
 
@@ -272,15 +285,70 @@ class Namer:
                 self.used.add(_norm(candidate.text))
                 self.glosses[candidate.text] = candidate.gloss
                 return candidate
-        # exhausted: add a catalogue qualifier (rare; keeps names unique)
-        base = self._compose(rng, traits, colour, nouns, 0)
-        serial = 2
-        while _norm(f"{base.text} {_roman(serial)}") in self.used:
-            serial += 1
-        text = f"{base.text} {_roman(serial)}"
-        self.used.add(_norm(text))
+        # exhausted: a coined qualifier keeps names unique ("vasmir pale stone"); numerals are the very last resort
+        base = next((b for b in (self._compose(rng, traits, colour, nouns, k) for k in range(12, 40)) if _well_formed(b.text)),
+                    self._compose(rng, traits, colour, nouns, 0))
+        text = self._unique(rng, base.text)
         self.glosses[text] = base.gloss
         return Name(text, base.gloss, base.reasons)
+
+    def _unique(self, rng: random.Random, base: str) -> str:
+        """`base` made unique among this planet's names by a coined qualifier before it (never "II")."""
+        for _ in range(60):
+            text = _plain(self.culture, f"{coined(rng)} {base}") if self.culture == "human" else _plain(self.culture, f"{base}-{coined(rng)}")
+            if _norm(text) not in self.used:
+                self.used.add(_norm(text))
+                return text
+        serial = 2
+        while _norm(f"{base} {_roman(serial)}") in self.used:
+            serial += 1
+        text = f"{base} {_roman(serial)}"
+        self.used.add(_norm(text))
+        return text
+
+    def organism(self, key: str, forms: Sequence[str], color: RGB, props: Optional[Mapping[str, float]] = None, family: str = "tree") -> Name:
+        """A plant's name from what it looks like: a distinguishing word and its form ("scarlet fir", "vasmir toadstool").
+        `forms` are the everyday words for its shape (chosen from its sprite). Other cultures keep their own word-building."""
+        if self.culture != "human" or not forms:
+            return self.name(key, family, color, props)
+        rng = random.Random(mix_seed(self.seed, hash_key(key)))
+        colour = hue_name(color)
+        traits = salient_traits(props or {}, limit=1, family=family)
+        palette = [w.lower() for w in HUMAN[colour]]
+        trait_words = [w.lower() for w in HUMAN[TRAIT_CONCEPTS[(traits[0][0], traits[0][1])]]] if traits else []
+        for attempt in range(48):
+            form = forms[attempt % len(forms)] if attempt < 2 * len(forms) else rng.choice(forms)
+            roll = rng.random() if attempt < 8 else 0.7          # the plain colour words run out first: then coin one
+            if roll < 0.55:
+                modifier = rng.choice(palette)
+            elif roll < 0.88:
+                modifier = coined(rng)
+            else:
+                modifier = rng.choice(trait_words or palette)
+            text = f"{modifier} {form}"
+            if _norm(text) not in self.used and modifier not in form:
+                self.used.add(_norm(text))
+                gloss = f"{colour} {form}"
+                self.glosses[text] = gloss
+                return Name(text, gloss, (), modifier, form)
+        text = self._unique(rng, f"{rng.choice(palette)} {forms[0]}")
+        return Name(text, f"{colour} {forms[0]}", (), text.split(" ")[0], forms[0])
+
+    def fruit_of(self, key: str, parent: Name, nouns: Sequence[str]) -> str:
+        """A fruit's name from its parent plant and its own kind: "scarlet" fir -> "scarlet cone"; a clash adds the parent's form."""
+        rng = random.Random(mix_seed(self.seed, hash_key(key)))
+        if self.culture != "human" or not parent.modifier:
+            return self.fruit(key, (128, 128, 128), rng.choice(list(nouns)))
+        noun = rng.choice(list(nouns))
+        extra = " ".join(w for w in parent.form.split() if w not in noun.split())   # "barrel" of "barrel cactus" before "cactus fig"
+        candidates = [f"{parent.modifier} {noun}"] + ([f"{parent.modifier} {extra} {noun}"] if extra else [])
+        for text in candidates:
+            if _norm(text) not in self.used:
+                self.used.add(_norm(text))
+                self.glosses[text] = text
+                return text
+        text = self._unique(rng, f"{parent.modifier} {noun}")
+        return text
 
     def fruit(self, key: str, color: RGB, shape: str) -> str:
         """A fruit's name: its colour word and its shape ("Azure pear"); other cultures name the colour and "plant fruit"."""
