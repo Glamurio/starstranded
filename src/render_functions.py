@@ -34,6 +34,10 @@ def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
     description = liquids.describe(game_map.tile_at(x, y))
     if description:
         names = f"{names}, {description}" if names else description
+    import terrain_text
+    ground = terrain_text.describe(game_map, x, y)
+    if ground:
+        names = f"{names}, {ground}" if names else ground
     if not names and getattr(game_map, "engine", None) is not None:
         rock = rock_face_at(game_map.engine, x, y)
         if rock is not None:

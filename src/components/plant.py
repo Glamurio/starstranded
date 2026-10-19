@@ -56,6 +56,13 @@ class Plant(Entity):
         return self.kind.fruit
 
     @property
+    def prominence(self) -> int:
+        """How loudly it is drawn: 2 something to pick right now, 1 a tree or fruit-bearer, 0 decoration (see `atlas.FOLIAGE_LEVELS`)."""
+        if not self.dead and self.inventory is not None and (self.inventory.items or self.inventory.placeholders):
+            return 2
+        return 1 if self.fruit or self.kind.category is defs.PlantCategory.TREE else 0
+
+    @property
     def is_corpse(self) -> bool:
         return self.dead
 

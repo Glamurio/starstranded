@@ -605,7 +605,7 @@ class World(SpatialContainer):
                     elif entity.is_corpse and entity.category is EntityCategory.UNIT:
                         picture = atlas.get_remains(entity.sprite_id, entity.mirrored and getattr(entity.kind, "mirror", False), entity.shade)
                     elif entity.category is EntityCategory.PLANT:
-                        picture = atlas.get_foliage(entity.sprite_id, entity.flipped, entity.shade)
+                        picture = atlas.get_foliage(entity.sprite_id, entity.flipped, entity.shade, entity.prominence)
                     elif getattr(entity, "rotation", 0):
                         picture = atlas.get_rotated(entity.sprite_id, getattr(entity, "pose_flip", False), entity.shade, entity.rotation)
                     else:
