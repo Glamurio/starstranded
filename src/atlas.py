@@ -75,6 +75,7 @@ def _mask_to_surface(mask: np.ndarray) -> pygame.Surface:
 # transparent; trees and fruit-bearers stay nearly true to colour; a plant with something to pick is drawn in full.
 FOLIAGE_LEVELS = {0: (0.55, 0.9, 205), 1: (0.85, 0.97, 240)}   # level: (colour kept, darkening, alpha)
 FOLIAGE_COLOR, FOLIAGE_DARKEN, FOLIAGE_ALPHA = FOLIAGE_LEVELS[0]
+HALO_COLOR = (255, 255, 255, 80)   # the outline of creatures and loose items
 """Plants keep this share of their colour, are this bright, and this opaque (of 255)."""
 
 
@@ -171,6 +172,23 @@ class SpriteAtlas:
         body = pygame.transform.rotate(self.get(sprite, flipped, tuple(int(c * 0.7) for c in tint)), 90)
         self._cache[key] = body
         return body
+
+    def get_halo(self, sprite: int, flipped: bool, tint: RGB) -> pygame.Surface:
+        """A sprite with a faint pale outline: creatures and loose items carry one, so they stand out from the plants and ground
+        around them (which have none) without being recoloured."""
+        key = (sprite, bool(flipped), tuple(tint), "halo")
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        body = self.get(sprite, flipped, tint)
+        shadow = pygame.mask.from_surface(body, 40).to_surface(setcolor=HALO_COLOR, unsetcolor=(0, 0, 0, 0))
+        picture = pygame.Surface(body.get_size(), pygame.SRCALPHA, 32)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            picture.blit(shadow, (dx, dy))
+        picture.blit(body, (0, 0))
+        self._cache[key] = picture
+        return picture
 
     def get_foliage(self, sprite: int, flipped: bool, tint: RGB, level: int = 0) -> pygame.Surface:
         """A plant sprite drawn calmer than the things you can use: the colour is pulled towards grey and the picture is a

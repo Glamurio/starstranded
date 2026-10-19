@@ -610,6 +610,8 @@ class World(SpatialContainer):
                         picture = atlas.get_foliage(entity.sprite_id, entity.flipped, entity.shade, entity.prominence)
                     elif getattr(entity, "rotation", 0):
                         picture = atlas.get_rotated(entity.sprite_id, getattr(entity, "pose_flip", False), entity.shade, entity.rotation)
+                    elif entity.category in (EntityCategory.UNIT, EntityCategory.ITEM):
+                        picture = atlas.get_halo(entity.sprite_id, entity.flipped, entity.shade)
                     else:
                         picture = get(entity.sprite_id, entity.flipped, entity.shade)
                     entity_blits.append((picture, (sx * TILE, sy * TILE)))
