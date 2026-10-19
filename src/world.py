@@ -896,16 +896,19 @@ class GameWorld:
         """Passes game time in minutes after every player turn and runs the tiered simulation. Returns the time."""
 
         if unit == self.engine.player:
-            self.current_time += time
-            if not self.current_time % 4:
-                unit.handle_hunger(-1)
-            if not self.current_time % 2:
-                unit.handle_thirst(-1)
-            unit.tick_poison(1)
+            for _ in range(time):   # needs are paid minute by minute: a 5-minute job costs five minutes of hunger
+                self.current_time += 1
+                if not self.current_time % 4:
+                    unit.handle_hunger(-1)
+                if not self.current_time % 2:
+                    unit.handle_thirst(-1)
+                unit.tick_poison(1)
+                if self.planet is not None:  # the old single-species test worlds have no climate
+                    import survival
+                    survival.tick(self.engine, unit, 1)
+                if not unit.is_alive:
+                    break
             unit.last_upkeep = self.current_time
-            if self.planet is not None:  # the old single-species test worlds have no climate
-                import survival
-                survival.tick(self.engine, unit, max(1, time))
 
             self.release_arrivals()
             from simulation import run_turn
