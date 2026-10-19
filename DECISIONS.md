@@ -716,3 +716,6 @@ The plan above was implemented as written, with these specifics and deviations:
 - Scan: `lore.subject_of(engine, entity)` is the one place that says what a thing teaches; corpses and meat (which teaches about the animal) now count. `ScanThingAction` scans a specific thing (in a pack, or in a list of what lies around). Every inventory window has `[s] scan` (and `[d] drop` in your own pack) in its hint bar: clickable, and the keys S/D. The list's letter hotkeys skip s and d.
 - Stacks: `widgets.item_rows` merges identical things (same title and sprite, not equipped, not containers) into one row, "kindle wood branch x5". The items stay separate objects; selecting, scanning or dropping a stack acts on one of them.
 - Names: `naming.Namer` returns lower-case names (only people's names and corporate catalogue codes are capitalised). `items.noun_title` no longer repeats the noun ("grey rock", not "grey rock stone").
+
+## Trees hold their goods
+- A full plant lets an item fall with a 3% chance per growth cycle (`Plant.SHED_CHANCE`), onto a free neighbouring tile that is walkable, dry and not a staircase. Before, it dropped one every cycle and the tile check only looked at entities, so branches landed inside rock. Felling a tree still drops everything under it.

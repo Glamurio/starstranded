@@ -92,15 +92,22 @@ class Plant(Entity):
             self.growth = 0
             self.complete_cycle()
 
+    SHED_CHANCE = 0.03
+    """A full plant has this chance per growth cycle to let one of its items fall (so a tree holds its fruit and branches until
+    somebody takes them: it practically never sheds)."""
+
     def complete_cycle(self) -> None:
-        """A growth cycle finished: a full plant drops one of its items on a free neighbouring tile, then it
-        grows a branch and a fruit (if there is room)."""
+        """A growth cycle finished: a plant that is full may (rarely) drop one of its items on a free, dry, walkable
+        neighbouring tile, then it grows a branch and a fruit (if there is room)."""
         world = self.parent
-        if self.inventory.is_full() and world is not None:
+        if self.inventory.is_full() and world is not None and random.random() < self.SHED_CHANCE:
             item: Item = random.choice(self.inventory.items)
             adjacent_tiles = self.engine.get_adjacent_tiles(self.x, self.y)
             random.shuffle(adjacent_tiles)  # so it doesn't drop everything on the same tile
             for tile in adjacent_tiles:
+                ground = world.tile_at(tile[0], tile[1])
+                if ground is None or not ground["walkable"] or ground["liquid"] or ground["stairs"]:
+                    continue                   # never into solid rock, water or a staircase
                 entities = world.get_entities_at_location(tile[0], tile[1])
                 if len(entities) >= 3 or any(e.blocks_movement for e in entities):
                     continue

@@ -65,6 +65,7 @@ def test_plant_without_fruit_never_grows(small_world):
 def test_full_inventory_drops_an_item_on_an_adjacent_tile(small_world):
     e = small_world()
     t = make_fruiting_tree(e)
+    t.SHED_CHANCE = 1.0              # (a real tree almost never sheds: see test_a_full_tree_practically_never_sheds)
     for _ in range(10):
         t.inventory.add(Branch(t))
     assert t.inventory.is_full()
@@ -130,6 +131,7 @@ def test_removed_plants_are_dropped_from_the_queue(small_world):
 def test_a_full_plant_keeps_dropping_fruit_while_its_chunk_is_not_watched(small_world):
     e = small_world(width=20, height=20)
     t = make_fruiting_tree(e, 10, 10)
+    t.SHED_CHANCE = 1.0
     t.inventory.capacity = 2
     e.game_map.plant_queue.schedule(t, 0)
     run_queue(e, 60)
@@ -148,3 +150,45 @@ def test_felled_plant_opens_its_tile_and_drops_its_goods(small_world):
     assert t.dead and t.parent is None and t not in e.game_map.entities
     dropped = [i for i in e.game_map.get_entities_at_location(3, 3) if type(i).__name__ != "Stump"]
     assert len(dropped) == 3 and all(type(i).__name__ == "Branch" for i in dropped)
+
+def _full_tree(e, x=5, y=5):
+    t = make_fruiting_tree(e, x, y)
+    while not t.inventory.is_full():
+        t.inventory.add(Branch(t))
+    return t
+
+
+def test_a_full_tree_practically_never_sheds(small_world):
+    import random
+    e = small_world()
+    t = _full_tree(e)
+    random.seed(4)
+    held = len(t.inventory.items)
+    for _ in range(100):
+        t.complete_cycle()
+    dropped = held - len(t.inventory.items)
+    assert 0 <= dropped <= 12              # (about three in a hundred cycles, never most of them)
+
+
+def test_a_tree_never_drops_into_solid_rock(small_world):
+    import random
+    import tile_types
+    e = small_world()
+    t = _full_tree(e)
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if (dx, dy) != (0, 0):
+                e.game_map.set_tile(5 + dx, 5 + dy, tile_types.wall.get_array())
+    t.SHED_CHANCE = 1.0
+    random.seed(1)
+
+    def on_ground():
+        return [i for i in e.game_map.items if i.parent is e.game_map]
+
+    for _ in range(20):
+        t.complete_cycle()
+    assert on_ground() == []                               # nowhere to drop: it keeps everything
+    e.game_map.set_tile(6, 5, tile_types.floor.get_array())
+    t.complete_cycle()
+    fallen = on_ground()
+    assert len(fallen) == 1 and (fallen[0].x, fallen[0].y) == (6, 5)    # the one open tile is where it falls
