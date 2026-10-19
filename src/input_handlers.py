@@ -957,8 +957,10 @@ class InventoryActivateHandler(InventoryEventHandler):
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
         if isinstance(item, Equippable):
             return actions.EquipAction(self.inventory.parent, item)
-        else:
-            return item.activate(self.inventory.parent)
+        from components.consumable import FoodConsumable
+        if isinstance(item, FoodConsumable):
+            return actions.EatAction(self.inventory.parent, item)   # eating takes a turn
+        return item.activate(self.inventory.parent)
 
 
 class InventoryDropHandler(InventoryEventHandler):

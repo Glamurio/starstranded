@@ -442,6 +442,18 @@ class SharpenAction(Action):
         self.engine.game_world.pass_time(unit=user, time=2)
 
 
+class EatAction(Action):
+    """Eat or drink a food from the pack: it takes a turn (but only if the user can digest it)."""
+
+    def __init__(self, entity: Unit, item):
+        super().__init__(entity)
+        self.item = item
+
+    def perform(self) -> None:
+        self.item.activate(self.entity)   # raises Impossible, before time passes, if it cannot be digested
+        self.engine.game_world.pass_time(unit=self.entity, time=1)
+
+
 class UseMedkitAction(Action):
     def __init__(self, entity: Unit, kit):
         super().__init__(entity)
