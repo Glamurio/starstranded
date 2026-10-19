@@ -777,3 +777,8 @@ The plan above was implemented as written, with these specifics and deviations:
 **Why:** the brief asks for icons from existing assets and for environment-weighted spawning with evidence.
 **Alternative:** new icon art; rejected (existing assets suffice). Spawn caps per species; rejected (weights express it already).
 Appearance, species identity and behaviour are already separate fields of `FaunaTemplate` (sprite and forms; name family, diet, covering, habitat; ai, power, damage type), so a species can be re-skinned without changing how it acts; the landmark variants reuse this by re-making a baseline with a tint.
+
+## Routes are laid whole or not at all (readability round)
+**What:** `routes.laid` tries up to `ATTEMPTS` (6) bends of a route (later attempts bend further) and lays the first one that can be walked from end to end: open ground, or a bridge over at most `MAX_SPAN` tiles of clean water (no lava, hot spring or waterfall) with dry ground on both banks. If none qualifies it lays nothing. `paint` is unchanged (it still only replaces plain floor, so rock, structures and buildings are never overwritten).
+**Why:** a route over rock or wide water used to be laid in pieces, leaving roads that stop at a cliff or lake edge and bridges to nowhere. About a third of the routes in a sample survive; the rest ran to sites on the sea or behind mountains.
+**Alternative:** a real path search (A*) around obstacles; deferred: it would need terrain far outside the chunk being generated, and straight roads with one bend suit the scale. Player-built bridges and the natural bridges of `hydrology.bridge_tiles` are untouched.
