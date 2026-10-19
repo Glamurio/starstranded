@@ -459,7 +459,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     deck, banks = deck & (kinds == 0) & ~hot & ~fall & ~lava, banks & (kinds == 1) & ~landscape["open"]
     tile_types.lay_bridge(landscape, deck, (kinds == 1) & ~deck)     # the odd natural bridge over a narrow river
     landscape[banks] = tile_types.path.get_array()
-    tree_map &= ~landscape["open"] & ~deck & ~banks        # nothing grows over a chasm, a bridge or its path
+    tree_map &= ~landscape["open"] & ~deck & ~banks & landscape["walkable"]        # nothing grows over a chasm, a bridge, its path or solid rock
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
 
@@ -565,6 +565,8 @@ class NoiseWorldSource:
                 self._spawn_fauna(world, chunk, env, reserved)
                 self._place_sites(world, chunk)
                 settlements.populate(world, chunk, self.floor_seed, self.planet)
+                import housing
+                housing.raise_building(world, chunk, self.floor_seed, 0)
                 self._scatter_flowers(world, chunk, env, reserved)
                 self._scatter_lily_pads(world, chunk)
         for entity in chunk.entities:
@@ -831,4 +833,5 @@ class SkySource:
         return Chunk(key, self.terrain(key).copy())
 
     def populate(self, world: World, chunk: Chunk) -> None:
-        pass
+        import housing
+        housing.raise_building(world, chunk, self.master_seed, self.z)

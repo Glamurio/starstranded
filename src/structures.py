@@ -282,7 +282,7 @@ def _free(world, x, y) -> bool:
     if not world.in_bounds(x, y) or not world.is_walkable(x, y) or world.is_blocked(x, y):
         return False
     tile = world.tile_at(x, y)
-    return not int(tile["liquid"]) and not [e for e in world.get_entities_at_location(x, y) if e.blocks_movement]
+    return not int(tile["liquid"]) and not [e for e in world.get_entities_at_location(x, y) if not getattr(e, "decal", False)]   # (nothing stands where a shrub or stone already does)
 
 
 def _roomy(world, x, y) -> bool:

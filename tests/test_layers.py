@@ -66,7 +66,7 @@ def test_stairs_are_connected_inside_caves():
                     assert path, (seed, key, z, (x, y))
 
 
-def test_buildings_have_walls_a_door_and_open_air_above():
+def test_buildings_have_a_floor_a_door_and_open_air_above():
     seen = 0
     for kx in range(-4, 5):
         for ky in range(-4, 5):
@@ -77,9 +77,9 @@ def test_buildings_have_walls_a_door_and_open_air_above():
             seen += 1
             key = (kx, ky)
             ground = shafts.surface_layer(3, key)[0]
-            assert not ground["walkable"][b.x, b.y] and ground["walkable"][b.door]
+            assert ground["walkable"][b.x, b.y] and ground["walkable"][b.door]       # (the walls are entities, see housing)
             first = shafts.sky_layer(3, 1, key)
-            assert not first["walkable"][b.x, b.y] and first["open"][b.x - 1, b.y - 1]
+            assert first["walkable"][b.x, b.y] and first["open"][b.x - 1, b.y - 1]
             assert first["walkable"][b.x + 1, b.y + 1] and not first["open"][b.x + 1, b.y + 1]
             assert shafts.sky_layer(3, b.floors + 1, key)["open"].all()
     assert seen > 5

@@ -26,6 +26,8 @@ CHANCE = 0.16
 FARM_SHARE = 0.65
 """Of the settlements, the share that are farms (the rest are towns)."""
 MARGIN = 3
+CENTRE_JITTER = 2
+"""A settlement is centred in its chunk, give or take this many tiles (so it never sits across a chunk border)."""
 MEDKIT_CHANCE = 0.3
 
 
@@ -98,8 +100,8 @@ def _farm(rng: random.Random, blocked) -> Optional[Layout]:
     fw, fh = rng.randint(22, 30), rng.randint(13, 18)
     hw, hh = rng.randint(7, 9), rng.randint(5, 6)
     total_w = hw + 3 + fw
-    x0 = rng.randint(MARGIN, CHUNK_W - MARGIN - total_w)
-    y0 = rng.randint(MARGIN, CHUNK_H - MARGIN - max(fh, hh) - 1)
+    x0 = (CHUNK_W - total_w) // 2 + rng.randint(-CENTRE_JITTER, CENTRE_JITTER)       # (near the middle of the chunk, never straddling an edge)
+    y0 = (CHUNK_H - max(fh, hh)) // 2 + rng.randint(-CENTRE_JITTER, CENTRE_JITTER)
     house_left = rng.random() < 0.5
     hx = x0 if house_left else x0 + fw + 3
     fx = x0 + hw + 3 if house_left else x0
@@ -132,6 +134,9 @@ def _town(rng: random.Random, blocked) -> Optional[Layout]:
     if len(houses) < 3:
         return None
     first, last = min(h.x for h in houses), max(h.x + h.w for h in houses)
+    shift = (CHUNK_W - (last - first)) // 2 - first                    # centre the row of houses in the chunk
+    houses = [House(h.x + shift, h.y, h.w, h.h, (h.door[0] + shift, h.door[1])) for h in houses]
+    first, last = first + shift, last + shift
     street = (first - 2, street_y, last - first + 4, 2)
     bounds_ok = all(0 <= h.y and h.y + h.h < CHUNK_H for h in houses)
     if not bounds_ok or not _dry(blocked, street[0], street[1], street[2], 2):
@@ -147,7 +152,7 @@ def paint(master: int, key: ChunkKey, tiles: np.ndarray, tree_map: np.ndarray) -
     if found is None:
         return
     for house in found.houses:
-        _house(tiles, tree_map, house, timber=found.kind == "farm")
+        _house(tiles, tree_map, house)
     if found.kind == "farm":
         _field(tiles, tree_map, found)
     for x, y, w, h in found.streets:
@@ -186,19 +191,14 @@ def _crop_tiles(found: Layout) -> List[Tuple[int, int]]:
 
 
 def _wall_tiles(house: House) -> List[Tuple[int, int]]:
-    x, y, w, h = house.x, house.y, house.w, house.h
-    ring = [(i, j) for i in range(x, x + w) for j in (y, y + h - 1)] + [(i, j) for i in (x, x + w - 1) for j in range(y + 1, y + h - 1)]
-    return [t for t in ring if t != house.door]
+    import housing
+    return housing.ring(house.x, house.y, house.w, house.h, [house.door])
 
 
 def _build_farm(world, chunk, found: Layout, planet) -> None:
-    """The farm's solid parts as entities: timber house walls, the fence round the field, and the crops in its rows."""
+    """The farm's fence round the field and the crops in its rows, as entities."""
     import components.plant
-    from crafting import Fence, Wall
-    from items import DEFAULT_WOOD
-    for house in found.houses:
-        for lx, ly in _wall_tiles(house):
-            world.add_entity(Wall({"wood": DEFAULT_WOOD}, 1.0, {}), chunk.x0 + lx, chunk.y0 + ly)
+    from crafting import Fence
     for lx, ly in _fence_tiles(found):
         world.add_entity(Fence(), chunk.x0 + lx, chunk.y0 + ly)
     if planet is not None:
@@ -219,6 +219,11 @@ def populate(world, chunk, master: int, planet=None) -> None:
     if found is None:
         return
     nobody = types.SimpleNamespace(inventory=None)
+    import housing
+    wood = found.kind == "farm" or _mix(master, chunk.key[0], chunk.key[1], 5) % 2 == 0          # (farmhouses are timber; towns are timber or stone)
+    material = housing.material_for(planet, _mix(master, chunk.key[0], chunk.key[1], 6), "wood" if wood else "stone")
+    for house in found.houses:
+        housing.raise_walls(world, chunk, _wall_tiles(house), material)
     if found.kind == "farm":
         _build_farm(world, chunk, found, planet)
     for house in found.houses:
@@ -245,10 +250,10 @@ def populate(world, chunk, master: int, planet=None) -> None:
             count -= 1
 
 
-def _house(tiles: np.ndarray, tree_map: np.ndarray, house: House, timber: bool = False) -> None:
-    """A house: stone walls in the terrain, or (`timber`, a farmhouse) a floor that `populate` stands wooden wall entities on."""
+def _house(tiles: np.ndarray, tree_map: np.ndarray, house: House) -> None:
+    """A house: floor over its whole plot; `populate` stands the wall entities round it (see `housing`)."""
     x, y, w, h = house.x, house.y, house.w, house.h
-    tiles[x:x + w, y:y + h] = (tile_types.floor if timber else tile_types.wall).get_array()
+    tiles[x:x + w, y:y + h] = tile_types.floor.get_array()
     tiles[x + 1:x + w - 1, y + 1:y + h - 1] = tile_types.floor.get_array()
     tiles[house.door] = tile_types.floor.get_array()
     tree_map[x - 1:x + w + 1, y - 1:y + h + 2] = False

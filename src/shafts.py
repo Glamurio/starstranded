@@ -156,7 +156,7 @@ def structure(master: int, key: ChunkKey) -> Structure:
         for _ in range(8):  # a site without liquid (no building in a lake)
             w, h = rng.randint(9, 15), rng.randint(7, 11)
             building = Building(
-                x=rng.randint(4, CHUNK_W - 4 - w), y=rng.randint(4, CHUNK_H - 5 - h), w=w, h=h, floors=rng.randint(1, 3)
+                x=(CHUNK_W - w) // 2 + rng.randint(-3, 3), y=(CHUNK_H - h) // 2 + rng.randint(-2, 2), w=w, h=h, floors=rng.randint(1, 3)
             )
             if not liquid[building.x - 1:building.x + w + 1, building.y - 1:building.y + h + 2].any():
                 x0, y0 = chunk_origin(key)
@@ -237,11 +237,10 @@ def surface_layer(master: int, key: ChunkKey) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def _build(tiles: np.ndarray, b: Building, z: int, x0: int, y0: int) -> None:
-    """Draw the building's walls and floor for layer `z` (0 = ground floor) into a chunk's tiles (chunk-local coordinates)."""
+    """Draw the building's floor for layer `z` (0 = ground floor) into a chunk's tiles (chunk-local coordinates)."""
     bx, by = b.x, b.y
-    tiles[bx:bx + b.w, by:by + b.h] = tile_types.wall.get_array()
     inner = tile_types.floor if z == 0 else tile_types.built_floor
-    tiles[bx + 1:bx + b.w - 1, by + 1:by + b.h - 1] = inner.get_array()
+    tiles[bx:bx + b.w, by:by + b.h] = inner.get_array()          # (the walls are entities, see `housing`)
     if z == 0:
         dx, dy = b.door
         tiles[dx, dy] = tile_types.floor.get_array()
