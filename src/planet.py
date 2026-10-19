@@ -94,7 +94,7 @@ class FloraTemplate:
 # What each kind of plant looks like, in everyday words (the sprite decides the shape; see components/names.tree_pos_names):
 # a species is named "<distinguishing word> <form>", e.g. "scarlet fir".
 FORMS: Dict[str, Tuple[str, ...]] = {
-    "broadleaf": ("oak", "maple", "beech", "elm", "birch", "poplar"), "acacia": ("acacia", "thorn tree", "jacaranda"),
+    "broadleaf": ("oak", "maple", "beech", "elm", "birch", "apple tree", "plum tree", "pear tree"), "acacia": ("acacia", "thorn tree", "jacaranda"),
     "willow": ("willow", "weeping tree"), "conifer": ("pine", "fir", "larch", "spruce", "hemlock"),
     "cypress": ("cypress", "cedar", "juniper"), "palm": ("palm", "fan palm"), "coast_palm": ("palm", "beach palm"),
     "fungal_tree": ("toadstool", "giant mushroom", "morel", "shelf fungus"), "cactus": ("cactus", "cereus", "succulent"),
@@ -102,22 +102,33 @@ FORMS: Dict[str, Tuple[str, ...]] = {
     "bush": ("bush", "shrub", "scrub"), "thorns": ("thornbush", "bramble", "briar", "thistle"),
     "spore_bush": ("puffball", "spore bush"), "shard_bush": ("glass thorn", "shard bush"), "ash_shrub": ("ash shrub", "cinder bush"),
     "dead_tree": ("dead tree", "snag"), "beach_grass": ("dune grass", "marram", "sedge"),
-    "meadow_flower": ("flower", "bell", "star", "aster", "blossom"), "meadow_bloom": ("bloom", "bell", "aster", "blossom"),
+    "meadow_flower": ("flower", "bell", "star", "aster", "daisy"), "meadow_bloom": ("bell", "aster", "star", "lily"),
     "marsh_flower": ("marsh bell", "water star", "bog aster"), "dry_flower": ("sun star", "dust aster", "desert bell"),
     "crystal_bloom": ("frost bell", "glass flower", "shard bloom"),
 }
-# What each bears: (fruit sprite, names of the fruit), so an oak bears acorns and a bush berries.
-FRUITS: Dict[str, Tuple[Tuple[Tuple[int, int], Tuple[str, ...]], ...]] = {
-    "broadleaf": (((13, 21), ("acorn", "nut")), ((3, 21), ("apple", "plum")), ((8, 21), ("pear", "nut"))),
-    "acacia": (((4, 21), ("pod", "bean pod")),), "willow": (((18, 21), ("catkin berry", "berry")),),
-    "conifer": (((13, 21), ("cone", "pine nut")),), "cypress": (((18, 21), ("juniper berry", "berry")),),
-    "palm": (((122, 0), ("date", "palm nut")),), "coast_palm": (((8, 21), ("coconut", "palm nut")),),
-    "fungal_tree": (((0, 21), ("spore cap",)),), "cactus": (((24, 21), ("cactus fig", "prickly pear")),),
-    "barrel_cactus": (((24, 21), ("cactus fig", "prickly pear")),), "reeds": (((9, 21), ("seed head", "shoot")),),
-    "bush": (((18, 21), ("berry",)), ((6, 21), ("berry", "cherry"))), "thorns": (((18, 21), ("sloe", "haw berry")),),
-    "spore_bush": (((0, 21), ("spore cap",)),), "shard_bush": (((18, 21), ("berry",)),),
-    "ash_shrub": (((18, 21), ("ash berry", "berry")),), "beach_grass": (((9, 21), ("seed head", "shoot")),),
+# What each form bears: (fruit sprite, fruit name). An oak bears acorns, an apple tree apples; unlisted forms fall back to the
+# template's list. The sprites are the item sheet's row 21 (see components.names.fruit_pos_names).
+FORM_FRUITS: Dict[str, Tuple[Tuple[Tuple[int, int], str], ...]] = {
+    "oak": (((13, 21), "acorn"),), "beech": (((14, 21), "beechnut"),), "maple": (((8, 21), "seed"),), "elm": (((8, 21), "seed"),),
+    "birch": (((8, 21), "seed"),), "apple tree": (((3, 21), "apple"),), "plum tree": (((21, 21), "plum"),), "pear tree": (((17, 21), "pear"),),
+    "acacia": (((122, 0), "bean pod"),), "thorn tree": (((122, 0), "bean pod"),), "jacaranda": (((122, 0), "bean pod"),),
+    "willow": (((18, 21), "catkin"),), "weeping tree": (((18, 21), "catkin"),),
+    "pine": (((14, 21), "cone"),), "fir": (((14, 21), "cone"),), "larch": (((14, 21), "cone"),), "spruce": (((14, 21), "cone"),),
+    "hemlock": (((14, 21), "cone"),), "cypress": (((14, 21), "cone"),), "cedar": (((14, 21), "cone"),), "juniper": (((18, 21), "juniper berry"),),
+    "palm": (((122, 0), "date"),), "fan palm": (((122, 0), "date"),), "beach palm": (((15, 21), "coconut"),),
+    "toadstool": (((0, 21), "spore cap"),), "giant mushroom": (((0, 21), "spore cap"),), "morel": (((0, 21), "spore cap"),),
+    "shelf fungus": (((0, 21), "spore cap"),), "puffball": (((0, 21), "spore cap"),), "spore bush": (((0, 21), "spore cap"),),
+    "cactus": (((17, 21), "prickly pear"),), "cereus": (((17, 21), "prickly pear"),), "succulent": (((17, 21), "prickly pear"),),
+    "barrel cactus": (((17, 21), "prickly pear"),), "pincushion": (((17, 21), "prickly pear"),),
+    "reed": (((22, 21), "seed head"),), "rush": (((22, 21), "seed head"),), "sedge": (((22, 21), "seed head"),), "cane": (((22, 21), "seed head"),),
+    "dune grass": (((22, 21), "seed head"),), "marram": (((22, 21), "seed head"),),
+    "bush": (((18, 21), "berry"), ((24, 21), "berry")), "shrub": (((18, 21), "berry"),), "scrub": (((18, 21), "berry"),),
+    "thornbush": (((18, 21), "sloe"),), "bramble": (((18, 21), "blackberry"),), "briar": (((6, 21), "hip"),), "thistle": (((22, 21), "seed head"),),
+    "glass thorn": (((24, 21), "glass berry"),), "shard bush": (((24, 21), "glass berry"),), "ash shrub": (((18, 21), "ash berry"),),
+    "cinder bush": (((18, 21), "ember berry"),),
 }
+BLOOM_SPRITE = (107, 0)
+BLOOM_NOUNS = ("blossom", "bud")
 
 _FERTILE = (0.4, 1.0)
 FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
@@ -413,7 +424,7 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
     else:
         color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
     if template.key not in ("fungal_tree", "dead_tree", "ash_shrub"):   # (fungus, dead wood and ash keep their own colours)
-        color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04))
+        color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04) + 0.1 * index)    # (a template's variants differ in colour)
     slot = index % len(template.sprites)
     sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])
     if template.category is PlantCategory.FLOWER:
@@ -435,11 +446,12 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         fam_enum = Family.FIBER
         fuel = dict(burn_yield=round(4 + props["combustibility"] * 2, 1), burn_duration=2)
     forms = FORMS.get(template.key) or (("bush",) if template.category is PlantCategory.SHRUB else ("tree",))
-    name = namer.organism(f"flora:{template.key}:{index}", forms, color, props, template.name_family if template.name_family in ("fungus", "grass", "shrub") else family)
+    form = rng.choice(forms)     # (drawn here, not by the namer, so the world does not depend on the naming culture)
+    name = namer.organism(f"flora:{template.key}:{index}", (form,), color, props, template.name_family if template.name_family in ("fungus", "grass", "shrub") else family)
     material = add(Material(key, name.text, fam_enum, color, **props, **fuel))
     fruit = None
     if rng.random() < template.fruit_chance:
-        fruit = _make_fruit(rng, namer, template, index, color, name)
+        fruit = _make_fruit(rng, namer, template, index, color, name, form)
     stem = material if template.category is PlantCategory.TREE else None
     fiber = material if template.category is PlantCategory.SHRUB else None
     return PlantSpecies(
@@ -454,10 +466,12 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
 
 def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, color: RGB, sprite) -> PlantSpecies:
     """A flower species: a named plant that does not block, and the bloom it bears (an item named after it)."""
-    name = namer.organism(f"flora:{template.key}:{index}", FORMS.get(template.key, ("flower",)), color, {}, "flower")
-    label = (name.text if "bloom" in name.text else f"{name.text} bloom") if namer.culture == "human" else namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
+    name = namer.organism(f"flora:{template.key}:{index}", (rng.choice(FORMS.get(template.key, ("flower",))),), color, {}, "flower")
+    noun = rng.choice(BLOOM_NOUNS)
+    label = namer.fruit_of(f"bloom:{template.key}:{index}", name, (noun,)) if namer.culture == "human" and name.modifier \
+        else namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
     toxic = rng.random() < 0.2
-    bloom = ItemKind(None, "Consumable", species=label, sprite=sprite, color=color, shade_sigma=8,
+    bloom = ItemKind(None, "Consumable", species=label, sprite=BLOOM_SPRITE, color=color, shade_sigma=8,
                      hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=rng.randint(6, 14) if toxic else 0,
                      parent_key=f"planet:flora:{template.key}:{index}")
     return PlantSpecies(
@@ -470,21 +484,19 @@ def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, inde
 _FRUIT_SPRITES = ((3, 21), (4, 21), (6, 21), (8, 21), (12, 21), (13, 21), (15, 21), (18, 21), (19, 21), (24, 21), (16, 21), (22, 21))
 
 
-def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, plant_color: RGB, parent: "Name") -> ItemKind:
+def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, plant_color: RGB, parent: "Name", form: str) -> Optional[ItemKind]:
     """The fruit a plant bears: a kind that suits its form (an oak: acorns), named after its parent ("scarlet acorn")."""
-    options = FRUITS.get(template.key)
-    if options:
-        sprite, nouns = rng.choice(options)
-    else:   # unlisted template: any fruit sprite, with the names its picture suggests
+    options = FORM_FRUITS.get(form)
+    if not options:       # an unlisted form: any fruit sprite, with the names its picture suggests
         from components.names import fruit_pos_names
         sprite = rng.choice(_FRUIT_SPRITES)
-        nouns = tuple(fruit_pos_names.get(sprite, ["fruit"]))
+        options = ((sprite, rng.choice(fruit_pos_names.get(sprite, ["fruit"]))),)
+    sprite, shape_word = rng.choice(options)
     # a fruit keeps its parent's colour family, lighter or deeper (so the name's colour word is true)
     fruit_color = tuple(max(30, min(255, int(c * rng.uniform(0.85, 1.25)) + rng.randint(-12, 30))) for c in plant_color)
     toxic = rng.random() < 0.25
-    shape_word = rng.choice(nouns)  # always drawn: the world must not depend on the naming culture
     if namer.culture == "human" and parent.modifier:
-        label = namer.fruit_of(f"fruit:{template.key}:{index}", Name(parent.text, parent.gloss, (), parent.modifier, parent.form), (shape_word,))
+        label = namer.fruit_of(f"fruit:{template.key}:{index}", parent, (shape_word,))
     else:
         label = namer.fruit(f"fruit:{template.key}:{index}", fruit_color, shape_word)
     return ItemKind(None, "Consumable", species=label, sprite=sprite, color=fruit_color, shade_sigma=10,

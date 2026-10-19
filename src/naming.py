@@ -68,12 +68,12 @@ HUMAN: Dict[str, Tuple[str, ...]] = {
     "spark": ("Spark", "Volt", "Static"), "heat": ("Sun", "Hot", "Kiln"), "tinder": ("Tinder", "Kindle", "Flare"),
     "fuel": ("Burn", "Cinder", "Blaze"), "clear": ("Clear", "Lucid", "Glassy"), "glow": ("Glow", "Ember", "Lume"),
     "ray": ("Ray", "Halo", "Radiant"), "grit": ("Grit", "Scour", "Whet"),
-    "red": ("Red", "Scarlet", "Crimson", "Ruby"), "orange": ("Orange", "Amber", "Copper", "Rust"),
-    "yellow": ("Yellow", "Gold", "Straw", "Saffron"), "green": ("Green", "Moss", "Fern", "Jade"),
-    "teal": ("Teal", "Verdigris", "Aqua"), "blue": ("Blue", "Azure", "Cobalt", "Sky"),
-    "indigo": ("Indigo", "Midnight", "Navy"), "violet": ("Violet", "Lilac", "Plum"), "pink": ("Pink", "Rose", "Blush"),
-    "brown": ("Brown", "Umber", "Chestnut"), "white": ("White", "Pale", "Ivory", "Snow"),
-    "black": ("Black", "Soot", "Ebony", "Jet"), "grey": ("Grey", "Ash", "Slate", "Dun"),
+    "red": ("Red", "Scarlet", "Crimson", "Ruby", "Cardinal", "Madder"), "orange": ("Orange", "Amber", "Copper", "Rust", "Ochre", "Tangerine"),
+    "yellow": ("Yellow", "Gold", "Straw", "Saffron", "Citrine", "Mustard"), "green": ("Green", "Moss", "Lichen", "Jade", "Sage", "Olive", "Emerald", "Viridian"),
+    "teal": ("Teal", "Verdigris", "Aqua", "Turquoise", "Lagoon"), "blue": ("Blue", "Azure", "Cobalt", "Sky", "Cerulean", "Sapphire"),
+    "indigo": ("Indigo", "Midnight", "Navy", "Dusk", "Ink"), "violet": ("Violet", "Lilac", "Plum", "Orchid", "Amethyst", "Mauve"), "pink": ("Pink", "Rose", "Blush", "Coral", "Peach", "Carnation"),
+    "brown": ("Brown", "Umber", "Chestnut", "Russet", "Sepia", "Bronze"), "white": ("White", "Pale", "Ivory", "Snow", "Pearl", "Chalk"),
+    "black": ("Black", "Soot", "Ebony", "Jet"), "grey": ("Grey", "Ash", "Slate", "Dun", "Smoke", "Pewter"),
     "wood": ("wood", "timber"), "tree": ("tree", "bole"), "stone": ("stone", "rock"), "rock": ("rock", "crag"),
     "metal": ("metal", "steel"), "fibre": ("fibre", "strand"), "hide": ("hide", "skin"), "bone": ("bone",),
     "clay": ("clay", "mud"), "sand": ("sand", "grit"), "glass": ("glass",), "crystal": ("crystal", "spar"),
@@ -319,9 +319,9 @@ class Namer:
         for attempt in range(48):
             form = forms[attempt % len(forms)] if attempt < 2 * len(forms) else rng.choice(forms)
             roll = rng.random() if attempt < 8 else 0.7          # the plain colour words run out first: then coin one
-            if roll < 0.55:
+            if roll < 0.5:
                 modifier = rng.choice(palette)
-            elif roll < 0.88:
+            elif roll < 0.9:
                 modifier = coined(rng)
             else:
                 modifier = rng.choice(trait_words or palette)

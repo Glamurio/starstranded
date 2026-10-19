@@ -46,14 +46,24 @@ def test_fruit_is_named_after_its_parent_and_points_back_to_it():
             assert fruit.species.startswith(modifier) or fruit.species == species.name, (species.name, fruit.species)
 
 
-def test_an_oak_bears_acorns_and_palms_bear_dates_not_bananas():
+def test_each_form_bears_the_fruit_its_sprite_shows():
     for planet in planets():
         for species in planet.flora:
             template = species.key.split(":")[2]
-            if species.fruit is None or template not in ("conifer", "palm", "cactus", "fungal_tree"):
+            if species.fruit is None or species.category.name == "FLOWER":
                 continue
-            allowed = {noun for _, nouns in pl.FRUITS[template] for noun in nouns}
-            assert any(species.fruit.species.endswith(noun) for noun in allowed), (species.name, species.fruit.species)
+            form = max((f for f in pl.FORMS[template] if species.name.endswith(f)), key=len)
+            allowed = {noun for _, noun in pl.FORM_FRUITS.get(form, ())}
+            if allowed:
+                assert any(species.fruit.species.endswith(noun) for noun in allowed), (species.name, species.fruit.species)
+                assert species.fruit.sprite in {sprite for sprite, _ in pl.FORM_FRUITS[form]}
+
+
+def test_a_bloom_is_never_named_like_its_flower():
+    for planet in planets():
+        for species in planet.flora:
+            if species.category.name == "FLOWER":
+                assert species.fruit.species != species.name and species.fruit.species.split(" ")[-1] in pl.BLOOM_NOUNS
 
 
 def test_the_unidentified_names_describe_shape_and_colour(new_engine):
