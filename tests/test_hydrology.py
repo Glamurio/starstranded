@@ -127,10 +127,10 @@ def test_hot_springs_lie_in_volcanic_country_and_are_real_pools():
                 if site is None:
                     continue
                 seen += 1
-                x, y, radius = site
+                x, y, radius, lava = site
                 env = worldgen.environment_for(noise, int(x), int(y), 1, 1, np.ones((1, 1), dtype=np.int8))
                 assert landmarks.key_of(int(env["landmark"][0, 0])) == "volcanic_mountains"
-                pool = hydrology.hot_spring_mask(noise, int(x) - 8, int(y) - 8, 17, 17)
+                pool = hydrology.hot_spring_mask(noise, int(x) - 8, int(y) - 8, 17, 17, lava=lava)
                 assert pool.sum() >= 12
     assert seen >= 3
 
@@ -152,3 +152,38 @@ def test_hot_spring_tiles_are_hot_liquid_and_scald_waders(new_engine):
     hp = engine.player.hp
     engine.player.move(x, y)
     assert engine.player.hp == hp - liquids.HOT_WADE_DAMAGE
+
+
+def test_lava_lakes_are_unwalkable_deep_and_only_in_the_volcanic_core():
+    import landmarks
+    import liquids
+    found = 0
+    for seed in (1, 5, 99, 7, 21, 33):
+        noise = worldgen.TerrainNoise(seed)
+        system = hydrology.system_for(noise)
+        for i in range(-16, 16):
+            for j in range(-10, 10):
+                site = system.hot_site(i, j)
+                if site is None or not site[3]:
+                    continue
+                x, y = int(site[0]), int(site[1])
+                env = worldgen.environment_for(noise, x, y, 1, 1, np.ones((1, 1), dtype=np.int8))
+                assert landmarks.key_of(int(env["landmark"][0, 0])) == "volcanic_mountains"
+                assert float(env["landmark_strength"][0, 0]) >= hydrology.LAVA_STRENGTH
+                tiles, _ = worldgen.generate_terrain(noise, x - 35, y - 20, 70, 40)
+                lava = tiles["liquid"] == int(liquids.LiquidKind.LAVA)
+                assert lava.sum() >= 12
+                assert not tiles["walkable"][lava].any() and (tiles["depth"][lava] == 3).all()
+                found += 1
+    assert found >= 1
+
+
+def test_waterfalls_are_deep_unwadable_foam_in_rivers():
+    import liquids
+    noise = worldgen.TerrainNoise(1234)
+    fall = hydrology.waterfall_mask(noise, -600, -350, 1200, 700)
+    assert fall.any()
+    x, y = (int(v) for v in np.argwhere(fall)[0])
+    tiles, _ = worldgen.generate_terrain(noise, x - 600 - 35, y - 350 - 20, 70, 40)
+    foam = (tiles["depth"] == 3) & (tiles["liquid"] != 0) & (tiles["light"]["fg"][..., 0] > 200)
+    assert foam.any() and not tiles["walkable"][foam].any()

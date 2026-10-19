@@ -249,3 +249,17 @@ def test_the_view_never_leaves_the_players_layer(new_engine):
         assert e.game_map is gw.world_at(gw.current_z) and e.player.parent is e.game_map
         assert e.game_map.z == gw.current_z
         assert [w for z, w in gw.layers.items() if z != gw.current_z and w.chunks] == []  # others are stored, not shown
+
+
+def test_chasms_on_the_surface_look_down_into_the_cave_layer(new_engine):
+    e = new_engine
+    surface = e.game_map
+    key = next((k for k in ((x, y) for x in range(-40, 41, 2) for y in range(-40, 41, 2))
+                if shafts.raw_surface(e.game_world.master_seed, k)[0]["open"].any()), None)
+    assert key is not None
+    surface.load_chunk(key)
+    x0, y0 = chunk_origin(key)
+    rect = (x0, y0, CHUNK_W, CHUNK_H)
+    gfx, mask = surface.region("light", rect), surface.region("open", rect)
+    assert mask.any()
+    surface._look_down(gfx, mask, rect)       # must not fail where the layer below is solid or open

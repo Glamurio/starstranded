@@ -58,3 +58,40 @@ def test_mountain_air_is_colder():
     base = noise.temperature(-600, -300, w, h)
     assert (env["temperature"][high] - base[high]).mean() < -0.2
     assert abs((env["temperature"][plain] - base[plain]).mean()) < 0.05
+
+
+def test_land_is_reachable_through_or_around_the_ranges():
+    """Passes and gaps keep the mountains from walling the world: most dry ground near the landing site can be walked to."""
+    import tcod
+    import worldgen
+    for seed in (1, 5, 99):
+        noise = worldgen.TerrainNoise(seed)
+        w, h = 500, 300
+        x0, y0 = 35 - w // 2, 20 - h // 2
+        walk = worldgen.base_terrain(noise, x0, y0, w, h) == 1
+        cost = walk.astype(np.int32)
+        dist = np.full((w, h), np.iinfo(np.int32).max, dtype=np.int32)
+        dist[w // 2, h // 2] = 0
+        tcod.path.dijkstra2d(dist, cost, 2, 3, out=dist)
+        reach = (dist < np.iinfo(np.int32).max) & walk
+        assert reach.sum() >= 0.85 * walk.sum(), seed
+
+
+def test_ridges_have_passes():
+    import worldgen
+    noise = worldgen.TerrainNoise(1234)
+    gaps = relief.passes(noise, -400, -400, 800, 800)
+    assert gaps.min() < 0.4 and gaps.max() > 0.95
+
+
+def test_chasms_are_open_air_in_high_rock_only():
+    import worldgen
+    noise = worldgen.TerrainNoise(1234)
+    seen = 0
+    for x in range(-600, 600, 140):
+        for y in range(-350, 350, 80):
+            tiles, trees = worldgen.generate_terrain(noise, x, y, 70, 40)
+            chasm = tiles["open"]
+            seen += int(chasm.sum())
+            assert not tiles["walkable"][chasm].any() and not trees[chasm].any()
+    assert seen > 0

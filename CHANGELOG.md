@@ -222,3 +222,5 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - **Errors never close the game:** every handler/render error is logged, shown in the message log and the game carries on. Fixed the
   wreck-grab crash and the survey-kit error. Targeting screens (place, scan, fire) now close after use instead of staying open.
 - Tests: 648 (UI, live names, sprite config/editor, fuzzed clicking, and a keypress-only campfire playthrough on three seeds).
+
+- **Mountains (stage 6):** passes through ridges, snow and volcanic-ash rock colour, surface chasms that look down into the caves, caves at rock faces in mountain country, lava lakes in volcanic cores (a new deadly liquid), waterfalls on steep rivers. Tests: 788.

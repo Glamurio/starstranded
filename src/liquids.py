@@ -27,6 +27,7 @@ class LiquidKind(enum.IntEnum):
     TOXIC = 2
     ACIDIC = 3
     HOT = 4
+    LAVA = 5
 
 
 DEPTH_NAMES = {1: "shallow", 2: "deep", 3: "very deep"}
@@ -37,6 +38,8 @@ POISON_TOXIC = 25
 """Turns of poison from toxic liquid, boiled or not: enough to kill an unlucky player."""
 ACID_WADE_DAMAGE = 3
 HOT_WADE_DAMAGE = 1
+LAVA_TOUCH_DAMAGE = 40
+"""Lava lakes are deep, so no one wades them; this is for whatever is pushed or thrown in."""
 ARMOR_BURN_CHANCE = 0.4
 SIP_THIRST = 40
 FLASK_SIPS = 3
@@ -69,10 +72,15 @@ def nearest_liquid(world: World, x: int, y: int, radius: int = 1) -> Optional[tu
 def on_enter(unit: Unit, world: World) -> None:
     """Called after a unit stepped onto (x, y): acidic liquid burns it, and maybe what it wears."""
     tile = world.tile_at(unit.x, unit.y)
-    if tile is None or int(tile["liquid"]) not in (LiquidKind.ACIDIC, LiquidKind.HOT):
+    if tile is None or int(tile["liquid"]) not in (LiquidKind.ACIDIC, LiquidKind.HOT, LiquidKind.LAVA):
         return
     import debug
     if debug.protects(unit):
+        return
+    if int(tile["liquid"]) == LiquidKind.LAVA:
+        unit.hp = max(0, unit.hp - LAVA_TOUCH_DAMAGE)
+        if unit.hp == 0 and unit.is_alive:
+            unit.die(None)
         return
     if int(tile["liquid"]) == LiquidKind.HOT:
         unit.hp = max(0, unit.hp - HOT_WADE_DAMAGE)

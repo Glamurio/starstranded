@@ -37,6 +37,8 @@ SHALLOW_COLOR = (92, 150, 186)
 DEEP_COLOR = (58, 104, 148)
 """Liquid has exactly two colours, the same everywhere: shallow (depth 1) and deep (depth 2 and 3). They are close in
 brightness on purpose: a stark light/dark edge clashes with the land."""
+FOAM_COLOR = (225, 240, 250)
+LAVA_COLOR = (235, 90, 20)
 HOT_COLOR = (120, 185, 175)
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
@@ -136,6 +138,7 @@ def base_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int)
     kinds[dilate(kinds == 0)] = 0
     kinds[hydrology.water_mask(noise, x0, y0, width, height)] = 0      # rivers, springs, estuaries and lakes at river ends
     kinds[hydrology.hot_spring_mask(noise, x0, y0, width, height)] = 0
+    kinds[hydrology.lava_mask(noise, x0, y0, width, height)] = 0
     return kinds
 
 
@@ -314,6 +317,17 @@ def _tint_rock(landscape: np.ndarray, env: dict, rock: np.ndarray) -> None:
         landscape[layer]["fg"][..., :3][rock] = np.clip(fg[rock], 0, 255).astype(np.uint8)
 
 
+CHASM_SCALE, CHASM_WIDTH, CHASM_FROM = 0.05, 0.03, 0.95
+"""Chasms: thin winding rifts (where a noise crosses zero) cut into the high rock above `CHASM_FROM`."""
+
+
+def _cut_chasms(noise: TerrainNoise, landscape: np.ndarray, env: dict, rock: np.ndarray, x0: int, y0: int, width: int, height: int) -> None:
+    """Turn rifts in the high mountain rock into open air (no floor: you look down into the cave layer; nothing walks there)."""
+    rift = np.abs(noise.sample(9, CHASM_SCALE, x0, y0, width, height)) < CHASM_WIDTH
+    chasm = rock & rift & (env["elevation"] > CHASM_FROM)
+    landscape[chasm] = tile_types.open_air.get_array()
+
+
 def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
     """Tiles and tree map for a world rectangle, generated on a padded region. Uses the global RNGs (wrap it in
     `seeded_rng`). Returns `(tiles, tree_map)` for the unpadded rectangle."""
@@ -329,6 +343,10 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
     hot = hydrology.hot_spring_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0)
     landscape["liquid"][hot] = 4      # liquids.LiquidKind.HOT
+    fall = hydrology.waterfall_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0) & ~hot
+    landscape["depth"][fall], landscape["walkable"][fall] = 3, False        # a waterfall is deep, foaming water
+    lava = hydrology.lava_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0)
+    landscape["liquid"][lava], landscape["depth"][lava], landscape["walkable"][lava] = 5, 3, False   # LiquidKind.LAVA: a lake, never waded
 
     # Climate: the biome tints the open ground and decides how thickly it is vegetated.
     import biomes
@@ -336,6 +354,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     ground = landmarks.blend_ground(biomes.ground_colors(env["biome"]), env["landmark"], env["landmark_strength"])
     open_ground = kinds == 1
     _tint_rock(landscape, env, kinds == 2)
+    _cut_chasms(noise, landscape, env, kinds == 2, x0 - m, y0 - m, pw, ph)
     landscape["light"]["fg"][open_ground] = (ground[open_ground] * 0.8).astype(np.uint8)
     landscape["light"]["bg"][open_ground] = (ground[open_ground] * 0.10).astype(np.uint8)
     landscape["dark"]["fg"][open_ground] = (ground[open_ground] * 0.4).astype(np.uint8)
@@ -350,10 +369,13 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     area = (x0 - m, y0 - m, pw, ph)
     _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground)
-    for layer, scale in (("light", 1.0), ("dark", 0.5)):     # hot springs are a paler, greener blue
+    for layer, scale in (("light", 1.0), ("dark", 0.5)):     # hot springs are a paler, greener blue; lava glows orange
         landscape[layer]["fg"][hot] = (np.array(HOT_COLOR, dtype=float) * scale).astype(np.uint8)
+        landscape[layer]["fg"][fall & ~lava] = (np.array(FOAM_COLOR, dtype=float) * scale).astype(np.uint8)
+        landscape[layer]["fg"][lava] = (np.array(LAVA_COLOR, dtype=float) * scale).astype(np.uint8)
     # (ground cover never goes under a tree: a tree and a tuft of grass would share a tile)
     _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
+    tree_map &= ~landscape["open"]            # nothing grows over a chasm
     interior = (slice(m, m + width), slice(m, m + height))
     return np.asfortranarray(landscape[interior]), np.asfortranarray(tree_map[interior])
 

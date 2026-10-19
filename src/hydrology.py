@@ -54,6 +54,8 @@ FJORD_MAX_NODES, FJORD_MIN_NODES, FJORD_MIN_RANGE, FJORD_MAX_RISE, FJORD_WIDTH =
 """A river that meets the sea through a range has its last stretch (at most 14 nodes, at least 3, where the height is still
 within 1.3 of the sea) drowned into a fjord 8.5 tiles wide."""
 HOT_CELL, HOT_CHANCE, HOT_STRENGTH = 36, 0.6, 0.45
+LAVA_STRENGTH, LAVA_SHARE = 0.75, 0.5
+"""Landmark strength from which a hot site may be a lava lake, and the share of those that are."""
 """Hot springs: one candidate per 36x36 tiles, kept where the volcanic landmark is at least this strong."""
 DIRECTIONS = ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1))
 
@@ -175,14 +177,15 @@ class RiverSystem:
             first -= 1
         return first if shore - first + 1 >= FJORD_MIN_NODES else -1
 
-    def hot_site(self, i: int, j: int) -> Optional[Tuple[float, float, float]]:
-        """`(x, y, radius)` of the hot spring of lattice cell (i, j), if it has one: only deep inside volcanic country."""
+    def hot_site(self, i: int, j: int) -> Optional[Tuple[float, float, float, bool]]:
+        """`(x, y, radius, lava)` of the hot spring of lattice cell (i, j), if it has one: only deep inside volcanic
+        country. Near the core of it the pool may be a lava lake instead (bigger, and it kills)."""
         key = (i, j)
         if key not in self._hot:
             self._hot[key] = self._make_hot(i, j)
         return self._hot[key]
 
-    def _make_hot(self, i: int, j: int) -> Optional[Tuple[float, float, float]]:
+    def _make_hot(self, i: int, j: int) -> Optional[Tuple[float, float, float, bool]]:
         rng = random.Random(mix_seed(self.seed, i, j, 6161))
         if rng.random() > HOT_CHANCE:
             return None
@@ -193,7 +196,8 @@ class RiverSystem:
         env = worldgen.environment_for(self.noise, int(x), int(y), 1, 1, np.ones((1, 1), dtype=np.int8))
         if landmarks.key_of(int(env["landmark"][0, 0])) != "volcanic_mountains" or float(env["landmark_strength"][0, 0]) < HOT_STRENGTH:
             return None
-        return x, y, radius
+        lava = float(env["landmark_strength"][0, 0]) >= LAVA_STRENGTH and rng.random() < LAVA_SHARE
+        return x, y, radius * (1.8 if lava else 1.0), lava
 
     def rivers_near(self, x0: int, y0: int, width: int, height: int) -> List[River]:
         """Every river whose course may touch the tile rectangle."""
@@ -300,8 +304,35 @@ def water_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
     return mask
 
 
-def hot_spring_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
-    """Tiles of the rectangle covered by a hot spring: small irregular pools (three overlapping discs) deep in volcanic country."""
+FALL_DROP = 0.2
+"""Fall of the drainage height between two river nodes (6 tiles apart) from which the river drops as a waterfall."""
+
+
+def waterfall_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+    """Tiles of the rectangle where a river plunges down a mountain step: a short, deep, unwadable stretch."""
+    system = system_for(noise)
+    mask = np.zeros((width, height), dtype=bool)
+    for river in system.rivers_near(x0, y0, width, height):
+        for a, b in zip(river.nodes, river.nodes[1:]):
+            if system.height(*a) - system.height(*b) < FALL_DROP:
+                continue
+            ax, ay = a[0] * NODE + system.jitter(a)[0], a[1] * NODE + system.jitter(a)[1]
+            bx, by = b[0] * NODE + system.jitter(b)[0], b[1] * NODE + system.jitter(b)[1]
+            if min(ax, bx) > x0 + width + 6 or max(ax, bx) < x0 - 6 or min(ay, by) > y0 + height + 6 or max(ay, by) < y0 - 6:
+                continue
+            mid = np.array([[(ax + bx) / 2, (ay + by) / 2]])
+            _stamp(mask, x0, y0, mid, np.array([2.2]))
+    return mask
+
+
+def lava_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+    """Tiles of the rectangle covered by lava: the big pools at the core of volcanic country."""
+    return hot_spring_mask(noise, x0, y0, width, height, lava=True)
+
+
+def hot_spring_mask(noise, x0: int, y0: int, width: int, height: int, lava: bool = False) -> np.ndarray:
+    """Tiles of the rectangle covered by a hot spring (or, with `lava`, a lava lake): small irregular pools (three
+    overlapping discs) deep in volcanic country."""
     system = system_for(noise)
     mask = np.zeros((width, height), dtype=bool)
     for i in range((x0 - 8) // HOT_CELL, (x0 + width + 8) // HOT_CELL + 1):
@@ -309,7 +340,9 @@ def hot_spring_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndar
             site = system.hot_site(i, j)
             if site is None:
                 continue
-            x, y, radius = site
+            x, y, radius, is_lava = site
+            if is_lava != lava:
+                continue
             h = mix_seed(system.seed, i, j, 6262)
             dx, dy = ((h >> 4) % 100) / 100 * radius - radius / 2, ((h >> 12) % 100) / 100 * radius - radius / 2
             centres = np.array([[x, y], [x + dx, y + dy], [x - dy, y + dx]])

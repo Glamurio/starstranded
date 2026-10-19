@@ -88,7 +88,8 @@ def facts_for_plant(kind) -> List[Fact]:
 
 
 LIQUID_TEXT = {LiquidKind.IMPURE: "impure: boil it before drinking", LiquidKind.TOXIC: "toxic: never drink it",
-               LiquidKind.ACIDIC: "acidic: burns what touches it", LiquidKind.HOT: "scalding: burns when waded; boil before drinking"}
+               LiquidKind.ACIDIC: "acidic: burns what touches it", LiquidKind.HOT: "scalding: burns when waded; boil before drinking",
+               LiquidKind.LAVA: "molten rock: certain death to touch"}
 
 
 def facts_for_liquid(kind: LiquidKind) -> List[Fact]:
@@ -252,7 +253,7 @@ def codex_entries(engine) -> Dict[str, List[Tuple[str, str, List[Fact]]]]:
     for kind in planet.flora:
         if plant_subject(kind) in known:
             out["Plants"].append((plant_subject(kind), species_name(run, kind), facts_for_plant(kind)))
-    for liquid in (LiquidKind.IMPURE, LiquidKind.TOXIC, LiquidKind.ACIDIC, LiquidKind.HOT):
+    for liquid in (LiquidKind.IMPURE, LiquidKind.TOXIC, LiquidKind.ACIDIC, LiquidKind.HOT, LiquidKind.LAVA):
         if liquid_subject(liquid) in known:
             out["Liquids"].append((liquid_subject(liquid), "Liquid", facts_for_liquid(liquid)))
     import structures

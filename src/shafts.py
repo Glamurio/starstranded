@@ -117,6 +117,22 @@ def start_point(master: int) -> Tuple[Tuple[int, int], bool]:
     return (int(xs[i]), int(ys[i])), carved
 
 
+MOUNTAIN_CAVE_BONUS = 0.10
+"""Extra chance (on top of SHAFT_CHANCE) that a chunk of mountain country has a cave."""
+MOUNTAIN_ROCK = 0.12
+"""Share of a chunk that is rock for it to count as mountain country."""
+
+
+def _rock_edge(master: int, key: ChunkKey) -> Optional[np.ndarray]:
+    """Walkable ground next to the rock face, for a mountain chunk (rock covers `MOUNTAIN_ROCK` of it); else None."""
+    from procgen import dilate
+    tiles, _ = raw_surface(master, key)
+    rock = ~tiles["walkable"] & (tiles["liquid"] == 0) & ~tiles["transparent"]
+    if rock.mean() < MOUNTAIN_ROCK:
+        return None
+    return dilate(rock) & ~rock
+
+
 def _open_floor(master: int, key: ChunkKey) -> np.ndarray:
     """Surface tiles of a chunk that are walkable and free of trees (after the spawn carve)."""
     tiles, tree_map = raw_surface(master, key)
@@ -135,7 +151,8 @@ def structure(master: int, key: ChunkKey) -> Structure:
     rng = random.Random(_mix(master, key[0], key[1], 7))
     roll = rng.random()
     if key != (0, 0) and roll < BUILDING_CHANCE:
-        liquid = raw_surface(master, key)[0]["liquid"]
+        raw = raw_surface(master, key)[0]
+        liquid = (raw["liquid"] != 0) | raw["open"]     # no building in a lake or over a chasm
         for _ in range(8):  # a site without liquid (no building in a lake)
             w, h = rng.randint(9, 15), rng.randint(7, 11)
             building = Building(
@@ -146,13 +163,22 @@ def structure(master: int, key: ChunkKey) -> Structure:
                 links = tuple(Link(x0 + building.x + 2 + 2 * i, y0 + building.y + 2, i) for i in range(building.floors))
                 return Structure(links, building)
         return Structure()
+    rocky = None
     if key != (0, 0) and roll >= BUILDING_CHANCE + SHAFT_CHANCE:
-        return Structure()
+        if roll >= BUILDING_CHANCE + SHAFT_CHANCE + MOUNTAIN_CAVE_BONUS:
+            return Structure()
+        rocky = _rock_edge(master, key)          # a second chance, but only in mountain country
+        if rocky is None:
+            return Structure()
     free = _open_floor(master, key)
     window = np.zeros_like(free)
     depth = rng.randint(1, 3) if key != (0, 0) else 2
     window[EDGE:CHUNK_W - EDGE - STAIR_SPACING * (depth - 1), EDGE:CHUNK_H - EDGE] = True
     candidates = free & window
+    if key != (0, 0):
+        rocky = rocky if rocky is not None else _rock_edge(master, key)
+        if rocky is not None and (candidates & rocky).any():
+            candidates = candidates & rocky      # mountain caves open at the foot of the rock face
     if key == (0, 0):
         (sx, sy), _ = start_point(master)
         xs, ys = np.nonzero(candidates)

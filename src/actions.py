@@ -548,6 +548,8 @@ class UseFlaskAction(Action):
             if found is None:
                 raise exceptions.Impossible("The flask is empty, and there is no liquid next to you to fill it from.")
             _, _, kind = found
+            if kind is liquids.LiquidKind.LAVA:
+                raise exceptions.Impossible("You cannot fill a flask with molten rock.")
             if kind is liquids.LiquidKind.ACIDIC:
                 user.inventory.remove(flask)
                 log.add_message("The liquid hisses and eats through the flask!", color.enemy_atk)
