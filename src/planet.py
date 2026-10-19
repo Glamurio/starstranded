@@ -25,7 +25,7 @@ from capabilities import Grant, grants
 from damage import DamageType
 from ecology import Habitat, suitability
 from materials import Family, Material
-from naming import Namer, hue_name
+from naming import Name, Namer, hue_name
 from render_order import RenderOrder
 from seeds import mix_seed
 from species import ItemKind, PlantCategory, PlantSpecies, UnitSpecies, AIKind, Diet
@@ -91,6 +91,46 @@ class FloraTemplate:
     name_family: str = "tree"
 
 
+# What each kind of plant looks like, in everyday words (the sprite decides the shape; see components/names.tree_pos_names):
+# a species is named "<distinguishing word> <form>", e.g. "scarlet fir".
+FORMS: Dict[str, Tuple[str, ...]] = {
+    "broadleaf": ("oak", "maple", "beech", "elm", "birch", "apple tree", "plum tree", "pear tree"), "acacia": ("acacia", "thorn tree", "jacaranda"),
+    "willow": ("willow", "weeping tree"), "conifer": ("pine", "fir", "larch", "spruce", "hemlock"),
+    "cypress": ("cypress", "cedar", "juniper"), "palm": ("palm", "fan palm"), "coast_palm": ("palm", "beach palm"),
+    "fungal_tree": ("toadstool", "giant mushroom", "morel", "shelf fungus"), "cactus": ("cactus", "cereus", "succulent"),
+    "barrel_cactus": ("barrel cactus", "pincushion"), "reeds": ("reed", "rush", "sedge", "cane"),
+    "crop": ("beet", "turnip", "radish", "carrot"), "bush": ("bush", "shrub", "scrub"), "thorns": ("thornbush", "bramble", "briar", "thistle"),
+    "spore_bush": ("puffball", "spore bush"), "shard_bush": ("glass thorn", "shard bush"), "ash_shrub": ("ash shrub", "cinder bush"),
+    "dead_tree": ("dead tree", "snag"), "beach_grass": ("dune grass", "marram", "sedge"),
+    "meadow_flower": ("flower", "bell", "star", "aster", "daisy"), "meadow_bloom": ("bell", "aster", "star", "lily"),
+    "marsh_flower": ("marsh bell", "water star", "bog aster"), "dry_flower": ("sun star", "dust aster", "desert bell"),
+    "crystal_bloom": ("frost bell", "glass flower", "shard bloom"),
+}
+# What each form bears: (fruit sprite, fruit name). An oak bears acorns, an apple tree apples; unlisted forms fall back to the
+# template's list. The sprites are the item sheet's row 21 (see components.names.fruit_pos_names).
+FORM_FRUITS: Dict[str, Tuple[Tuple[Tuple[int, int], str], ...]] = {
+    "oak": (((13, 21), "acorn"),), "beech": (((14, 21), "beechnut"),), "maple": (((8, 21), "seed"),), "elm": (((8, 21), "seed"),),
+    "birch": (((8, 21), "seed"),), "apple tree": (((3, 21), "apple"),), "plum tree": (((21, 21), "plum"),), "pear tree": (((17, 21), "pear"),),
+    "acacia": (((122, 0), "bean pod"),), "thorn tree": (((122, 0), "bean pod"),), "jacaranda": (((122, 0), "bean pod"),),
+    "willow": (((18, 21), "catkin"),), "weeping tree": (((18, 21), "catkin"),),
+    "pine": (((14, 21), "cone"),), "fir": (((14, 21), "cone"),), "larch": (((14, 21), "cone"),), "spruce": (((14, 21), "cone"),),
+    "hemlock": (((14, 21), "cone"),), "cypress": (((14, 21), "cone"),), "cedar": (((14, 21), "cone"),), "juniper": (((18, 21), "juniper berry"),),
+    "palm": (((122, 0), "date"),), "fan palm": (((122, 0), "date"),), "beach palm": (((15, 21), "coconut"),),
+    "toadstool": (((0, 21), "spore cap"),), "giant mushroom": (((0, 21), "spore cap"),), "morel": (((0, 21), "spore cap"),),
+    "shelf fungus": (((0, 21), "spore cap"),), "puffball": (((0, 21), "spore cap"),), "spore bush": (((0, 21), "spore cap"),),
+    "cactus": (((17, 21), "prickly pear"),), "cereus": (((17, 21), "prickly pear"),), "succulent": (((17, 21), "prickly pear"),),
+    "barrel cactus": (((17, 21), "prickly pear"),), "pincushion": (((17, 21), "prickly pear"),),
+    "reed": (((22, 21), "seed head"),), "rush": (((22, 21), "seed head"),), "sedge": (((22, 21), "seed head"),), "cane": (((22, 21), "seed head"),),
+    "beet": (((2, 21), "root"),), "turnip": (((2, 21), "root"),), "radish": (((2, 21), "root"),), "carrot": (((2, 21), "root"),),
+    "dune grass": (((22, 21), "seed head"),), "marram": (((22, 21), "seed head"),),
+    "bush": (((18, 21), "berry"), ((24, 21), "berry")), "shrub": (((18, 21), "berry"),), "scrub": (((18, 21), "berry"),),
+    "thornbush": (((18, 21), "sloe"),), "bramble": (((18, 21), "blackberry"),), "briar": (((6, 21), "hip"),), "thistle": (((22, 21), "seed head"),),
+    "glass thorn": (((24, 21), "glass berry"),), "shard bush": (((24, 21), "glass berry"),), "ash shrub": (((18, 21), "ash berry"),),
+    "cinder bush": (((18, 21), "ember berry"),),
+}
+BLOOM_SPRITE = (107, 0)
+BLOOM_NOUNS = ("blossom", "bud")
+
 _FERTILE = (0.4, 1.0)
 FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
     FloraTemplate("broadleaf", PlantCategory.TREE, ((0, 8), (1, 8)), Habitat((-0.3, 0.6), (0.0, 1.0), fertility=_FERTILE), variants=2, rarity=1.5),
@@ -108,6 +148,9 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
     FloraTemplate("reeds", PlantCategory.SHRUB, ((6, 9),), Habitat((-0.3, 1.0), (0.0, 1.0), water=(0.6, 1.0)), variants=1, rarity=2.0, fruit_chance=0.3, max_hp=6, growth_cycle=5, name_family="grass",
                   color_range=((100, 140, 60), (170, 190, 100))),
     FloraTemplate("bush", PlantCategory.SHRUB, ((105, 0),), Habitat((-0.5, 0.8), (-0.4, 1.0), fertility=(0.2, 1.0)), variants=2, rarity=2.0, max_hp=8, growth_cycle=5, name_family="shrub"),
+    # the crop of a farm's field: never grows wild (no habitat), see `Planet.crop` and settlements.populate
+    FloraTemplate("crop", PlantCategory.SHRUB, ((8, 9),), None, rarity=0.0, fruit_chance=1.0, max_hp=4, growth_cycle=5, name_family="grass",
+                  color_range=((150, 140, 40), (210, 190, 80))),
     # flowers: small ground plants with one bloom each to pick (food now, medicine and cooking later)
     FloraTemplate("meadow_flower", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat((-0.5, 0.7), (-0.2, 1.0), fertility=(0.2, 1.0)),
                   variants=4, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower",
@@ -164,11 +207,12 @@ class FaunaTemplate:
     radius: int = 8
     base: str = ""                   # for a landmark variant: the key of the baseline template it was generated from
     tint: Optional[Tuple[int, int, int]] = None   # pulls the rolled colour towards this one (a variant takes on its landmark)
+    underground: bool = False        # lives in the caves only (placed by `underground`, never by the surface spawner; no habitat)
 
 
 FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
-    FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.15, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=3.0, name_family="small_herbivore", xp=10),
-    FaunaTemplate("grazer", (4, 18), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
+    FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.3, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=1.6, name_family="small_herbivore", xp=10),
+    FaunaTemplate("grazer", (1, 20), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
     FaunaTemplate("strider", (5, 18), Habitat((0.0, 0.9), (-0.5, 0.2)), Diet.HERBIVORE, AIKind.PASSIVE, 11, 3, rarity=1.0, name_family="grazer", xp=30),
     FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.PASSIVE, 10, 3, rarity=1.0, name_family="animal", xp=35, hide_kind="skin"),
     FaunaTemplate("hunter", (10, 20), Habitat((-0.9, 0.5), (-0.5, 1.0), fertility=(0.1, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 16, 6, rarity=0.5, name_family="predator", damage_type=DamageType.SHARP, xp=40),
@@ -176,9 +220,31 @@ FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("scuttler", (7, 18), Habitat((-0.2, 1.0), (0.1, 1.0), water=(0.4, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 6, 2, defense=1, rarity=1.5, name_family="crawler", xp=20, hide_kind="chitin"),
     FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.PASSIVE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
     FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=0.5, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
-    FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10, hide_kind="feather"),
+    FaunaTemplate("flitter", (5, 20), Habitat((-0.4, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.0, name_family="bird", xp=10, hide_kind="feather"),
     # landmark fauna: found only inside their landmark
 )
+
+FAUNA_FORMS: Dict[str, Tuple[str, ...]] = {
+    # the everyday words for the animal each sprite draws (the first is the plainest); the colour word comes from the tint it is drawn with
+    "hopper": ("hare", "rabbit"), "grazer": ("deer", "goat"), "strider": ("horse", "stag"), "rooter": ("boar", "hog"),
+    "hunter": ("hound", "jackal"), "stalker": ("cat", "lynx"), "scuttler": ("crab", "scuttler"), "webspinner": ("spider",),
+    "serpent": ("snake", "serpent", "viper"), "flitter": ("bird", "finch", "swift"),
+}
+
+CAVE_FAUNA: Tuple[FaunaTemplate, ...] = (
+    # creatures of the caves (see `underground.UBIOMES` for where each lives); the planet rolls their colours and names like any other
+    FaunaTemplate("cave_beetle", (0, 19), Habitat(), Diet.HERBIVORE, AIKind.PASSIVE, 7, 2, defense=1, rarity=1.0, name_family="crawler", xp=15, hide_kind="chitin", underground=True),
+    FaunaTemplate("cave_moth", (1, 19), Habitat(), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.0, name_family="crawler", xp=8, hide_kind="chitin", underground=True),
+    FaunaTemplate("cave_slug", (10, 18), Habitat(), Diet.HERBIVORE, AIKind.PASSIVE, 11, 2, rarity=1.0, name_family="animal", xp=20, hide_kind="skin", underground=True),
+    FaunaTemplate("cave_bat", (6, 18), Habitat(), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=1.0, name_family="animal", xp=25, hide_kind="skin",
+                  damage_type=DamageType.SHARP, underground=True),
+    FaunaTemplate("cave_worm", (3, 19), Habitat(), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=1.0, name_family="serpent", xp=35, hide_kind="skin",
+                  damage_type=DamageType.PIERCE, underground=True),
+    FaunaTemplate("cave_crab", (13, 18), Habitat(), Diet.OMNIVORE, AIKind.PASSIVE, 12, 4, defense=2, rarity=1.0, name_family="crawler", xp=30, hide_kind="chitin",
+                  underground=True),
+)
+FAUNA_FORMS.update({"cave_beetle": ("beetle",), "cave_moth": ("moth",), "cave_slug": ("slug",), "cave_bat": ("bat",), "cave_worm": ("worm",),
+                    "cave_crab": ("crab", "rock crab")})
 
 # A landmark's own animals are not hand-written: they are the baseline creatures above, generated again for the landmark through the
 # same pipeline (`_make_fauna`) with the landmark's traits applied, so a "meadow grazer" is a grazer that grew up in a meadow.
@@ -278,14 +344,32 @@ class Planet:
 
     def species_weights(self, env: Mapping[str, object], category: Optional[PlantCategory] = None) -> Tuple[List[PlantSpecies], np.ndarray]:
         """Flora of the given category with their spawn weight for each tile of `env` (arrays): shape (n_species, *tile_shape)."""
-        pool = [s for s in self.flora if (category is None and s.category is not PlantCategory.FLOWER) or s.category is category]
+        pool = [s for s in self.flora if s.habitat is not None and ((category is None and s.category is not PlantCategory.FLOWER) or s.category is category)]
+        weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
+        if category is None and pool and "biome" in env:
+            share = np.array([biomes.TREE_SHARE[k] for k in biomes.BIOME_IDS])[np.asarray(env["biome"])]
+            for i, species in enumerate(pool):
+                if species.category is PlantCategory.TREE:
+                    weights[i] = weights[i] * share
+        return pool, weights
+
+    @property
+    def crop(self) -> PlantSpecies:
+        """The plant this planet's farmers grow (a root vegetable that is never found wild)."""
+        return next(s for s in self.flora if s.habitat is None)
+
+    def fauna_weights(self, env: Mapping[str, object]) -> Tuple[List[UnitSpecies], np.ndarray]:
+        pool = [s for s in self.fauna if s.habitat is not None]        # (the cave creatures live below, see `cave_fauna`)
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
         return pool, weights
 
-    def fauna_weights(self, env: Mapping[str, object]) -> Tuple[List[UnitSpecies], np.ndarray]:
-        pool = list(self.fauna)
-        weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
-        return pool, weights
+
+    def cave_fauna(self, biome_key: str) -> Tuple[List[UnitSpecies], List[float]]:
+        """The creatures that live in an underground biome and their relative weights (empty when none do)."""
+        import underground
+        by_key = {s.key.split(":")[-1]: s for s in self.fauna}
+        found = [(by_key[k], w) for k, w in underground.UBIOMES[biome_key].fauna if k in by_key]
+        return [s for s, _ in found], [w for _, w in found]
 
 
 CULTURE_NAME_SET = {"human": "survey", "selenite": "selenite", "mau": "mau", "corporate": "survey"}
@@ -358,7 +442,7 @@ def generate_planet(seed: int, culture: str = "human") -> Planet:
 
     # fauna
     fauna: List[UnitSpecies] = []
-    for template in FAUNA_TEMPLATES + landmark_variants():
+    for template in FAUNA_TEMPLATES + landmark_variants() + CAVE_FAUNA:
         fauna.append(_make_fauna(rng, namer, add, template))
 
     return Planet(
@@ -379,9 +463,13 @@ def _shift_hue(color: RGB, shift: float) -> RGB:
 
 def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, index: int, hue_shift: float = 0.0) -> PlantSpecies:
     lo, hi = template.color_range
-    color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
-    if template.key != "fungal_tree":
-        color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04))
+    if template.key == "dead_tree":     # (grey-brown wood: one shared brightness, so it never drifts to green or blue)
+        t = rng.random()
+        color = tuple(int(lo[i] + (hi[i] - lo[i]) * t) for i in range(3))
+    else:
+        color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
+    if template.key not in ("fungal_tree", "dead_tree", "ash_shrub", "crop"):   # (fungus, dead wood and ash keep their own colours)
+        color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04) + 0.1 * index)    # (a template's variants differ in colour)
     slot = index % len(template.sprites)
     sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])
     if template.category is PlantCategory.FLOWER:
@@ -402,12 +490,13 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         family, key = "fiber", f"fiber:{template.key}:{index}"
         fam_enum = Family.FIBER
         fuel = dict(burn_yield=round(4 + props["combustibility"] * 2, 1), burn_duration=2)
-    name = namer.name(f"flora:{template.key}:{index}", template.name_family if template.name_family in ("fungus", "grass", "shrub") else family,
-                      color, props)
+    forms = FORMS.get(template.key) or (("bush",) if template.category is PlantCategory.SHRUB else ("tree",))
+    form = rng.choice(forms)     # (drawn here, not by the namer, so the world does not depend on the naming culture)
+    name = namer.organism(f"flora:{template.key}:{index}", (form,), color, props, template.name_family if template.name_family in ("fungus", "grass", "shrub") else family)
     material = add(Material(key, name.text, fam_enum, color, **props, **fuel))
     fruit = None
     if rng.random() < template.fruit_chance:
-        fruit = _make_fruit(rng, namer, template, index, color)
+        fruit = _make_fruit(rng, namer, template, index, color, name, form)
     stem = material if template.category is PlantCategory.TREE else None
     fiber = material if template.category is PlantCategory.SHRUB else None
     return PlantSpecies(
@@ -422,11 +511,14 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
 
 def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, color: RGB, sprite) -> PlantSpecies:
     """A flower species: a named plant that does not block, and the bloom it bears (an item named after it)."""
-    name = namer.name(f"flora:{template.key}:{index}", "flower", color, {})
-    label = namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
+    name = namer.organism(f"flora:{template.key}:{index}", (rng.choice(FORMS.get(template.key, ("flower",))),), color, {}, "flower")
+    noun = rng.choice(BLOOM_NOUNS)
+    label = namer.fruit_of(f"bloom:{template.key}:{index}", name, (noun,)) if namer.culture == "human" and name.modifier \
+        else namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
     toxic = rng.random() < 0.2
-    bloom = ItemKind(None, "Consumable", species=label, sprite=sprite, color=color, shade_sigma=8,
-                     hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=rng.randint(6, 14) if toxic else 0)
+    bloom = ItemKind(None, "Consumable", species=label, sprite=BLOOM_SPRITE, color=color, shade_sigma=8,
+                     hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=rng.randint(6, 14) if toxic else 0,
+                     parent_key=f"planet:flora:{template.key}:{index}")
     return PlantSpecies(
         f"planet:flora:{template.key}:{index}", name.text, PlantCategory.FLOWER, sprite=sprite, corpse_sprite=(3, 9), color=color, fruit=bloom,
         max_hp=template.max_hp, growth_cycle=template.growth_cycle, inventory_capacity=2, blocks_movement=False, blocks_sight=False,
@@ -437,16 +529,24 @@ def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, inde
 _FRUIT_SPRITES = ((3, 21), (4, 21), (6, 21), (8, 21), (12, 21), (13, 21), (15, 21), (18, 21), (19, 21), (24, 21), (16, 21), (22, 21))
 
 
-def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, plant_color: RGB) -> ItemKind:
-    from components.names import fruit_pos_names
-    fruit_color = tuple(max(30, min(255, int(c * rng.uniform(0.5, 1.6)) + rng.randint(-40, 80))) for c in plant_color)
-    sprite = rng.choice(_FRUIT_SPRITES)
-    nouns = fruit_pos_names.get(sprite, ["fruit"])
-    toxic = rng.random() < 0.25
-    shape_word = rng.choice(nouns)  # always drawn: the world must not depend on the naming culture
-    label = namer.fruit(f"fruit:{template.key}:{index}", fruit_color, shape_word)
+def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, plant_color: RGB, parent: "Name", form: str) -> Optional[ItemKind]:
+    """The fruit a plant bears: a kind that suits its form (an oak: acorns), named after its parent ("scarlet acorn")."""
+    options = FORM_FRUITS.get(form)
+    if not options:       # an unlisted form: any fruit sprite, with the names its picture suggests
+        from components.names import fruit_pos_names
+        sprite = rng.choice(_FRUIT_SPRITES)
+        options = ((sprite, rng.choice(fruit_pos_names.get(sprite, ["fruit"]))),)
+    sprite, shape_word = rng.choice(options)
+    # a fruit keeps its parent's colour family, lighter or deeper (so the name's colour word is true)
+    fruit_color = tuple(max(30, min(255, int(c * rng.uniform(0.85, 1.25)) + rng.randint(-12, 30))) for c in plant_color)
+    toxic = rng.random() < 0.25 and template.key != "crop"     # (a crop is bred to be safe)
+    if namer.culture == "human" and parent.modifier:
+        label = namer.fruit_of(f"fruit:{template.key}:{index}", parent, (shape_word,))
+    else:
+        label = namer.fruit(f"fruit:{template.key}:{index}", fruit_color, shape_word)
     return ItemKind(None, "Consumable", species=label, sprite=sprite, color=fruit_color, shade_sigma=10,
-                    hunger_amount=rng.choice((8, 10, 12)), thirst_amount=rng.choice((6, 10, 14)), toxicity=rng.randint(8, 20) if toxic else 0)
+                    hunger_amount=rng.choice((8, 10, 12)), thirst_amount=rng.choice((6, 10, 14)), toxicity=rng.randint(8, 20) if toxic else 0,
+                    parent_key=f"planet:flora:{template.key}:{index}")
 
 
 def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) -> UnitSpecies:
@@ -459,7 +559,11 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     if template.hide_kind == "fur" and rng.random() < 0.3:
         _, notable = rng.choice(FUR_NOTABLE)
         props.update(_roll(rng, notable))
-    name = namer.name(f"fauna:{template.key}", template.name_family, color, props)
+    forms = FAUNA_FORMS.get(template.base or template.key)
+    if forms:       # named for what the picture shows ("sage cat"), not for a family word that may not fit the sprite
+        name = namer.organism(f"fauna:{template.key}", forms, color, props, template.name_family)
+    else:
+        name = namer.name(f"fauna:{template.key}", template.name_family, color, props)
     fuel = {}
     if props.get("combustibility", 0) > 0 and props.get("flammability", 0) > 0:
         fuel = dict(burn_yield=round(5 + props["combustibility"] * 3, 1), burn_duration=max(1, int(props["combustibility"] // 2)))
@@ -471,5 +575,5 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
         corpse_sprite=spriteconfig.get(f"fauna.{template.base or template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
         level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,
-        habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity, covering=template.hide_kind,
+        habitat=None if template.underground else template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity, covering=template.hide_kind,
     )

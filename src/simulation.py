@@ -162,6 +162,8 @@ def run_turn(engine: Engine) -> None:
             near.append(chunk)
 
     world.plant_queue.run(now)
+    import wildlife
+    wildlife.tick(world, active + near, now)
 
     for chunk in active:
         for entity in list(chunk.actors):  # snapshot: AIs may add/remove/move entities

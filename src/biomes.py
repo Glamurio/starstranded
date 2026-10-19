@@ -65,6 +65,14 @@ _biome("bog", "Bog", 6, 6, (85, 80, 55), 0.7, ("dark", "grey"), "Cold peat and s
 
 BIOME_INDEX: Dict[str, int] = {key: i for i, key in enumerate(BIOME_IDS)}
 
+TREE_SHARE: Dict[str, float] = {
+    "glacial": 0.7, "tundra": 0.7, "taiga": 3.5, "steppe": 0.6, "temperate_forest": 3.5, "grassland": 1.0, "shrubland": 0.6,
+    "savanna": 1.1, "jungle": 3.5, "badlands": 0.5, "desert": 0.5, "swamp": 2.0, "bog": 1.5,
+}
+"""How strongly a biome's plant cover leans to trees rather than shrubs: a multiplier on every tree's spawn weight (forests are mostly
+trees with some undergrowth, scrub and steppe mostly bushes with a few trees)."""
+
+
 # Whittaker table, first match wins: (key, max_t, max_m) with ranges expressed through the checks in `classify`.
 
 

@@ -302,6 +302,10 @@ def cave_layer(master: int, z: int, key: ChunkKey) -> np.ndarray:
     from worldgen import seeded_rng
     with seeded_rng(_mix(master, z, key[0], key[1], 5)):  # the random 'center' wall variations
         landscape = replace_variations(tile_types.wall, landscape, pw, ph)
+    import underground
+    biome = underground.field(master, z, key, m)
+    wall = kinds == 0
+    underground.paint(landscape, biome, kinds == 1, wall, np.random.default_rng(_mix(master, z, key[0], key[1], 6) % 2**32))
     tiles = np.asfortranarray(landscape[m:m + CHUNK_W, m:m + CHUNK_H])
     for x, y in ups:
         tiles[x - x0, y - y0] = tile_types.up_stairs.get_array()
@@ -312,5 +316,7 @@ def cave_layer(master: int, z: int, key: ChunkKey) -> np.ndarray:
 
 
 def clear_caches() -> None:
+    import underground
+    underground.clear_caches()
     for function in (terrain_noise, raw_surface, environment, start_point, structure, sky_layer, cave_noise, cave_layer):
         function.cache_clear()

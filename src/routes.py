@@ -100,25 +100,33 @@ def line(a: Tuple[int, int], b: Tuple[int, int]) -> List[Tuple[int, int]]:
             y0 += sy
 
 
-def course(master: int, a: ChunkKey, b: ChunkKey) -> List[Tuple[int, int]]:
-    """The tiles of the route between sites a and b: a line with one bend."""
+ATTEMPTS = 6
+"""How many different bends are tried for a route before it is given up."""
+
+
+def course(master: int, a: ChunkKey, b: ChunkKey, attempt: int = 0) -> List[Tuple[int, int]]:
+    """The tiles of the route between sites a and b: a line with one bend (a later `attempt` bends it differently, and further)."""
     p, q = site_point(master, a), site_point(master, b)
-    rng = _rng(master, a[0], a[1], b[0], b[1])
+    rng = _rng(master, a[0], a[1], b[0], b[1], attempt) if attempt else _rng(master, a[0], a[1], b[0], b[1])
     mx, my = (p[0] + q[0]) // 2, (p[1] + q[1]) // 2
     length = max(abs(q[0] - p[0]), abs(q[1] - p[1]))
-    bend = (mx + rng.randint(-length // 5, length // 5), my + rng.randint(-length // 5, length // 5))
+    reach = length // 5 + attempt * length // 8
+    bend = (mx + rng.randint(-reach, reach), my + rng.randint(-reach, reach))
     first, second = line(p, bend), line(bend, q)
     return first + second[1:]
 
 
 @lru_cache(maxsize=64)
 def laid(master: int, a: ChunkKey, b: ChunkKey) -> Dict[Tuple[int, int], bool]:
-    """`{(x, y): is_deck}` for the tiles of the route a-b that get a path (False) or a plank (True)."""
+    """`{(x, y): is_deck}` for the tiles of the route a-b that get a path (False) or a plank (True).
+
+    A route is only laid when it can be walked from end to end: every tile is open ground, or part of a short stretch of water
+    with dry ground on both sides and nothing hazardous in it (a bridge). Several bends are tried (`ATTEMPTS`); when none of them
+    is passable (rock, wide water or lava in the way) the result is empty, so there are no roads that stop at a cliff or a lake."""
     import hydrology
     import worldgen
     from shafts import terrain_noise
     noise = terrain_noise(master)
-    tiles = course(master, a, b)
     patches: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = {}
 
     def kind(x: int, y: int) -> Tuple[int, bool]:
@@ -130,26 +138,35 @@ def laid(master: int, a: ChunkKey, b: ChunkKey) -> Dict[Tuple[int, int], bool]:
         kinds, bad = patches[(px, py)]
         return int(kinds[x - px * PATCH, y - py * PATCH]), bool(bad[x - px * PATCH, y - py * PATCH])
 
+    for attempt in range(ATTEMPTS):
+        found = _walkable(course(master, a, b, attempt), kind)
+        if found is not None:
+            return found
+    return {}
+
+
+def _walkable(tiles: List[Tuple[int, int]], kind) -> Optional[Dict[Tuple[int, int], bool]]:
+    """The laid tiles of a course (`{(x, y): is_deck}`), or None when it cannot be walked from end to end."""
     marks = [kind(x, y) for x, y in tiles]
     out: Dict[Tuple[int, int], bool] = {}
     i = 0
     while i < len(tiles):
         k, bad = marks[i]
-        if k == 1:
+        if k == 1 and not bad:
             out[tiles[i]] = False
             i += 1
         elif k == 0:
             j = i
             while j < len(tiles) and marks[j][0] == 0:
                 j += 1
-            span = j - i
             clean = not any(marks[n][1] for n in range(i, j))
-            if clean and span <= MAX_SPAN and i > 0 and j < len(tiles) and marks[i - 1][0] == 1 and marks[j][0] == 1:
-                for n in range(i, j):
-                    out[tiles[n]] = True
+            if not (clean and j - i <= MAX_SPAN and i > 0 and j < len(tiles) and marks[i - 1][0] == 1 and marks[j][0] == 1 and not marks[j][1]):
+                return None
+            for n in range(i, j):
+                out[tiles[n]] = True
             i = j
         else:
-            i += 1
+            return None                                   # rock, lava or anything else that cannot be crossed
     return out
 
 

@@ -103,7 +103,11 @@ class Fruit(FoodConsumable):
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
-        material_type = f'{self.material} {self.species}' if self.material else self.species
+        species = self.species
+        if getattr(self.kind, "parent_key", None):        # a fruit is only called by its name once it has been scanned
+            import lore
+            species = lore.fruit_name(lore.run_of(self), self.kind)
+        material_type = f'{self.material} {species}' if self.material else species
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         import naming
         return f'{self.name}, the {description}' if self.name else (naming.lower_first(description) if self.kind.key else description)

@@ -56,6 +56,13 @@ class Plant(Entity):
         return self.kind.fruit
 
     @property
+    def prominence(self) -> int:
+        """How loudly it is drawn: 2 something to pick right now, 1 a tree or fruit-bearer, 0 decoration (see `atlas.FOLIAGE_LEVELS`)."""
+        if not self.dead and self.inventory is not None and (self.inventory.items or self.inventory.placeholders):
+            return 2
+        return 1 if self.fruit or self.kind.category is defs.PlantCategory.TREE else 0
+
+    @property
     def is_corpse(self) -> bool:
         return self.dead
 
@@ -92,6 +99,10 @@ class Plant(Entity):
             self.growth = 0
             self.complete_cycle()
 
+    SHEDS = False
+    """Plants do not let fruit fall by themselves for now (it piled up on the ground and hid everything else). The route stays: set
+    this True (or call `shed`) when fruit dropping, seeds and regrowth become a feature."""
+
     SHED_CHANCE = 0.03
     """A full plant has this chance per growth cycle to let one of its items fall (so a tree holds its fruit and branches until
     somebody takes them: it practically never sheds)."""
@@ -99,8 +110,18 @@ class Plant(Entity):
     def complete_cycle(self) -> None:
         """A growth cycle finished: a plant that is full may (rarely) drop one of its items on a free, dry, walkable
         neighbouring tile, then it grows a branch and a fruit (if there is room)."""
+        if self.SHEDS and self.inventory.is_full() and random.random() < self.SHED_CHANCE:
+            self.shed()
+        # `Inventory.add` throws away what does not fit, so do not build (and colour-jitter) items for nothing
+        if not self.inventory.is_full():
+            self.inventory.add(self.yield_piece())
+        if self.fruit and not self.inventory.is_full():
+            self.inventory.add(Fruit(self.inventory, self.fruit))
+
+    def shed(self) -> None:
+        """Let one held item fall on a free, dry, walkable neighbouring tile (the future route for seeds and fallen fruit)."""
         world = self.parent
-        if self.inventory.is_full() and world is not None and random.random() < self.SHED_CHANCE:
+        if world is not None and self.inventory.items:
             item: Item = random.choice(self.inventory.items)
             adjacent_tiles = self.engine.get_adjacent_tiles(self.x, self.y)
             random.shuffle(adjacent_tiles)  # so it doesn't drop everything on the same tile
@@ -113,11 +134,6 @@ class Plant(Entity):
                     continue
                 self.inventory.drop(item, tile)
                 break
-        # `Inventory.add` throws away what does not fit, so do not build (and colour-jitter) items for nothing
-        if not self.inventory.is_full():
-            self.inventory.add(self.yield_piece())
-        if self.fruit and not self.inventory.is_full():
-            self.inventory.add(Fruit(self.inventory, self.fruit))
 
     def yield_piece(self):
         """What this plant gives when cut or when its cycle completes: fibre for fibrous shrubs, else a piece of its wood."""
@@ -182,6 +198,13 @@ class Flower(Plant):
     def __init__(self, species: PlantSpecies):
         Plant.__init__(self, species)
         self.inventory.add(Fruit(self.inventory, species.fruit))   # it starts in bloom
+
+    def on_added_to_map(self, game_map) -> None:
+        """A flower at the foot of a tree leaves the tile as the tree made it (blocked, opaque); elsewhere it shapes the tile as plants do."""
+        tile = game_map.tile_at(self.x, self.y)
+        if tile is not None and not bool(tile["walkable"]):
+            return
+        Plant.on_added_to_map(self, game_map)
 
     def yield_piece(self):
         return Fruit(self.inventory, self.kind.fruit)

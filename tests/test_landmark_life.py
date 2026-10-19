@@ -25,7 +25,7 @@ def env_of(landmark: str, strength: float = 1.0):
 
 
 def own(p, key):
-    return [s for s in list(p.flora) + list(p.fauna) if s.habitat.landmarks == (key,)]
+    return [s for s in list(p.flora) + list(p.fauna) if s.habitat is not None and s.habitat.landmarks == (key,)]
 
 
 def test_every_landmark_has_its_own_plants_and_animals(p):
@@ -92,11 +92,11 @@ def test_landmark_plants_grow_in_their_landmark_and_nowhere_else(new_engine, mon
             continue
         x0, y0 = chunk_origin(chunk)
         debug.teleport(engine, x0 + CHUNK_W // 2, y0 + CHUNK_H // 2)
-        found[key] = {e.kind.habitat.landmarks for e in engine.game_map.entities if isinstance(e, (Tree, Shrub))}
+        found[key] = {e.kind.habitat.landmarks for e in engine.game_map.entities if isinstance(e, (Tree, Shrub)) and e.kind.habitat is not None}
     assert found, "no landmark chunk found to test"
     for key, groups in found.items():
         assert (key,) in groups, f"no {key} plant grew in a {key} chunk"
     # near the landing site there is no landmark, so no landmark plant
     debug.teleport(engine, 35, 20)
-    near = [e for e in engine.game_map.entities if isinstance(e, (Tree, Shrub)) and 0 <= e.x < CHUNK_W and 0 <= e.y < CHUNK_H]
+    near = [e for e in engine.game_map.entities if isinstance(e, (Tree, Shrub)) and e.kind.habitat is not None and 0 <= e.x < CHUNK_W and 0 <= e.y < CHUNK_H]
     assert near and all(not e.kind.habitat.landmarks for e in near)

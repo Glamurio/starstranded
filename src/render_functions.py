@@ -34,6 +34,10 @@ def get_names_at_location(x: int, y: int, game_map: GameMap) -> str:
     description = liquids.describe(game_map.tile_at(x, y))
     if description:
         names = f"{names}, {description}" if names else description
+    import terrain_text
+    ground = terrain_text.describe(game_map, x, y)
+    if ground:
+        names = f"{names}, {ground}" if names else ground
     if not names and getattr(game_map, "engine", None) is not None:
         rock = rock_face_at(game_map.engine, x, y)
         if rock is not None:
@@ -98,6 +102,10 @@ def render_names_at_mouse_location(
 def tooltip_lines(entity) -> list:
     """What the hover tooltip says about one thing: its condition and attitude if it is a creature."""
     lines = []
+    import lore
+    state = lore.scan_state(entity.engine, entity) if getattr(entity, "engine", None) is not None else None
+    if state:
+        lines.append(f"{state}" + (" (X to scan)" if state != "scanned" else ""))
     if getattr(entity, "category", None) is not None and entity.category.name == "UNIT":
         if not entity.is_alive:
             lines.append("dead")

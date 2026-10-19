@@ -31,6 +31,11 @@ def plant_subject(kind) -> str:
     return f"plant:{kind.key}"
 
 
+def fruit_subject(kind) -> str:
+    """Fruits and blooms are scanned on their own, one subject per plant species that bears them."""
+    return f"fruit:{kind.parent_key}"
+
+
 def liquid_subject(kind: LiquidKind) -> str:
     return f"liquid:{int(kind)}"
 
@@ -87,6 +92,18 @@ def facts_for_plant(kind) -> List[Fact]:
     return facts
 
 
+def facts_for_fruit(kind, planet=None) -> List[Fact]:
+    """What a scan of a fruit (or bloom) can tell: its name, how filling it is, whether it is safe, and what bears it."""
+    parent = next((s for s in getattr(planet, "flora", ()) if s.key == kind.parent_key), None)
+    facts = [name_fact(kind.species),
+             Fact("nutrition", Skill.BIOLOGY, 1, f"restores {kind.hunger_amount} hunger, {kind.thirst_amount} thirst", hint="Edible?")]
+    facts.append(Fact("safety", Skill.BIOLOGY, 2, "toxic: it poisons" if kind.toxicity > 0 else "safe to eat",
+                      hint="Might be harmful?", capability="botanical_expertise"))
+    if parent is not None:
+        facts.append(Fact("grows on", Skill.BIOLOGY, 2, parent.name, hint="Grows on a plant."))
+    return facts
+
+
 LIQUID_TEXT = {LiquidKind.IMPURE: "impure: boil it before drinking", LiquidKind.TOXIC: "toxic: never drink it",
                LiquidKind.ACIDIC: "acidic: burns what touches it", LiquidKind.HOT: "scalding: burns when waded; boil before drinking",
                LiquidKind.LAVA: "molten rock: certain death to touch"}
@@ -131,6 +148,30 @@ def material_name(run, material: Material) -> str:
                                                     "crystal": "crystal"}.get(material.family.value, material.family.value)
 
 
+PROVISIONAL_FORMS = {      # what an unidentified plant looks like, by template (see planet.FORMS for the real words)
+    "broadleaf": "broadleaf tree", "acacia": "flat-topped tree", "willow": "drooping tree", "conifer": "needle tree",
+    "cypress": "slender tree", "palm": "palm-like tree", "coast_palm": "palm-like tree", "fungal_tree": "giant fungus",
+    "cactus": "spined succulent", "barrel_cactus": "spined succulent", "reeds": "reed-like plant", "bush": "bush", "thorns": "thorny shrub",
+    "spore_bush": "puffy fungus", "shard_bush": "glassy shrub", "ash_shrub": "scorched shrub", "dead_tree": "dead tree",
+    "beach_grass": "tufted grass", "meadow_flower": "flower", "meadow_bloom": "flower", "marsh_flower": "flower",
+    "dry_flower": "flower", "crystal_bloom": "frosted flower",
+}
+
+
+def provisional_plant(kind) -> str:
+    """"green needle tree": colour and general shape, before the plant has been identified."""
+    parts = kind.key.split(":")
+    form = PROVISIONAL_FORMS.get(parts[2] if len(parts) > 2 else "", kind.category.name.lower())
+    return f"{naming.hue_name(kind.color)} {form}"
+
+
+def fruit_name(run, kind) -> str:
+    """The fruit's name once identified; before that its colour and "fruit" (or "bloom")."""
+    if run is None or not kind.parent_key or name_known(run, fruit_subject(kind)):
+        return kind.species
+    return f"{naming.hue_name(kind.color)} {'bloom' if kind.species.endswith('bloom') else 'fruit'}"
+
+
 def species_name(run, kind) -> str:
     key = getattr(kind, "key", None)
     if run is None or not is_planetary(key):
@@ -140,7 +181,7 @@ def species_name(run, kind) -> str:
         return kind.name
     colour = naming.hue_name(kind.color)
     if hasattr(kind, "category"):
-        return f"{colour} {kind.category.name.lower()}"
+        return provisional_plant(kind)
     covered = {"fur": "furred ", "feather": "feathered ", "chitin": "armoured ", "scale": "scaly ", "skin": ""}
     return f"{colour} {covered.get(getattr(kind, 'covering', 'fur'), '') if kind.hide is not None else ''}animal"
 
@@ -177,7 +218,7 @@ def learn_names(run, materials: Iterable[Material]) -> None:
 def subject_of(engine, entity):
     """What scanning `entity` looks at: (subject key, title, facts) or None. A creature (alive or a corpse), a plant, a piece
     of material, or meat (which teaches about the animal it came from)."""
-    from components.consumable import Meat
+    from components.consumable import Fruit, Meat
     from items import Composite, Stuff
     planet = engine.game_world.planet
     kind = getattr(entity, "kind", None)
@@ -186,6 +227,8 @@ def subject_of(engine, entity):
         return species_subject(kind), kind.name, facts_for_unit(kind)
     if category == "PLANT" and is_planetary(getattr(kind, "key", None)):
         return plant_subject(kind), kind.name, facts_for_plant(kind)
+    if isinstance(entity, Fruit) and getattr(entity.kind, "parent_key", None):
+        return fruit_subject(entity.kind), entity.kind.species, facts_for_fruit(entity.kind, planet)
     if isinstance(entity, Stuff):
         return material_subject(entity.substance), entity.substance.name, facts_for_material(entity.substance, planet)
     if isinstance(entity, Composite):
@@ -194,6 +237,22 @@ def subject_of(engine, entity):
     if source is not None and is_planetary(getattr(source, "key", None)):
         return species_subject(source), source.name, facts_for_unit(source)
     return None
+
+
+def scan_state(engine, entity) -> Optional[str]:
+    """How well the player knows `entity`: None if a scanner cannot read it, "unscanned", "partly scanned" (the scanner or your
+    skills can still tell you more) or "scanned" (nothing more can be learned with what you have)."""
+    run = engine.game_world.run
+    found = subject_of(engine, entity)
+    if found is None or run is None:
+        return None
+    from knowledge import reveal_level
+    subject, _, facts = found
+    player = engine.player
+    if not run.knowledge.is_known(subject):
+        return "unscanned"
+    more = any(reveal_level(f, player.skills, player.capabilities) > run.knowledge.level(subject, f.key) for f in facts)
+    return "partly scanned" if more else "scanned"
 
 
 def subject_at(engine, x: int, y: int):

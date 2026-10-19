@@ -351,3 +351,44 @@ def test_music_is_mixed_quieter_than_the_slider_says():
     s = settings.Settings()
     assert s.music_level() == pytest.approx(s.effective("music") * 0.5)
     assert settings.Settings(master_volume=10, music_volume=10).music_level() == pytest.approx(0.5)
+
+
+def test_a_biome_pool_plays_where_there_is_no_landmark_and_waits_until_it_is_steady(tmp_path):
+    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": ["f1.mp3"], "volcanic_mountains": ["v1.mp3"]},
+                                    biomes={"temperate_forest": "forest"})
+    director.update(Context())
+    assert backend.played[-1][0] == "a1.mp3"
+    for _ in range(4):                                     # in the forest, but not for long: the music stays
+        clock.advance(1)
+        director.update(Context(biome="temperate_forest"))
+    assert backend.played[-1][0] == "a1.mp3"
+    for _ in range(12):
+        clock.advance(1)
+        director.update(Context(biome="temperate_forest"))
+    assert backend.played[-1][0] == "f1.mp3"
+    for _ in range(40):                                    # a landmark outranks the biome
+        clock.advance(1)
+        director.update(Context("volcanic_mountains", 1.0, biome="temperate_forest"))
+    assert backend.played[-1][0] == "v1.mp3"
+
+
+def test_a_biome_without_tracks_falls_back_to_ambient(tmp_path):
+    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": []}, biomes={"temperate_forest": "forest"})
+    for _ in range(20):
+        clock.advance(1)
+        director.update(Context(biome="temperate_forest"))
+    assert backend.played[-1][0] == "a1.mp3"
+
+
+def test_the_shipped_manifest_names_files_that_exist_and_covers_every_biome():
+    import json
+    import biomes
+    manifest = music.load_manifest()
+    root = music.music_root(manifest)
+    assert set(manifest["biomes"]) == set(biomes.BIOME_IDS)
+    assert set(manifest["biomes"].values()) <= set(manifest["pools"])
+    if not os.path.isdir(root):
+        return                                             # (the music folder is not part of the repository)
+    for pool in manifest["pools"].values():
+        for entry in pool:
+            assert os.path.isfile(os.path.join(root, entry if isinstance(entry, str) else entry["file"])), entry

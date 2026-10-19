@@ -24,6 +24,7 @@ from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the
 import tile_types
 from atlas import sprite_id
 from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chunk_origin
+from entity import EntityCategory
 from species import PlantCategory, PlantSpecies, make_plant_species
 
 if TYPE_CHECKING:
@@ -35,11 +36,22 @@ erosions that give the liquid depths (2), and the wetland damp that reaches `WET
 
 SHALLOW_COLOR = (92, 150, 186)
 DEEP_COLOR = (58, 104, 148)
+"""The classic blue, kept as the fallback and for hand-built maps; generated lakes take their colour from `liquid_palette`."""
+HUE_STOPS = ((0.00, 205.0), (0.30, 218.0), (0.45, 182.0), (0.58, 152.0), (0.68, 110.0), (0.76, 62.0), (0.84, 292.0), (0.92, 322.0), (1.00, 345.0))
+"""Lake hue (degrees) along the slowly varying lake-colour noise (0..1): mostly sea blues and teals, then greens, lime, gold, and the
+violets and rose of an alien chemistry. Interpolated, so neighbouring lakes shade into each other."""
+PLATEAU_EDGE = 0.25
+KIND_HUE, KIND_PULL = {2: 285.0, 3: 78.0}, 0.3
+"""What a lake is made of tints it a little (toxic towards violet, acid towards yellow-green): a faint tell, never a label, since
+the colour field is independent of the kind field and plenty of clean-looking lakes are poisonous."""
+LIQUID_SATURATION, SHALLOW_VALUE, DEEP_VALUE = 0.68, 0.80, 0.54
 """Liquid has exactly two colours, the same everywhere: shallow (depth 1) and deep (depth 2 and 3). They are close in
 brightness on purpose: a stark light/dark edge clashes with the land."""
 FOAM_COLOR = (225, 240, 250)
 LAVA_COLOR = (235, 90, 20)
 HOT_COLOR = (120, 185, 175)
+BASE_THRESHOLD = -0.02
+WOODLAND_REACH = 0.8   # how far the large-scale woodland noise moves the planting threshold
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 OUTCROP_ABOVE = 0.28
@@ -106,6 +118,10 @@ class TerrainNoise:
     def heights(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         return (self.sample(0, 0.05, x0, y0, width, height) + self.sample(1, 0.25, x0, y0, width, height)) / 2
 
+    def liquid_hue_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Slowly varying noise for the colour of a lake (noise 12: unused by anything else), unrelated to its kind on purpose."""
+        return self.sample(12, 0.0012, x0, y0, width, height)
+
     def liquid_kind_field(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Slowly varying noise that decides what a lake is made of (a lake is mostly one kind)."""
         return self.sample(4, 0.006, x0, y0, width, height)
@@ -117,6 +133,11 @@ class TerrainNoise:
     def moisture(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         """Climate moisture, about -1 (arid) .. 1 (soaked)."""
         return np.clip(1.7 * self.sample(5, 0.007, x0 + self.shift[0], y0 + self.shift[1], width, height), -1.3, 1.3)
+
+    def woodland(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
+        """Large-scale stands, about -0.7 (a clearing) .. 0.7 (deep wood): the same noise as `vegetation`, read ~100 tiles wide
+        and offset, so a biome is a patchwork of open ground, copses and forest instead of one even sprinkle."""
+        return self.sample(3, 0.012, x0 + 7919, y0 - 4421, width, height)
 
     def vegetation(self, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         # (The single-map generator also sampled noise 2 at scale 0.05 but overwrote it; the result is noise 3 only.)
@@ -187,9 +208,43 @@ def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_
     return {k: np.ascontiguousarray(v[interior]) for k, v in env.items()}
 
 
-def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int) -> None:
+def liquid_palette(noise: TerrainNoise, kind: np.ndarray, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
+    """`(shallow, deep)` RGB (float, shape (width, height, 3)) for every tile of the rectangle: a pure function of the lake-colour
+    noise and the liquid kind, so a lake keeps its colour across chunk borders and neighbouring lakes differ."""
+    import colorsys
+    field = noise.liquid_hue_field(x0, y0, width, height)
+    u = np.clip(0.5 + field / 1.1, 0.0, 1.0)
+    stops = np.array(HUE_STOPS)
+    # plateaus: most of a body of water keeps one colour and the change to the next is a short band, so an ocean is not a rainbow
+    cells = u * (len(stops) - 1)
+    base = np.floor(cells)
+    blend = np.clip((cells - base - 0.5) / PLATEAU_EDGE + 0.5, 0.0, 1.0)
+    hue = stops[np.minimum(base.astype(int), len(stops) - 1), 1] * (1 - blend) + stops[np.minimum(base.astype(int) + 1, len(stops) - 1), 1] * blend
+    for number, target in KIND_HUE.items():
+        pull = np.where(kind == number, KIND_PULL, 0.0)
+        delta = (target - hue + 180.0) % 360.0 - 180.0         # the short way round the colour wheel
+        hue = (hue + delta * pull) % 360.0
+    out = []
+    for value in (SHALLOW_VALUE, DEEP_VALUE):
+        # (vectorised hsv->rgb)
+        h = (hue / 60.0) % 6.0
+        s, v = LIQUID_SATURATION, value
+        c = v * s
+        x = c * (1 - np.abs(h % 2 - 1))
+        m = v - c
+        z = np.zeros_like(h)
+        sector = h.astype(int)
+        r = np.choose(sector, (c, x, z, z, x, c))
+        g = np.choose(sector, (x, c, c, x, z, z))
+        b = np.choose(sector, (z, z, x, c, c, x))
+        out.append(np.stack([r + m, g + m, b + m], axis=-1) * 255.0)
+    return out[0], out[1]
+
+
+def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int):
     """Give the lake tiles (`liquid` mask) their depth (1 on the shore, +1 per tile inwards, at most 3: deeper liquid is
-    always ringed by shallower), kind and colour (shallow or deep). Shallow liquid can be waded, deeper liquid cannot."""
+    always ringed by shallower), kind and colour (shallow or deep, see `liquid_palette`). Shallow liquid can be waded, deeper liquid
+    cannot. Returns the palette `(shallow, deep)` for the whole rectangle (the shores borrow it)."""
     from procgen import neighbour_masks
     depth = liquid.astype(np.int8)
     inner = liquid
@@ -199,12 +254,14 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
         depth += inner
     kind_value = noise.liquid_kind_field(x0, y0, width, height)
     kind = np.where(kind_value < IMPURE_BELOW, 1, np.where(kind_value < TOXIC_BELOW, 2, 3)).astype(np.int8)
-    light = np.where((depth >= 2)[..., None], np.array(DEEP_COLOR, dtype=np.uint8), np.array(SHALLOW_COLOR, dtype=np.uint8))
+    shallow, deep = liquid_palette(noise, kind, x0, y0, width, height)
+    light = np.where((depth >= 2)[..., None], deep, shallow).astype(np.uint8)
     landscape["liquid"][liquid] = kind[liquid]
     landscape["depth"][liquid] = depth[liquid]
     landscape["walkable"][liquid] = depth[liquid] == 1
     landscape["light"]["fg"][liquid] = light[liquid]
     landscape["dark"]["fg"][liquid] = (light[liquid] * 0.5).astype(np.uint8)
+    return shallow, deep
 
 
 # ── ground cover and shores ─────────────────────────────────────────────────────────────────────────────
@@ -220,7 +277,7 @@ GROUND_COVER: Dict[str, Tuple[Tuple[int, int], ...]] = {
 }
 """The little plants drawn on open ground, by biome: tufts of grass, ferns, leaves, toadstools (sprites of the sheet).
 They are part of the terrain graphics, not objects: free to draw, nothing to save, nothing to pick up."""
-COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.06, 0.30, 0.5
+COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.05, 0.22, 0.4
 """Share of open ground that carries cover: `COVER_BASE + COVER_PER_VEGETATION * biome.vegetation` (at most `COVER_MAX`)."""
 
 SHORE_WET = (0.40, 0.22, 0.09)
@@ -245,31 +302,29 @@ def _mix(a: np.ndarray, b: np.ndarray, share) -> np.ndarray:
     return (a.astype(float) * (1.0 - share) + b.astype(float) * share)
 
 
-def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.ndarray, ground: np.ndarray, open_ground: np.ndarray) -> None:
+def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.ndarray, ground: np.ndarray, open_ground: np.ndarray,
+                  shallow: np.ndarray, deep: np.ndarray) -> None:
     """Soften the edge between water and land into a gradient: the ground gets damper and bluer towards the water, shallow
     water takes some of the ground's colour, and the step from shallow to deep water is split in two. Every tile gets a few
     shades of variation so the bands do not read as stripes."""
     distance = shore_distance(water)
-    shallow = np.array(SHALLOW_COLOR, dtype=float)
-    deep = np.array(DEEP_COLOR, dtype=float)
     jitter = np.floor(noise.scatter(1, *area) * 9 - 4)[..., None]   # -4..4 shades, the same for a tile whichever chunk makes it
     for step, share in enumerate(SHORE_WET, start=1):
         band = open_ground & (distance == step)
         if not band.any():
             continue
         for layer, scale in (("light", 0.8), ("dark", 0.4)):
-            damp = shallow * scale * 0.85 + ground[band].astype(float) * scale * 0.15
+            damp = shallow[band] * scale * 0.85 + ground[band].astype(float) * scale * 0.15
             colour = _mix(landscape[layer]["fg"][band], damp, share) + jitter[band]
             landscape[layer]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
-        damp_bg = shallow * 0.10
+        damp_bg = shallow[band] * 0.10
         landscape["light"]["bg"][band] = np.clip(_mix(landscape["light"]["bg"][band], damp_bg, share), 0, 255).astype(np.uint8)
     depth = landscape["depth"]
     for level, base, other, share in ((1, shallow, ground * 0.8, 0.22), (2, deep, shallow, 0.45)):
         band = water & (depth == level)
         if not band.any():
             continue
-        target = other[band] if level == 1 else other
-        colour = _mix(np.broadcast_to(base, (int(band.sum()), 3)), target, share) + jitter[band]
+        colour = _mix(base[band], other[band], share) + jitter[band]
         landscape["light"]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
         landscape["dark"]["fg"][band] = np.clip(colour * 0.5, 0, 255).astype(np.uint8)
 
@@ -292,7 +347,7 @@ def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, o
         sprites = np.array([sprite_id(*cell) for cell in cells], dtype=np.int32)
         chosen = sprites[(pick[mask] * len(sprites)).astype(int)]
         flip = turn[mask] < 0.5
-        for layer, brighten in (("light", (1.0, 1.55)), ("dark", (1.0, 1.4))):
+        for layer, brighten in (("light", (0.85, 1.2)), ("dark", (0.8, 1.1))):
             shade = (brighten[0] + tone[mask] * (brighten[1] - brighten[0]))[:, None]
             landscape[layer]["sprite"][mask] = chosen
             landscape[layer]["flip"][mask] = flip
@@ -342,7 +397,7 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     landscape[kinds == 1] = tile_types.floor.get_array()
     landscape = replace_variations(tile_types.water, landscape, pw, ph)
     landscape = replace_variations(tile_types.wall, landscape, pw, ph)
-    _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
+    shallow_colors, deep_colors = _shape_liquid(noise, landscape, kinds == 0, x0 - m, y0 - m, pw, ph)
     hot = hydrology.hot_spring_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0)
     landscape["liquid"][hot] = 4      # liquids.LiquidKind.HOT
     fall = hydrology.waterfall_mask(noise, x0 - m, y0 - m, pw, ph) & (kinds == 0) & ~hot
@@ -366,11 +421,14 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # Vegetation: wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
     # the biome (barren desert ... dense jungle).
     random_map = noise.scatter(7, x0 - m, y0 - m, pw, ph)   # a coordinate hash, so chunk borders show no seam
-    threshold = 0.1 + (1.0 - density) * 0.45
+    # (The biome sets the base; the woodland noise raises it into stands and clearings. The earlier `0.1 + (1 - density) * 0.45`
+    # left grass, steppe and scrub at under 1% cover, against the 4.7% everywhere of the original generator.)
+    stands = noise.woodland(x0 - m, y0 - m, pw, ph)
+    threshold = BASE_THRESHOLD + (1.0 - density) * 0.4 - stands * WOODLAND_REACH
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
     area = (x0 - m, y0 - m, pw, ph)
-    _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground)
+    _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground, shallow_colors, deep_colors)
     for layer, scale in (("light", 1.0), ("dark", 0.5)):     # hot springs are a paler, greener blue; lava glows orange
         landscape[layer]["fg"][hot] = (np.array(HOT_COLOR, dtype=float) * scale).astype(np.uint8)
         landscape[layer]["fg"][fall & ~lava] = (np.array(FOAM_COLOR, dtype=float) * scale).astype(np.uint8)
@@ -461,6 +519,7 @@ class NoiseWorldSource:
         import components.plant
         from procgen import place_entities
         tree_map = chunk.__dict__.pop("pending_trees")
+        import structures
         now = world.engine.game_world.current_time if getattr(world.engine, "game_world", None) else 0
         before = set(chunk.entities)
         with seeded_rng(mix_seed(self.chunk_seed(chunk.key), 1)):
@@ -481,9 +540,11 @@ class NoiseWorldSource:
                 env = shafts.environment(self.floor_seed, chunk.key)
                 self._grow_flora(world, chunk, tree_map, env)
                 self._scatter_stones(world, chunk, env, reserved)
+                import scenery
+                scenery.populate(self, world, chunk, env, reserved, ruin_chunk=chunk.key in structures.ruin_chunks(self.floor_seed))
                 self._spawn_fauna(world, chunk, env, reserved)
                 self._place_sites(world, chunk)
-                settlements.populate(world, chunk, self.floor_seed)
+                settlements.populate(world, chunk, self.floor_seed, self.planet)
                 self._scatter_flowers(world, chunk, env, reserved)
                 self._scatter_lily_pads(world, chunk)
         for entity in chunk.entities:
@@ -509,6 +570,8 @@ def _grow_flora(self, world: "World", chunk: Chunk, tree_map: np.ndarray, env: d
 
 FLOWERS_PER_CHUNK = (25, 60)
 """Flowers placed on a chunk's open ground (min, max attempts; each needs a free tile a flower species can live on)."""
+FLOWER_UNDER_TREE = 0.12
+"""Chance that a flower attempt picks the foot of a tree instead of open ground."""
 LILY_PADS_PER_100_WATER_TILES = 1.2
 """Lily pads on the water of a chunk: very sparse."""
 
@@ -519,7 +582,20 @@ def _scatter_flowers(self, world: "World", chunk: Chunk, env: dict, reserved) ->
     pool, weights = self.planet.species_weights(env, PlantCategory.FLOWER)   # one pass over the whole chunk
     if not pool:
         return
+    trees = [(e.x, e.y) for e in chunk.entities if e.category is EntityCategory.PLANT and e.blocks_movement]
     for _ in range(random.randint(*FLOWERS_PER_CHUNK)):
+        if trees and random.random() < FLOWER_UNDER_TREE:
+            # (a flower may grow at the foot of a tree: the one pairing of foliage that may share a tile)
+            x, y = random.choice(trees)
+            there = world.get_entities_at_location(x, y)
+            if len(there) == 1 and (x, y) not in reserved:
+                lx, ly = x - chunk.x0, y - chunk.y0
+                column = weights[:, lx, ly]
+                if column.sum() > 0:
+                    plant = components.plant.Flower(random.choices(pool, weights=column.tolist())[0])
+                    plant.growth = random.randrange(int(plant.avg_cycle) + 1)
+                    world.add_entity(plant, x, y)
+            continue
         lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
         x, y = chunk.x0 + lx, chunk.y0 + ly
         if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
@@ -561,7 +637,9 @@ def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> Non
     """Place up to `FAUNA_PER_CHUNK` animals at random tiles, each a species that can live at that tile."""
     import components.unit as units
     from components.unit import Unit
+    import wildlife
     pool, _ = self.planet.fauna_weights({k: v[0:1, 0:1] for k, v in env.items()})
+    placed = 0
     for _ in range(random.randint(0, FAUNA_PER_CHUNK)):
         lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
         x, y = chunk.x0 + lx, chunk.y0 + ly
@@ -579,6 +657,9 @@ def _spawn_fauna(self, world: "World", chunk: Chunk, env: dict, reserved) -> Non
         if column.sum() <= 0:
             continue
         world.add_entity(Unit(random.choices(pool, weights=column.tolist())[0]), x, y)
+        placed += 1
+    if self.floor == 1:
+        wildlife.note(world, chunk, placed)
 
 
 STONES_PER_CHUNK = (3, 7)
@@ -596,6 +677,8 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         x, y = chunk.x0 + lx, chunk.y0 + ly
         if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
             continue
+        if any(e.category is EntityCategory.PLANT for e in world.get_entities_at_location(x, y)):
+            continue                                  # (a loose stone under a bush could not be seen)
         biome = biomes.BIOME_IDS[int(env["biome"][lx, ly])]
         stone_landmark = landmarks.key_of(int(env["landmark"][lx, ly])) if env["landmark_strength"][lx, ly] > 0.3 else ""
         material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome, stone_landmark)
@@ -688,11 +771,12 @@ class CaveSource:
         return Chunk(key, self.terrain(key).copy())
 
     def populate(self, world: World, chunk: Chunk) -> None:
-        from procgen import cave_enemy_chances, place_entities
-        now = world.engine.game_world.current_time if getattr(world.engine, "game_world", None) else 0
+        import underground
+        game_world = getattr(world.engine, "game_world", None)
+        now = game_world.current_time if game_world else 0
         before = set(chunk.entities)
         with seeded_rng(mix_seed(self.floor_seed, chunk.key[0], chunk.key[1], 1)):
-            place_entities(world, self.floor, area=(chunk.x0, chunk.y0, CHUNK_W, CHUNK_H), enemies=cave_enemy_chances)
+            underground.populate(world, chunk, self.floor, self.master_seed, self.z, getattr(game_world, "planet", None))
         for entity in chunk.entities:
             if entity not in before:
                 entity.last_upkeep = now

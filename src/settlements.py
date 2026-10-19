@@ -147,7 +147,7 @@ def paint(master: int, key: ChunkKey, tiles: np.ndarray, tree_map: np.ndarray) -
     if found is None:
         return
     for house in found.houses:
-        _house(tiles, tree_map, house)
+        _house(tiles, tree_map, house, timber=found.kind == "farm")
     if found.kind == "farm":
         _field(tiles, tree_map, found)
     for x, y, w, h in found.streets:
@@ -174,7 +174,41 @@ def built(master: int, key: ChunkKey) -> frozenset:
     return frozenset(tiles)
 
 
-def populate(world, chunk, master: int) -> None:
+def _fence_tiles(found: Layout) -> List[Tuple[int, int]]:
+    x, y, w, h = found.fence
+    ring = [(i, j) for i in range(x, x + w) for j in (y, y + h - 1)] + [(i, j) for i in (x, x + w - 1) for j in range(y + 1, y + h - 1)]
+    return [t for t in ring if t != found.gate]
+
+
+def _crop_tiles(found: Layout) -> List[Tuple[int, int]]:
+    x, y, w, h = found.fence
+    return [(i, row) for row in range(y + 2, y + h - 1, 2) for i in range(x + 1, x + w - 1)]
+
+
+def _wall_tiles(house: House) -> List[Tuple[int, int]]:
+    x, y, w, h = house.x, house.y, house.w, house.h
+    ring = [(i, j) for i in range(x, x + w) for j in (y, y + h - 1)] + [(i, j) for i in (x, x + w - 1) for j in range(y + 1, y + h - 1)]
+    return [t for t in ring if t != house.door]
+
+
+def _build_farm(world, chunk, found: Layout, planet) -> None:
+    """The farm's solid parts as entities: timber house walls, the fence round the field, and the crops in its rows."""
+    import components.plant
+    from crafting import Fence, Wall
+    from items import DEFAULT_WOOD
+    for house in found.houses:
+        for lx, ly in _wall_tiles(house):
+            world.add_entity(Wall({"wood": DEFAULT_WOOD}, 1.0, {}), chunk.x0 + lx, chunk.y0 + ly)
+    for lx, ly in _fence_tiles(found):
+        world.add_entity(Fence(), chunk.x0 + lx, chunk.y0 + ly)
+    if planet is not None:
+        for lx, ly in _crop_tiles(found):
+            plant = components.plant.Shrub(planet.crop)
+            plant.growth = random.randrange(int(plant.avg_cycle) + 1)
+            world.add_entity(plant, chunk.x0 + lx, chunk.y0 + ly)
+
+
+def populate(world, chunk, master: int, planet=None) -> None:
     """The people and supplies of a settlement: rations (and now and then a medkit) on the floors of its houses, and settlers
     about the street (a town) or the farmyard. Uses the chunk's seeded `random`."""
     import types
@@ -185,6 +219,8 @@ def populate(world, chunk, master: int) -> None:
     if found is None:
         return
     nobody = types.SimpleNamespace(inventory=None)
+    if found.kind == "farm":
+        _build_farm(world, chunk, found, planet)
     for house in found.houses:
         floor = [(x, y) for x in range(house.x + 1, house.x + house.w - 1) for y in range(house.y + 1, house.y + house.h - 1)]
         for _ in range(random.randint(1, 2)):
@@ -209,9 +245,10 @@ def populate(world, chunk, master: int) -> None:
             count -= 1
 
 
-def _house(tiles: np.ndarray, tree_map: np.ndarray, house: House) -> None:
+def _house(tiles: np.ndarray, tree_map: np.ndarray, house: House, timber: bool = False) -> None:
+    """A house: stone walls in the terrain, or (`timber`, a farmhouse) a floor that `populate` stands wooden wall entities on."""
     x, y, w, h = house.x, house.y, house.w, house.h
-    tiles[x:x + w, y:y + h] = tile_types.wall.get_array()
+    tiles[x:x + w, y:y + h] = (tile_types.floor if timber else tile_types.wall).get_array()
     tiles[x + 1:x + w - 1, y + 1:y + h - 1] = tile_types.floor.get_array()
     tiles[house.door] = tile_types.floor.get_array()
     tree_map[x - 1:x + w + 1, y - 1:y + h + 2] = False
@@ -221,10 +258,6 @@ def _field(tiles: np.ndarray, tree_map: np.ndarray, found: Layout) -> None:
     x, y, w, h = found.fence
     tree_map[x:x + w, y:y + h] = False
     tiles[x:x + w, y:y + h] = tile_types.farmland.get_array()
-    for row in range(y + 2, y + h - 1, 2):                 # every other row, clear of the fence, carries crops
-        tiles[x + 1:x + w - 1, row] = tile_types.crops.get_array()
-    for fx, fy in [(i, j) for i in range(x, x + w) for j in (y, y + h - 1)] + [(i, j) for i in (x, x + w - 1) for j in range(y, y + h)]:
-        tiles[fx, fy] = tile_types.fence.get_array()
     gx, gy = found.gate
     tiles[gx, gy] = tile_types.path.get_array()            # the gate
     tiles[gx, gy - 1] = tile_types.farmland.get_array()    # (and the row inside it stays open)

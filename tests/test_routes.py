@@ -44,7 +44,7 @@ def test_the_landing_chunk_is_never_a_site():
 
 def test_every_laid_tile_shows_in_its_chunk_and_only_over_plain_ground_or_short_water():
     checked = 0
-    for a, b in _some_routes(3):
+    for a, b in _some_routes(12):
         for (x, y), deck in routes.laid(SEED, a, b).items():
             key = (x // CHUNK_W, y // CHUNK_H)
             if shafts.structure(SEED, key).building is not None or shafts.structure(SEED, key).links:
@@ -59,8 +59,8 @@ def test_every_laid_tile_shows_in_its_chunk_and_only_over_plain_ground_or_short_
 
 def test_bridged_stretches_are_short_with_dry_ground_each_side():
     for a, b in _some_routes(6):
-        course = routes.course(SEED, a, b)
         laid = routes.laid(SEED, a, b)
+        course = next((c for c in (routes.course(SEED, a, b, n) for n in range(routes.ATTEMPTS)) if laid and all(t in laid for t in c)), [])
         run = 0
         for i, tile in enumerate(course):
             if laid.get(tile) is True:
@@ -70,3 +70,20 @@ def test_bridged_stretches_are_short_with_dry_ground_each_side():
                 if run:
                     assert laid.get(course[i - 1 - run]) is False and laid.get(tile) is False
                 run = 0
+
+
+def test_a_route_is_walkable_from_end_to_end_or_not_laid_at_all():
+    laid_routes = dropped = 0
+    for a, b in _some_routes(12):
+        laid = routes.laid(SEED, a, b)
+        if not laid:
+            dropped += 1
+            continue
+        laid_routes += 1
+        courses = [routes.course(SEED, a, b, n) for n in range(routes.ATTEMPTS)]
+        whole = [c for c in courses if all(t in laid for t in c)]
+        assert whole, "a laid route must cover every tile of one of its courses (no broken road)"
+        steps = whole[0]
+        for (x0, y0), (x1, y1) in zip(steps, steps[1:]):
+            assert max(abs(x1 - x0), abs(y1 - y0)) == 1       # unbroken
+    assert laid_routes > 0

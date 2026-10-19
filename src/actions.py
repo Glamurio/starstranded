@@ -780,9 +780,12 @@ class ScanAction(Action):
             return
         log(f"Scanner: {title}", color.player_atk)
         run = engine.game_world.run
+        import knowledge
         for fact, level in learned:
             label = fact.key.replace("_", " ")
-            log(f"  {label} ({level.name.lower()})", color.player_atk)
+            text = knowledge.format_fact(fact, level)
+            suffix = "" if level is knowledge.Know.FULL else " (partial reading)"
+            log(f"  {label}: {text}{suffix}" if fact.key != "name" else f"  identified: {text}", color.player_atk)
 
 
 class ScanThingAction(ScanAction):

@@ -43,7 +43,8 @@ def test_the_path_is_hidden_over_an_item_and_drawn_over_open_ground(new_engine, 
     p, world = new_engine.player, new_engine.game_map
     handler = ih.MainGameEventHandler(new_engine)
     SESSION.handlers = [handler]
-    free = [(p.x + dx, p.y + 3) for dx in range(-3, 4) if world.is_walkable(p.x + dx, p.y + 3) and not world.is_blocked(p.x + dx, p.y + 3)]
+    free = [(p.x + dx, p.y + 3) for dx in range(-3, 4) if world.is_walkable(p.x + dx, p.y + 3) and not world.is_blocked(p.x + dx, p.y + 3)
+            and not world.get_entities_at_location(p.x + dx, p.y + 3)]      # (bare ground: no crop, fruit or stone)
     x, y = free[0]
     hover(handler, x, y)
     assert steps, "a path is drawn over open ground"

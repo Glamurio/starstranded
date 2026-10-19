@@ -3,6 +3,18 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## World readability round, 19 Oct 2026
+- Farms: fences are breakable wooden fence entities, farmhouses have timber walls, and the field rows are real harvestable, regrowing crop plants (never found wild).
+- Changed: lakes, rivers and seas come in a wide range of vivid colours again (blue, teal, green, yellow, violet, magenta); a lake keeps its colour and different places differ.
+- Changed: ground colours ease into each other over a few tiles at biome borders instead of a hard line.
+- Changed: plants, fruit and creatures are named with the real name of their colour; creatures are named for the animal they look like.
+- Changed: the grazer is drawn as a deer; hoppers are less common and each biome has different leading animals.
+- New: the world map shows ships, pods, ruins and the gate with their own pictures.
+- Changed: roads are only laid when they can be walked end to end (no roads that stop at a cliff or lake; bridges only over short clean water).
+- New: seven kinds of cave (barren, volcanic, ice, crystal, fungal, flooded, precursor ruins) with their own colours and cave animals; Selenites are now rare visitors.
+- New: wildlife recovers where it was hunted out and herds breed, also while you are away.
+- New: music follows the biome as well as the landmark, uses more of the tracks, and crossfades between tracks.
+
 ## Session, sight and faction round, 19 Oct 2026
 - Fixed: Continue after Save & Quit to Main Menu no longer throws you straight back to the menu.
 - Fixed: music stops when you leave a game for the menu and starts fresh in the next one.
