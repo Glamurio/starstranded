@@ -298,7 +298,7 @@ class Namer:
         serial = 2
         while _norm(f"{base} {_roman(serial)}") in self.used:
             serial += 1
-        text = _tidy(f"{base} {_roman(serial)}")
+        text = f"{_plain(self.culture, _tidy(base))} {_roman(serial)}"
         self.used.add(_norm(text))
         self.glosses[text] = f"{colour} {shape or 'fruit'}"
         return text
