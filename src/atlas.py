@@ -89,6 +89,26 @@ def draw_bones(surface: pygame.Surface) -> None:
         surface.set_at((x, y), BONE)
 
 
+def draw_puddle(surface: pygame.Surface, variant: int) -> None:
+    """A white blob (alpha = the puddle, grey = darker towards the middle) built from a few overlapping discs, 24x24 px.
+    `variant` seeds its shape so neighbouring puddles differ; tinting it gives the fluid's colour."""
+    import random
+    rng = random.Random(variant)
+    cx, cy = 12 + rng.randint(-1, 1), 13 + rng.randint(-1, 1)
+    discs = [(cx, cy, rng.randint(5, 7))]
+    for _ in range(rng.randint(3, 5)):
+        discs.append((cx + rng.randint(-6, 6), cy + rng.randint(-5, 5), rng.randint(2, 4)))
+    for x in range(24):
+        for y in range(24):
+            depth = max((r - ((x - dx) ** 2 + (y - dy) ** 2) ** 0.5 for dx, dy, r in discs), default=-1)
+            if depth >= 0:
+                shade = 255 if depth < 1.5 else 205
+                surface.set_at((x, y), (shade, shade, shade, 235 if depth >= 1.5 else 200))
+    for _ in range(rng.randint(2, 4)):              # a few spatters
+        x, y = rng.randint(1, 22), rng.randint(1, 22)
+        surface.set_at((x, y), (230, 230, 230, 220))
+
+
 class SpriteAtlas:
     """Holds the sheet once and hands out cached sprite surfaces.
 
@@ -139,6 +159,19 @@ class SpriteAtlas:
         draw_bones(body)
         self._cache[key] = body
         return body
+
+    def get_puddle(self, variant: int, tint: RGB) -> pygame.Surface:
+        """A stain of colour `tint` (blood, oil...) lying on the ground; `variant` (0-7) picks its shape."""
+        key = ("puddle", variant % 8, tuple(tint))
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+        self._make_room()
+        surface = pygame.Surface((TILE, TILE), pygame.SRCALPHA, 32)
+        draw_puddle(surface, variant % 8)
+        surface.fill((*tint, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        self._cache[key] = surface
+        return surface
 
     def get_on(self, sprite: int, flipped: bool, tint: RGB, bg: RGB) -> pygame.Surface:
         """The sprite over an opaque background; `sprite == NO_SPRITE` gives just the background."""

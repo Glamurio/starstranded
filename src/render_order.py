@@ -5,11 +5,12 @@ from typing import Tuple
 class RenderOrder(Enum):
     """Draw layers of a tile, bottom to top. The member's value is its position in the stack.
 
-    terrain (the tile itself) < CORPSE < ITEM < SHRUB < UNIT < TREE
+    terrain (the tile itself) < DECAL (blood) < CORPSE < ITEM < SHRUB < UNIT < TREE
 
     Every entity on a visible tile is drawn, each as its own sprite with its own tint and mirroring, so a unit
     standing on an item standing on a corpse shows all three (sprites are transparent between their strokes).
     """
+    DECAL = auto()      # stains on the ground; never picked up, never piled
     CORPSE = auto()
     ITEM = auto()
     SHRUB = auto()

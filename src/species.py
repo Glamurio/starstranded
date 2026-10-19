@@ -127,6 +127,9 @@ class UnitSpecies(_Definition):
     hide: Optional[Material] = None    # what its skin/fur/shell is made of (drops as hide when it dies)
     grants: Tuple[Grant, ...] = ()     # innate tags (see capabilities)
     rarity: float = 1.0                # relative abundance where it can live
+    blood_color: RGB = (150, 18, 24)   # what it bleeds when it dies (robots could leave black oil, say)
+    blood_name: str = "blood"
+    covering: str = "fur"              # what covers its body: fur, feather, chitin, scale or skin (see `COVERINGS`)
 
 
 @dataclass(frozen=True)
@@ -225,6 +228,9 @@ PIECE_STONE = _piece("piece_stone", "Stone", (3, 24))
 PIECE_ORE = _piece("piece_ore", "Ore", (1, 24))
 PIECE_FIBER = _piece("piece_fiber", "Fibre", (1, 27))
 PIECE_HIDE = _piece("piece_hide", "Hide", (2, 25))
+PIECE_FEATHER = _piece("piece_feather", "Feather", (5, 25))
+PIECE_CHITIN = _piece("piece_chitin", "Chitin", (4, 22))
+PIECE_SCALE = _piece("piece_scale", "Scale", (1, 22))
 PIECE_SAND = _piece("piece_sand", "Sand", (4, 25))
 PIECE_CLAY = _piece("piece_clay", "Clay", (4, 25))
 PIECE_COAL = _piece("piece_coal", "Coal", (3, 24))
@@ -233,8 +239,15 @@ PIECE_BRICK = _piece("piece_brick", "Brick", (5, 25))
 PIECE_GLASS = _piece("piece_glass", "Glass", (2, 23))
 PIECE_CORD = _piece("piece_cord", "Cord", (2, 27))
 PIECE_WIRE = _piece("piece_wire", "Wire", (0, 27))
-PIECE_FORMS = (PIECE_STONE, PIECE_ORE, PIECE_FIBER, PIECE_HIDE, PIECE_SAND, PIECE_CLAY, PIECE_COAL, PIECE_INGOT,
+PIECE_FORMS = (PIECE_STONE, PIECE_ORE, PIECE_FIBER, PIECE_HIDE, PIECE_FEATHER, PIECE_CHITIN, PIECE_SCALE, PIECE_SAND, PIECE_CLAY, PIECE_COAL, PIECE_INGOT,
                PIECE_BRICK, PIECE_GLASS, PIECE_CORD, PIECE_WIRE)
+
+# What covers an animal's body -> (the piece it leaves, the noun in the material's name). Fur and skin are hides (they make
+# leather things); feathers pad, chitin and scales armour and edge. Every covering is good for something (see recipes.py).
+COVERINGS = {
+    "fur": (PIECE_HIDE, "fur"), "skin": (PIECE_HIDE, "skin"), "feather": (PIECE_FEATHER, "feathers"),
+    "chitin": (PIECE_CHITIN, "chitin"), "scale": (PIECE_SCALE, "scales"),
+}
 
 # ── Tools, weapons and armour made of parts (power/defence come from the parts' properties) ──
 _WOOD = (0x8B, 0x6B, 0x3D)

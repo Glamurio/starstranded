@@ -14,7 +14,7 @@ from materials import Family
 from skills import Skill
 
 BIND = ("Cord", "Fibre", "Hide", "Leather")
-HEADS = ("Stone", "Ingot")
+HEADS = ("Stone", "Ingot", "Chitin")   # a chitin plate is hard enough for an edge or a point
 
 
 def binding(minimum: float = 3.0) -> Need:
@@ -74,12 +74,12 @@ RECIPES: List[Recipe] = [
     Recipe("flask", "Flask", "A hide flask. Use it next to a liquid to fill it, next to a lit fire to boil it, else to drink.", 1,
            (Need("hide", "Hide", ("Hide", "Leather"), 1, (("tenacity", 2.0),)),), "flask", defs.FLASK, designation="hide"),
     Recipe("hide_armor", "Hide armour", "Layers of hide bound with cord. Insulates too.", 1,
-           (Need("body", "Body", ("Hide", "Leather"), 3, (("toughness", 2.0), ("tenacity", 3.0))),
+           (Need("body", "Body", ("Hide", "Leather", "Scale"), 3, (("toughness", 2.0), ("tenacity", 2.0))),
             Need("binding", "Binding", ("Cord", "Fibre"), 1, (("tenacity", 3.0),))), "gear", defs.HIDE_ARMOR,
            rules=_ARMOR_RULES, designation="body", time=4),
     Recipe("bed", "Bed", "A frame and soft padding: sleep here to rest in warmth and safety.", 1,
            (Need("frame", "Frame", ("Branch",), 3, (("toughness", 4.0),)),
-            Need("padding", "Padding", ("Fibre", "Hide", "Leather"), 2, (("insulation", 3.0),))), "placed", defs.BED,
+            Need("padding", "Padding", ("Fibre", "Hide", "Leather", "Feather"), 2, (("insulation", 3.0),))), "placed", defs.BED,
            rules={"toughness": ("role", "frame"), "insulation": ("role", "padding")}, designation="frame", is_placeable=True, time=4),
     Recipe("floor", "Wooden floor", "A plank floor for open air: build it next to you, then walk out onto it.", 1,
            (Need("boards", "Boards", ("Branch",), 2, (("toughness", 3.0),)),), "floor", defs.WOODEN_FLOOR,
@@ -168,7 +168,7 @@ def validate_recipes() -> None:
     """Static consistency checks (also run by the tests): known property names, tags, forms, builders."""
     import capabilities
     import materials
-    forms = {k.object_type for k in defs.ITEM_KINDS.values()} | {"Branch", "Hide", "Leather", "Fibre"}
+    forms = {k.object_type for k in defs.ITEM_KINDS.values()} | {"Branch", "Hide", "Leather", "Fibre", "Feather", "Chitin", "Scale"}
     builders = {"gear", "made", "placed", "fire", "torch", "floor", "stairs", "wall", "flask", "process"}
     for r in RECIPES:
         assert r.builder in builders, f"{r.key}: unknown builder {r.builder}"

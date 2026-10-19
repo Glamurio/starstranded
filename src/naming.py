@@ -149,10 +149,17 @@ FAMILY_TYPICAL: Dict[str, Dict[str, float]] = {
     "sand": {"hardness": 5.5, "toughness": 1.5, "density": 4, "abrasivity": 6, "transparency": 3},
     "clay": {"hardness": 2, "toughness": 2.5, "tenacity": 2.5, "density": 4.5, "insulation": 3.5},
 }
-FAMILY_TYPICAL["scaled"] = dict(FAMILY_TYPICAL["hide"], hardness=6, toughness=5, tenacity=2.5, density=4, insulation=2, flammability=0.8,
-                                combustibility=0.8)   # chitin and scale are naturally hard: "hard" is not remarkable for them
-for _animal in ("animal", "furred", "small_herbivore", "grazer", "predator", "bird"):
+# Which animals have which covering (planet.py): fur -> small_herbivore, grazer, predator; feather -> bird; skin -> animal;
+# chitin and scale -> crawler, serpent. Hard chitin or scale is ordinary for them; "hard" is only remarkable on a furred beast.
+FAMILY_TYPICAL["scaled"] = dict(FAMILY_TYPICAL["hide"], hardness=5.5, toughness=5, tenacity=2.5, density=4, insulation=2,
+                                flammability=0.8, combustibility=0.8)
+FAMILY_TYPICAL["feathered"] = dict(FAMILY_TYPICAL["hide"], insulation=7.5, tenacity=2, toughness=2, hardness=0.6, density=0.8)
+FAMILY_TYPICAL["skinned"] = dict(FAMILY_TYPICAL["hide"], insulation=3, tenacity=5, toughness=4, hardness=1.5, flammability=4, density=2)
+for _animal in ("animal",):
+    FAMILY_TYPICAL[_animal] = FAMILY_TYPICAL["skinned"]
+for _animal in ("furred", "small_herbivore", "grazer", "predator"):
     FAMILY_TYPICAL[_animal] = FAMILY_TYPICAL["hide"]
+FAMILY_TYPICAL["bird"] = FAMILY_TYPICAL["feathered"]
 for _animal in ("armoured", "crawler", "serpent"):
     FAMILY_TYPICAL[_animal] = FAMILY_TYPICAL["scaled"]
 for _plant in ("tree", "shrub", "grass", "fungus"):

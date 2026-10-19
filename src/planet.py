@@ -127,7 +127,7 @@ class FaunaTemplate:
     defense: int = 0
     rarity: float = 1.0
     name_family: str = "animal"
-    hide_kind: str = "fur"           # fur | scale
+    hide_kind: str = "fur"           # what covers the body: fur | feather | chitin | scale | skin (see `species.COVERINGS`)
     corpse_sprite: Tuple[int, int] = (44, 16)
     grants: Tuple[str, ...] = ()
     xp: int = 20
@@ -139,14 +139,25 @@ FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("hopper", (3, 20), Habitat((-0.6, 0.8), (-0.4, 0.9), fertility=(0.15, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 1, 3, rarity=3.0, name_family="small_herbivore", xp=10),
     FaunaTemplate("grazer", (4, 18), Habitat((-0.5, 0.7), (-0.35, 0.5), fertility=(0.25, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 8, 2, rarity=1.6, name_family="grazer", xp=25),
     FaunaTemplate("strider", (5, 18), Habitat((0.0, 0.9), (-0.5, 0.2)), Diet.HERBIVORE, AIKind.PASSIVE, 11, 3, rarity=1.0, name_family="grazer", xp=30),
-    FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.HOSTILE, 10, 3, rarity=1.0, name_family="animal", xp=35),
+    FaunaTemplate("rooter", (2, 20), Habitat((-0.4, 0.8), (0.0, 1.0), fertility=(0.4, 1.0)), Diet.OMNIVORE, AIKind.HOSTILE, 10, 3, rarity=1.0, name_family="animal", xp=35, hide_kind="skin"),
     FaunaTemplate("hunter", (10, 20), Habitat((-0.9, 0.5), (-0.5, 1.0), fertility=(0.1, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 9, 3, rarity=0.9, name_family="predator", damage_type=DamageType.SHARP, xp=40),
     FaunaTemplate("stalker", (0, 18), Habitat((-0.3, 1.0), (0.1, 1.0), fertility=(0.4, 1.0)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 4, rarity=0.6, name_family="predator", damage_type=DamageType.SHARP, xp=50),
-    FaunaTemplate("scuttler", (7, 18), Habitat((-0.2, 1.0), (0.1, 1.0), water=(0.4, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 6, 2, defense=1, rarity=1.5, name_family="crawler", hide_kind="scale", xp=20),
-    FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.HOSTILE, 5, 3, rarity=0.8, name_family="crawler", hide_kind="scale", damage_type=DamageType.PIERCE, xp=25),
-    FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 6, 3, rarity=0.9, name_family="serpent", hide_kind="scale", damage_type=DamageType.PIERCE, xp=30),
-    FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10),
+    FaunaTemplate("scuttler", (7, 18), Habitat((-0.2, 1.0), (0.1, 1.0), water=(0.4, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 6, 2, defense=1, rarity=1.5, name_family="crawler", xp=20, hide_kind="chitin"),
+    FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.HOSTILE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
+    FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 6, 3, rarity=0.9, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
+    FaunaTemplate("flitter", (5, 20), Habitat((-0.7, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.5, name_family="bird", xp=10, hide_kind="feather"),
 )
+
+COVERING_RANGES = {   # property ranges of each body covering's material
+    "fur": dict(insulation=(5, 8), tenacity=(3, 5), toughness=(2, 4), hardness=(0.5, 1.5), flammability=(5, 8),
+                combustibility=(3, 5), thermal_conductivity=(0.5, 2), density=(1, 2)),
+    "skin": dict(insulation=(2, 4), tenacity=(4, 6), toughness=(3, 5), hardness=(1, 2), flammability=(3, 5),
+                 combustibility=(1, 3), thermal_conductivity=(1, 2), density=(1.5, 2.5)),
+    "feather": dict(insulation=(6.5, 9), tenacity=(1, 3), toughness=(1, 3), hardness=(0.3, 1), flammability=(5, 8),
+                    combustibility=(2, 4), thermal_conductivity=(0.3, 1.2), density=(0.5, 1.2)),
+    "chitin": dict(hardness=(6, 8), toughness=(3, 5), tenacity=(1, 2), density=(2, 4), insulation=(1, 2), flammability=(0, 1)),
+    "scale": dict(hardness=(4, 6), toughness=(5, 7), tenacity=(3, 5), density=(3, 5), insulation=(1, 3), flammability=(0, 1.5)),
+}
 
 FUR_NOTABLE = (  # (chance, property ranges): the "interesting" fur a planet's animal may have
     ("conductive", {"electrical_conductivity": (7, 9)}),
@@ -347,13 +358,8 @@ def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index
 
 def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) -> UnitSpecies:
     color = tuple(rng.randint(70, 230) for _ in range(3))
-    if template.hide_kind == "fur":
-        ranges = dict(insulation=(5, 8), tenacity=(3, 5), toughness=(2, 4), hardness=(0.5, 1.5), flammability=(5, 8),
-                      combustibility=(3, 5), thermal_conductivity=(0.5, 2), density=(1, 2))
-        family = Family.HIDE
-    else:
-        ranges = dict(hardness=(5, 7), toughness=(4, 6), tenacity=(2, 3), density=(3, 5), insulation=(1, 3), flammability=(0, 1.5))
-        family = Family.HIDE
+    ranges = COVERING_RANGES[template.hide_kind]
+    family = Family.HIDE
     props = _roll(rng, ranges)
     if template.hide_kind == "fur" and rng.random() < 0.3:
         _, notable = rng.choice(FUR_NOTABLE)
@@ -362,11 +368,13 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     fuel = {}
     if props.get("combustibility", 0) > 0 and props.get("flammability", 0) > 0:
         fuel = dict(burn_yield=round(5 + props["combustibility"] * 3, 1), burn_duration=max(1, int(props["combustibility"] // 2)))
-    hide = add(Material(f"hide:{template.key}", f"{name.text} hide", family, color, **props, **fuel))
+    import species as defs
+    noun = defs.COVERINGS[template.hide_kind][1]
+    hide = add(Material(f"hide:{template.key}", f"{name.text} {noun}", family, color, **props, **fuel))
     return UnitSpecies(
         f"planet:fauna:{template.key}", name.text, sprite=spriteconfig.get(f"fauna.{template.key}", template.sprite),
         corpse_sprite=spriteconfig.get(f"fauna.{template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
         level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,
-        habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity,
+        habitat=template.habitat, hide=hide, grants=grants(*template.grants), rarity=template.rarity, covering=template.hide_kind,
     )

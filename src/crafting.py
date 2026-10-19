@@ -86,8 +86,10 @@ class Flask(Item):
     def get_title(self, exclude_attributes: bool = False) -> str:
         import lore
         name = lore.material_name(lore.run_of(self), self.substance)
-        if name.lower().endswith(" hide"):
-            name = name[:-5]
+        for noun in (" hide", " fur", " skin"):
+            if name.lower().endswith(noun):
+                name = name[: -len(noun)]
+                break
         base = f"{name} leather flask" if not name.lower().endswith("leather") else f"{name} flask"
         if not self.sips:
             return f"{base} (empty)"
@@ -688,7 +690,9 @@ def nearby_forms(unit) -> set:
                         forms.add("Fibre")
                     forms.add("Branch")
                 elif getattr(thing, "category", None) is not None and thing.category.name == "UNIT" and not thing.is_alive:
-                    if getattr(kind, "hide", None) is not None or getattr(kind, "leather", False):
+                    if getattr(kind, "hide", None) is not None:
+                        forms.add(defs.COVERINGS.get(getattr(kind, "covering", "fur"), (defs.PIECE_HIDE,))[0].object_type)
+                    elif getattr(kind, "leather", False):
                         forms.add("Hide")
                 elif hasattr(thing, "object_type") and getattr(thing, "parent", None) is world:
                     forms.add(thing.object_type)

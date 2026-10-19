@@ -118,7 +118,7 @@ def render_tooltip(canvas: Canvas, engine: Engine) -> None:
     game_map = engine.game_map
     if not game_map.in_bounds(x, y) or not game_map.is_visible(x, y):
         return
-    things = [e for e in game_map.stack_at(x, y) if e is not engine.player]
+    things = [e for e in game_map.stack_at(x, y) if e is not engine.player and not getattr(e, "decal", False)]
     import liquids
     liquid = liquids.describe(game_map.tile_at(x, y))
     rock = None if (things or liquid) else rock_face_at(engine, x, y)

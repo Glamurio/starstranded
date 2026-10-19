@@ -21,7 +21,7 @@ from recipes import RECIPES
 
 def natural_pieces(planet) -> Dict[str, List[Material]]:
     """Form -> materials that can be gathered or mined on the planet."""
-    pieces: Dict[str, List[Material]] = {"Branch": [], "Stone": [], "Ore": [], "Coal": [], "Sand": [], "Clay": [], "Fibre": [], "Hide": []}
+    pieces: Dict[str, List[Material]] = {"Branch": [], "Stone": [], "Ore": [], "Coal": [], "Sand": [], "Clay": [], "Fibre": [], "Hide": [], "Feather": [], "Chitin": [], "Scale": []}
     for species in planet.flora:
         if species.material is not None:
             pieces["Branch"].append(species.material)
@@ -29,7 +29,7 @@ def natural_pieces(planet) -> Dict[str, List[Material]]:
             pieces["Fibre"].append(species.fiber)
     for species in planet.fauna:
         if species.hide is not None:
-            pieces["Hide"].append(species.hide)
+            pieces[defs.COVERINGS.get(species.covering, (defs.PIECE_HIDE,))[0].object_type].append(species.hide)
     for _, material in planet.materials:
         if material.family is Family.FUEL:
             pieces["Coal"].append(material)

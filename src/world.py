@@ -599,7 +599,9 @@ class World(SpatialContainer):
                     if ground and skip.get((entity.x, entity.y)):
                         skip[(entity.x, entity.y)] -= 1
                         continue
-                    if entity.is_corpse and entity.category is EntityCategory.UNIT:
+                    if getattr(entity, "decal", False):
+                        picture = atlas.get_puddle(entity.variant, entity.shade)
+                    elif entity.is_corpse and entity.category is EntityCategory.UNIT:
                         picture = atlas.get_remains(entity.sprite_id, entity.mirrored and getattr(entity.kind, "mirror", False), entity.shade)
                     else:
                         picture = get(entity.sprite_id, entity.flipped, entity.shade)

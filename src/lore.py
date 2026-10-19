@@ -122,6 +122,9 @@ def material_name(run, material: Material) -> str:
     """The material's real name once identified, otherwise what it looks like."""
     if run is None or material.id.startswith(ALWAYS_KNOWN) or name_known(run, material_subject(material)):
         return material.name
+    covering = material.name.rsplit(" ", 1)[-1]
+    if material.family.value == "hide" and covering in ("fur", "skin", "feathers", "chitin", "scales"):
+        return f"{naming.hue_name(material.color)} {covering}"   # the covering is plain to see even before the name is known
     return naming.hue_name(material.color) + " " + {"wood": "wood", "stone": "rock", "metal": "metal", "fiber": "fibre",
                                                     "hide": "hide", "sand": "sand", "clay": "clay", "fuel": "coal",
                                                     "crystal": "crystal"}.get(material.family.value, material.family.value)
@@ -137,7 +140,8 @@ def species_name(run, kind) -> str:
     colour = naming.hue_name(kind.color)
     if hasattr(kind, "category"):
         return f"{colour} {kind.category.name.lower()}"
-    return f"{colour} {'furred ' if kind.hide is not None else ''}animal"
+    covered = {"fur": "furred ", "feather": "feathered ", "chitin": "armoured ", "scale": "scaly ", "skin": ""}
+    return f"{colour} {covered.get(getattr(kind, 'covering', 'fur'), '') if kind.hide is not None else ''}animal"
 
 
 def english_name(planet, title: str) -> Optional[str]:

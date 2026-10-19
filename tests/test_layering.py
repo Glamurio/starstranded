@@ -2,6 +2,7 @@
 safeguard caps piles of ground objects (one config flag)."""
 import numpy as np
 import pygame
+import pytest
 
 from ui_helpers import SESSION
 import render_order
@@ -12,6 +13,13 @@ from animals import Animal
 from config import GameConfig
 from render_helpers import cell, draw_map, expected_tile
 from render_order import RenderOrder
+
+
+@pytest.fixture(autouse=True)
+def no_blood(monkeypatch):
+    """These tests count what lies on a tile; the blood a death leaves is covered in test_blood.py."""
+    import decals
+    monkeypatch.setattr(decals, "spill", lambda *a, **k: None)
 
 
 def corpse_at(e, x, y):
@@ -29,7 +37,7 @@ def meat_at(e, x, y):
 
 
 def test_layer_order_is_terrain_corpse_item_shrub_unit_tree():
-    assert list(render_order.LAYERS) == [RenderOrder.CORPSE, RenderOrder.ITEM, RenderOrder.SHRUB, RenderOrder.UNIT, RenderOrder.TREE]
+    assert list(render_order.LAYERS) == [RenderOrder.DECAL, RenderOrder.CORPSE, RenderOrder.ITEM, RenderOrder.SHRUB, RenderOrder.UNIT, RenderOrder.TREE]
     assert [layer.value for layer in render_order.LAYERS] == sorted(layer.value for layer in render_order.LAYERS)
     assert render_order.GROUND_LAYERS == (RenderOrder.CORPSE, RenderOrder.ITEM)
 

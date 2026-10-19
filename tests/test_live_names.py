@@ -53,9 +53,10 @@ def test_a_flask_inherits_the_hide_it_is_made_of():
     flask.parent = engine.player.inventory
     assert flask.color == kind.hide.color
     assert flask.get_title().endswith("leather flask (empty)")
-    assert lore.material_name(engine.game_world.run, kind.hide).replace(" hide", "") in flask.get_title()
+    shown = lore.material_name(engine.game_world.run, kind.hide)
+    assert shown.rsplit(" ", 1)[0] in flask.get_title()   # "indigo fur" -> "indigo leather flask"
     engine.game_world.run.knowledge.learn(lore.material_subject(kind.hide), "name", Know.FULL)
-    assert kind.hide.name.replace(" hide", "") in flask.get_title()
+    assert kind.hide.name.rsplit(" ", 1)[0] in flask.get_title()
 
 
 def test_everyday_names_are_lowercase_but_people_keep_their_capital():

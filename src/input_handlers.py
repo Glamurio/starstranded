@@ -439,8 +439,7 @@ class PickupHandler(AskUserEventHandler):
     def on_tile_selected(self, targets: List[Entity]) -> Optional[ActionOrHandler]:
         """Called when the user selects a valid item."""
 
-        if self.engine.player in targets:
-            targets.remove(self.engine.player)
+        targets = [t for t in targets if t is not self.engine.player and not getattr(t, "decal", False)]
         if not targets:
             return self.on_exit()
         if len(targets) == 1:
@@ -610,6 +609,7 @@ class InventoryEventHandler(AskUserEventHandler):
         """The things listed, in the order they are shown (grouped under category headings)."""
         import widgets
         source = list(self.inventory.items) if self.inventory else list(self.entities or [])
+        source = [e for e in source if not getattr(e, "decal", False)]   # a stain on the ground is not loot
         order = {name: i for i, name in enumerate(widgets.CATEGORY_ORDER)}
         return sorted(source, key=lambda item: order.get(widgets.item_category(item), len(order)))
 
@@ -1134,7 +1134,7 @@ class MainGameEventHandler(EventHandler):
         game_map = engine.game_map
         if not game_map.in_bounds(x, y) or not game_map.is_visible(x, y):
             return
-        if any(e is not player for e in game_map.stack_at(x, y)):
+        if any(e is not player and not getattr(e, "decal", False) for e in game_map.stack_at(x, y)):
             return   # pointing at something: the tooltip is about that, not about walking
         if render_functions.rock_face_at(engine, x, y) is not None:
             return
