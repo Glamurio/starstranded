@@ -170,6 +170,10 @@ class Unit(Entity):
     def diet(self):
         return self.kind.diet
 
+    @property
+    def faction(self) -> str:
+        return self.kind.faction
+
     def can_eat(self, item) -> bool:
         """Can this unit digest `item` (a food: plant matter for herbivores, meat for carnivores, both for omnivores)?"""
         from species import Diet

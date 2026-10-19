@@ -309,7 +309,8 @@ class MovementAction(ActionWithDirection):
         for enemy in self.engine.game_map.actors:
             if enemy is self.entity or enemy.category is not EntityCategory.UNIT:
                 continue
-            if not enemy.ai.is_hostile:
+            import allegiance
+            if not allegiance.threatens(enemy, self.entity):
                 continue
             if max(abs(enemy.x - self.entity.x), abs(enemy.y - self.entity.y)) > 8:
                 continue  # cheap reject before the line-of-sight test
@@ -852,9 +853,10 @@ class SleepAction(Action):
         import debug
         if debug.is_god(self.engine):
             return False
+        import allegiance
         e = self.entity
         for other in self.engine.game_map.actors:
-            if other is e or other.category is not EntityCategory.UNIT or not other.is_alive or not other.ai or not other.ai.is_hostile:
+            if other is e or other.category is not EntityCategory.UNIT or not allegiance.threatens(other, e):
                 continue
             if max(abs(other.x - e.x), abs(other.y - e.y)) <= 8 and self.engine.can_see(e.x, e.y, other.x, other.y, 8):
                 return True

@@ -437,7 +437,8 @@ def context_for(engine, manifest: dict) -> Context:
     best: Optional[str] = None
     import debug
     for unit in ([] if debug.is_god(engine) else world.actors):      # (God Mode: nobody is a threat)
-        if unit is player or unit.category is not EntityCategory.UNIT or not unit.is_alive or not unit.ai or not unit.ai.is_hostile:
+        import allegiance
+        if unit is player or unit.category is not EntityCategory.UNIT or not allegiance.threatens(unit, player):
             continue
         if max(abs(unit.x - player.x), abs(unit.y - player.y)) > THREAT_RADIUS or not engine.can_see(player.x, player.y, unit.x, unit.y, THREAT_RADIUS):
             continue

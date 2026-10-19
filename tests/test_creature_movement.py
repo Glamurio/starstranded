@@ -11,28 +11,65 @@ def _wall(e, x, y):
     e.game_map.set_tile(x, y, tile_types.wall.get_array() if hasattr(tile_types, "wall") else tile_types.floor.get_array())
 
 
-def test_hostile_far_away_tracks_the_player_down(small_world):
-    e = small_world(width=70, height=20)
-    e.player.place(66, 5)
-    e.update_fov()
-    hunter = Selenite(name="Zub")
-    hunter.place(22, 5, e.game_map)
-    hunter.hunger = hunter.max_hunger
-    for _ in range(60):
+def _act(hunter, turns):
+    for _ in range(turns):
         try:
             behavior.act(hunter, hunter.ai, cheap=True)
         except exceptions.Impossible:
             pass
-    assert hunter.x > 22 + 20, "the hunter should be closing in from 44 tiles away"
 
 
-def test_hostile_beyond_sight_ignores_the_player(small_world):
-    e = small_world(width=70, height=20)
-    e.player.place(68, 5)
+def _hunter(e, x, y):
     hunter = Selenite(name="Zub")
-    hunter.place(2, 5, e.game_map)
+    hunter.place(x, y, e.game_map)
     hunter.hunger = hunter.max_hunger
-    assert not behavior._hunt_player(hunter, hunter.ai, True, behavior.HOSTILE_SIGHT)
+    hunter.thirst = hunter.max_thirst
+    return hunter
+
+
+def test_hostile_in_sight_closes_in_on_the_player(small_world):
+    e = small_world(width=70, height=20)
+    e.player.place(30, 5)
+    e.update_fov()
+    hunter = _hunter(e, 22, 5)
+    _act(hunter, 6)
+    assert hunter.x > 22
+
+
+def test_hostile_far_away_does_not_home_in_on_the_player(small_world):
+    e = small_world(width=70, height=20)
+    e.player.place(66, 5)
+    e.update_fov()
+    hunter = _hunter(e, 22, 5)
+    assert behavior.find_enemy(hunter) is None
+    for _ in range(40):
+        _act(hunter, 1)
+        assert hunter.x < 22 + 14, "a hunter 44 tiles away has no idea where the player is"
+
+
+def test_a_wall_hides_the_player_and_the_hunter_gives_up_after_its_memory(small_world):
+    e = small_world(width=70, height=20)
+    e.player.place(30, 5)
+    e.update_fov()
+    hunter = _hunter(e, 24, 5)
+    assert behavior.find_enemy(hunter) is hunter.game_map.get_unit_at_location(30, 5)
+    for y in range(0, 20):
+        e.game_map.set_tile(27, y, tile_types.wall.get_array())
+    assert behavior.find_enemy(hunter) is None
+    hunter.ai.memory = [30, 5, 3]
+    assert behavior._search(hunter, hunter.ai, True)             # still heading for where it last saw him
+    hunter.ai.memory = [30, 5, 0]
+    assert not behavior._search(hunter, hunter.ai, True) and hunter.ai.memory is None
+
+
+def test_hostile_remembers_and_follows_to_the_last_seen_spot(small_world):
+    e = small_world(width=70, height=20)
+    e.player.place(40, 5)
+    hunter = _hunter(e, 20, 5)
+    hunter.ai.memory = [40, 5, behavior.MEMORY_TURNS]
+    start = hunter.x
+    _act(hunter, 5)
+    assert hunter.x > start
 
 
 def test_greedy_hunter_gets_round_a_wall_by_planning(small_world):
@@ -41,16 +78,12 @@ def test_greedy_hunter_gets_round_a_wall_by_planning(small_world):
     for y in range(0, 24):
         e.game_map.set_tile(20, y, tile_types.wall.get_array())
     e.update_fov()
-    hunter = Selenite(name="Zub")
-    hunter.place(10, 10, e.game_map)
-    hunter.hunger = hunter.max_hunger
+    hunter = _hunter(e, 10, 10)
+    hunter.ai.memory = [30, 10, 200]
     for _ in range(80):
         if hunter.x > 20:
             break
-        try:
-            behavior.act(hunter, hunter.ai, cheap=True)
-        except exceptions.Impossible:
-            pass
+        _act(hunter, 1)
     assert hunter.x > 20
 
 

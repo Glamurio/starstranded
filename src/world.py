@@ -14,6 +14,7 @@ from chunks import CHUNK_H, CHUNK_W, Chunk, ChunkKey, chebyshev, chunk_key, keys
 from config import DEFAULT_CONFIG, GameConfig
 from entity import EntityCategory, Item, SpatialContainer
 from render_order import GROUND_LAYERS, LAYERS, MAX_GROUND_OBJECTS_PER_TILE, RenderOrder
+import allegiance
 import lighting
 import tile_types
 from simulation import PlantQueue
@@ -826,8 +827,7 @@ class GameWorld:
             return found
         for chunk in list(world.chunks.values()):
             for entity in chunk.actors:
-                if (entity is player or entity.category is not EntityCategory.UNIT or not entity.is_alive
-                        or entity.ai is None or not entity.ai.is_hostile):
+                if entity is player or entity.category is not EntityCategory.UNIT or not allegiance.threatens(entity, player):
                     continue
                 gap = max(abs(entity.x - player.x), abs(entity.y - player.y))
                 if gap <= behavior.FOLLOW_RANGE:

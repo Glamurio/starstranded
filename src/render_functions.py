@@ -106,7 +106,9 @@ def tooltip_lines(entity) -> list:
             lines.append("unharmed" if ratio >= 0.99 else "wounded" if ratio > 0.4 else "badly wounded")
             ai = getattr(entity, "ai", None)
             if ai is not None and entity is not getattr(entity.engine, "player", None):
-                lines.append("hostile" if getattr(ai, "is_hostile", False) else "keeps to itself")
+                import allegiance
+                lines.append(allegiance.name_of(entity))
+                lines.append("hostile" if allegiance.threatens(entity, entity.engine.player) else "keeps to itself")
     return lines
 
 

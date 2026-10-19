@@ -131,6 +131,8 @@ class UnitSpecies(_Definition):
     blood_color: RGB = (150, 18, 24)   # what it bleeds when it dies (robots could leave black oil, say)
     blood_name: str = "blood"
     covering: str = "fur"              # what covers its body: fur, feather, chitin, scale or skin (see `COVERINGS`)
+    faction: str = "wildlife"          # wildlife | federation | robot (see `allegiance`); humanoids are the Federation
+    renegade: bool = False             # fights its own faction too (the exiled cave Selenites)
 
 
 @dataclass(frozen=True)
@@ -177,18 +179,18 @@ def register(definition):
 _RACE_BASE = dict(max_hp=30, power=2, defense=1, level_up_base=100, xp_given=50, ai=AIKind.HOSTILE, inventory_capacity=20)
 HUMAN = register(UnitSpecies(
     "human", "Human", sprite=(117, 0), corpse_sprite=(24, 16), color=(255, 255, 255), shade_sigma=None,
-    default_name="Ardan", diet=Diet.OMNIVORE,
+    default_name="Ardan", diet=Diet.OMNIVORE, faction="federation",
     grants=grants("improved_crafting", "omnivore", "requires_organic", "night_aversion", "humanoid"), **_RACE_BASE,
 ))
 SELENITE_PEOPLE = register(UnitSpecies(
     "selenite_people", "Selenite", sprite=(118, 1), corpse_sprite=(44, 16), color=(190, 215, 255), shade_sigma=None,
-    default_name="Zudaab", diet=Diet.HERBIVORE, damage_type=DamageType.BLUNT,
+    default_name="Zudaab", diet=Diet.HERBIVORE, damage_type=DamageType.BLUNT, faction="federation",
     grants=grants("increased_plant_yield", "faster_crop_growth", "prolonged_breath_holding", "herbivore", "frail_exoskeleton",
                   "requires_organic", "humanoid"), **dict(_RACE_BASE, max_hp=26),
 ))
 MAU = register(UnitSpecies(
     "mau", "Mau", sprite=(120, 0), corpse_sprite=(44, 16), color=(230, 190, 110), shade_sigma=None,
-    default_name="Bastu", diet=Diet.CARNIVORE, damage_type=DamageType.SHARP,
+    default_name="Bastu", diet=Diet.CARNIVORE, damage_type=DamageType.SHARP, faction="federation",
     grants=grants(("increased_agility", 2.0), "darkvision", "carnivore", "clawed", "liquid_averse", "requires_organic", "humanoid"),
     **dict(_RACE_BASE, max_hp=24),
 ))
@@ -196,12 +198,12 @@ PLAYABLE_SPECIES = (HUMAN, SELENITE_PEOPLE, MAU)
 SELENITE = register(UnitSpecies(
     "selenite", "Selenite", sprite=(118, 1), corpse_sprite=(44, 16), color=color.light_blue,
     max_hp=14, power=5, defense=0, level_up_base=100, xp_given=40, ai=AIKind.HOSTILE, name_origin="selenite",
-    damage_type=DamageType.SHARP, diet=Diet.CARNIVORE, grants=grants("humanoid"),
+    damage_type=DamageType.SHARP, diet=Diet.CARNIVORE, grants=grants("humanoid"), faction="federation", renegade=True,
 ))
 ROBOT = register(UnitSpecies(
     "robot", "Robot", sprite=(121, 1), corpse_sprite=(44, 16), color=(170, 180, 190), shade_sigma=8,
     max_hp=24, power=5, defense=2, level_up_base=100, xp_given=50, ai=AIKind.HOSTILE, damage_type=DamageType.BLUNT,
-    diet=Diet.OMNIVORE, blood_color=(30, 30, 34), grants=grants("robot"),
+    diet=Diet.OMNIVORE, blood_color=(30, 30, 34), grants=grants("robot"), faction="robot",
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
