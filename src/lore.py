@@ -303,6 +303,43 @@ def describe_lines(run, subject: str, facts: Iterable[Fact]) -> List[str]:
     return lines
 
 
+def _material_picture(material):
+    """A piece that looks like the material (an ore chunk, a lump of coal, a pile of sand ...), tinted in its colour."""
+    import species as defs
+    from materials import Family
+    from tile_types import sprite_id
+    family = material.family
+    if material.refines_to or material.id.startswith("ore:"):
+        kind = defs.PIECE_ORE
+    else:
+        kind = {Family.WOOD: defs.BRANCH, Family.FIBER: defs.PIECE_FIBER, Family.HIDE: defs.PIECE_HIDE, Family.CLAY: defs.PIECE_CLAY,
+                Family.SAND: defs.PIECE_SAND, Family.FUEL: defs.PIECE_COAL, Family.GLASS: defs.PIECE_GLASS,
+                Family.METAL: defs.PIECE_INGOT}.get(family, defs.PIECE_STONE)
+    return sprite_id(*kind.sprite) if isinstance(kind.sprite, tuple) else int(kind.sprite), tuple(material.color)
+
+
+def codex_pictures(engine) -> Dict[str, Tuple[int, tuple]]:
+    """A picture for every codex subject: {subject: (sprite id, tint)} - the creature or plant itself, a piece for a material."""
+    from tile_types import sprite_id
+    planet = engine.game_world.planet
+    out: Dict[str, Tuple[int, tuple]] = {}
+    if planet is None:
+        return out
+    for _, material in planet.materials:
+        out[material_subject(material)] = _material_picture(material)
+    for kind in planet.fauna:
+        out[species_subject(kind)] = (sprite_id(*kind.sprite) if isinstance(kind.sprite, tuple) else int(kind.sprite), tuple(kind.color))
+    for kind in planet.flora:
+        out[plant_subject(kind)] = (sprite_id(*kind.sprite) if isinstance(kind.sprite, tuple) else int(kind.sprite), tuple(kind.color))
+    for liquid in LiquidKind:
+        out[liquid_subject(liquid)] = (sprite_id(2, 41), {LiquidKind.LAVA: (230, 90, 30), LiquidKind.TOXIC: (110, 200, 60),
+                                                         LiquidKind.ACIDIC: (190, 210, 60), LiquidKind.HOT: (120, 170, 220)}.get(liquid, (60, 110, 180)))
+    import structures
+    for index in range(structures.RUIN_COUNT):
+        out[f"ruin:{index}"] = (sprite_id(0, 2), (150, 145, 140))
+    return out
+
+
 def codex_entries(engine) -> Dict[str, List[Tuple[str, str, List[Fact]]]]:
     """Everything the player has learned something about, by category: {category: [(subject, title, facts)]}."""
     planet = engine.game_world.planet

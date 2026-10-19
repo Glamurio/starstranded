@@ -376,13 +376,15 @@ class CodexHandler(Panel):
         import lore
         import widgets
         entries = lore.codex_entries(self.engine)
+        pictures = lore.codex_pictures(self.engine)
         rows = []
         for category, items in entries.items():
             if not items:
                 continue
             rows.append(widgets.Row(category, header=True))
             for subject, title, facts in items:
-                rows.append(widgets.Row(title, data=(subject, title, facts)))
+                picture = pictures.get(subject)
+                rows.append(widgets.Row(title, icon=(picture[0], picture[1], False) if picture else None, data=(subject, title, facts)))
         return rows
 
     def on_render(self, canvas: Canvas) -> None:
@@ -406,9 +408,14 @@ class CodexHandler(Panel):
         current = self.list.current
         if current is not None:
             subject, title, facts = current.data
-            canvas.print(dx, iy, title, fg=Theme.TITLE)
+            picture = lore.codex_pictures(self.engine).get(subject)
+            top = iy
+            if picture is not None:                                  # the thing itself, large, above its name
+                widgets.sprite_slot(canvas, dx, iy, picture[0], picture[1], size=6)
+                top = iy + 7
+            canvas.print(dx + (7 if picture is not None else 0), iy + (2 if picture is not None else 0), title, fg=Theme.TITLE)
             lines = [(l, Theme.DIM if "???" in l else Theme.TEXT) for l in lore.describe_lines(self.engine.game_world.run, subject, facts)]
-            widgets.text_block(canvas, dx, iy + 2, iw - list_w - 1, ih - 2, lines)
+            widgets.text_block(canvas, dx, top + (0 if picture is not None else 2), iw - list_w - 1, ih - (top - iy) - (0 if picture is not None else 2), lines)
 
     def ev_keydown(self, event):
         if self.list is not None:
