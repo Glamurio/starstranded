@@ -186,9 +186,11 @@ def test_ancient_route_needs_three_keys_and_the_inscriptions_read():
     assert run.ending == "ancient_gate"
 
 
-def test_a_stranger_has_to_study_the_glyphs_before_reading_them():
+def test_a_stranger_has_to_study_the_glyphs_before_reading_them(monkeypatch):
     e = new_game(6, background="chemist")
     p = e.player
+    import simulation
+    monkeypatch.setattr(simulation, "run_turn", lambda engine: None)   # the world around is irrelevant here
     ruin = structures.Ruin(0)
     e.game_map.add_entity(ruin, p.x, p.y + 1)
     run = e.game_world.run

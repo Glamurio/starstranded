@@ -94,3 +94,20 @@ def private_sprite_config(tmp_path, monkeypatch):
     for key in list(spriteconfig._load()):
         spriteconfig.reset(key, save_now=False)
     spriteconfig.reload()
+
+
+@pytest.fixture(autouse=True)
+def small_loaded_area(request, monkeypatch):
+    """Generating the default 5x5 block of chunks costs ~0.7 s per new game and nearly every test builds one. Tests load
+    3x3 instead (still every chunk that matters for the start and its neighbours); mark a test ``full_world`` to get the
+    real defaults."""
+    if request.node.get_closest_marker("full_world"):
+        return
+    import dataclasses
+    import config
+    import engine as engine_module
+    import world as world_module
+    quick = dataclasses.replace(config.DEFAULT_CONFIG, near_radius=1, sim_radius=1, unload_radius=2)
+    monkeypatch.setattr(config, "DEFAULT_CONFIG", quick)
+    monkeypatch.setattr(engine_module, "DEFAULT_CONFIG", quick)
+    monkeypatch.setattr(world_module, "DEFAULT_CONFIG", quick)

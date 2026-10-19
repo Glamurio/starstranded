@@ -1,4 +1,5 @@
 """Wild input must never raise: random keys, clicks, text and mouse moves on every screen, from the menu into the game."""
+import os
 import random
 import traceback
 
@@ -24,7 +25,12 @@ def random_event(rng):
     return MouseButtonDown(cell, rng.choice([MouseButton.LEFT, MouseButton.LEFT, MouseButton.RIGHT, MouseButton.MIDDLE]))
 
 
-@pytest.mark.parametrize("seed", [1, 2, 3, 4])
+# Quick by default (two seeds, 300 steps); FUZZ_FULL=1 runs the long version (four seeds, 600 steps) before a release.
+FULL = bool(os.environ.get("FUZZ_FULL"))
+STEPS = 600 if FULL else 300
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 4] if FULL else [1, 2])
 def test_random_input_never_raises(seed, monkeypatch, tmp_path):
     import actions
     import settings
@@ -36,7 +42,7 @@ def test_random_input_never_raises(seed, monkeypatch, tmp_path):
     random.seed(seed)
     handler = setup_game.MainMenu(SESSION)
     SESSION.handlers = [handler]
-    for step in range(600):
+    for step in range(STEPS):
         if step % 150 == 0 and not hasattr(handler, "engine"):
             # help the fuzzer into a game now and then: New Game, confirm every step
             try:
