@@ -3,6 +3,18 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Landmark follow-up round, 19 Oct 2026
+- Fixed: crash on old saves with `fungal` / `volcanic` / `crystalline` biomes; the music folder resolves to `data/music` again, so music plays.
+- New: clicking a tile at the edge of the chunk walks off it, so mouse-only play can leave the chunk.
+- New: bridges run horizontally, vertically and several tiles long; farms (fields, fences, crops) and small towns (streets, houses) appear in the world.
+- Changed: foliage is less vibrant and partly transparent; rock is always pink to red; wreckage is rotated by random multiples of 45 degrees.
+- New: scanning corpses, scan and drop from any inventory (keys `s` / `d` and clickable), stacked items read "grey branch x5", generated names are lower case.
+- Changed: trees almost never drop fruit or branches and never into rock.
+- New: God Mode shows the whole view and creatures ignore you.
+- New: swimming (breath meter on the HUD, Selenites last longer, twice the time, wet for a while afterwards).
+- Removed: the skull-and-cross drawn over corpses.
+- Changed: animals. Landmark species are generated from the baseline creatures with the landmark's traits (no more hand-written ones); most animals are passive, only hunters, stalkers and serpents attack, and they hit much harder. New Combat skill. Selenites are humanoids; new generic Robot enemy.
+
 ## World exploration round, 19 Oct 2026
 - New (debug runs only, `--debug`): God Mode on F10 with Ctrl / Alt jumps; see the README.
 - New: continents, seas and mountain ranges (every seed's map changes); the landing site is always dry, mild and has a pond nearby; the air is colder on high ground.
