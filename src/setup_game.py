@@ -116,12 +116,14 @@ class MainMenu(input_handlers.BaseEventHandler):
         elif self.button_highlight == 'Continue':
             try:
                 try:
-                    return input_handlers.MainGameEventHandler(load_game(SAVE_PATH, self.session))
+                    handler = input_handlers.MainGameEventHandler(load_game(SAVE_PATH, self.session))
                 except FileNotFoundError:   # a Casual run that ended in death still has its last bed
                     import actions
                     if not os.path.isdir(actions.BED_SAVE):
                         raise
-                    return input_handlers.MainGameEventHandler(load_game(actions.BED_SAVE, self.session))
+                    handler = input_handlers.MainGameEventHandler(load_game(actions.BED_SAVE, self.session))
+                self.session.reset(handler)   # the menu must leave the handler stack, or the first key sends you straight back to it
+                return handler
             except FileNotFoundError:
                 return input_handlers.PopupMessage(self, "No saved game to load.")
             except Exception as exc:
@@ -245,7 +247,8 @@ class SettingsMenu(input_handlers.BaseEventHandler):
 
     def on_render(self, canvas: Canvas) -> None:
         from ui import Theme
-        canvas.blit_image(background_image())
+        if not getattr(self, "overlay", False):   # in the game the screen below stays visible (see `screens.InGameSettings`)
+            canvas.blit_image(background_image())
         self.row_rects = []
         x, y, width = canvas.width // 2 - 20, canvas.height // 2 - 8, 40
         ix, iy, iw, ih = canvas.window(x, y, width, 16, title="Settings", hints=[("Up/Down", "row"), ("Left/Right", "change"), ("Esc", "back")])

@@ -175,9 +175,9 @@ def test_combat_music_by_category_then_the_exploration_track_resumes(tmp_path):
 def test_a_short_fight_is_not_a_music_change_each_turn(tmp_path):
     director, backend, clock = make(tmp_path)
     run(director, clock, NOTHING, 10)
-    for _ in range(5):                                   # an enemy flickering in and out of view
+    for _ in range(5):                                   # an enemy flickering in and out of view (gaps shorter than the cooldown)
         run(director, clock, Context(threat="wildlife"), 1)
-        run(director, clock, NOTHING, 2)
+        run(director, clock, NOTHING, 0.5)
     assert sum(1 for line in director.log if line.startswith("combat")) == 1
 
 
@@ -296,3 +296,58 @@ def test_the_context_follows_the_game(tmp_path):
     assert music.context_for(engine, manifest).threat == "wildlife"
     engine.game_map.remove_entity(beast)
     assert music.context_for(engine, manifest).threat is None
+
+
+# ── leaving the game, volume, the HUD label ─────────────────────────────────────────────────────────
+def test_reset_stops_the_music_and_forgets_the_fight(tmp_path):
+    director, backend, clock = make(tmp_path)
+    run(director, clock, NOTHING, 10)
+    run(director, clock, Context(threat="wildlife"), 3)
+    assert director.in_combat and backend.busy()
+    director.reset()
+    assert not backend.busy() and director.playing is None and not director.in_combat and director.resume is None
+    run(director, clock, NOTHING, 10)                    # a new game starts its music from scratch
+    assert backend.busy() and director.playing is not None and not director.in_combat
+
+
+def test_combat_music_ends_almost_at_once_when_the_enemies_are_gone(tmp_path):
+    director, backend, clock = make(tmp_path)
+    run(director, clock, NOTHING, 10)
+    run(director, clock, Context(threat="wildlife"), 3)
+    assert director.playing.combat
+    run(director, clock, NOTHING, 3)
+    assert not director.in_combat
+    run(director, clock, NOTHING, 2)
+    assert not director.playing.combat
+
+
+def test_now_playing_is_the_track_name(tmp_path):
+    director, backend, clock = make(tmp_path, pools={"ambient": [{"file": "Song One.mp3"}]})
+    assert director.now_playing() == ""
+    run(director, clock, NOTHING, 4)
+    assert director.now_playing() == "Song One"
+    director.reset()
+    assert director.now_playing() == ""
+
+
+def test_the_main_menu_resets_the_shared_director_and_a_popup_over_the_game_does_not(new_engine, tmp_path, monkeypatch):
+    import input_handlers as ih
+    import setup_game
+    from ui_helpers import SESSION
+    director, backend, clock = make(tmp_path)
+    run(director, clock, NOTHING, 10)
+    assert backend.busy()
+    monkeypatch.setattr(music, "_DIRECTOR", director)
+    monkeypatch.setattr(music, "_NEXT", 0.0)
+    game = ih.MainGameEventHandler(new_engine)
+    music.tick(ih.PopupMessage(game, "hello"))
+    assert backend.busy()
+    music.tick(setup_game.MainMenu(SESSION))
+    assert not backend.busy() and director.playing is None
+
+
+def test_music_is_mixed_quieter_than_the_slider_says():
+    import settings
+    s = settings.Settings()
+    assert s.music_level() == pytest.approx(s.effective("music") * 0.5)
+    assert settings.Settings(master_volume=10, music_volume=10).music_level() == pytest.approx(0.5)

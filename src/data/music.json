@@ -4,13 +4,13 @@
  "fade_ms": {
   "landmark": 3000,
   "combat_in": 700,
-  "combat_out": 2500,
-  "resume_in": 2500,
+  "combat_out": 1200,
+  "resume_in": 1500,
   "start": 2000
  },
  "timing": {
   "switch_delay": 6.0,
-  "combat_cooldown": 8.0,
+  "combat_cooldown": 1.0,
   "landmark_enter": 0.55,
   "landmark_leave": 0.3,
   "resume_min_left": 10.0

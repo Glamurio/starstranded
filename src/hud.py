@@ -69,4 +69,11 @@ def draw(canvas, engine) -> None:
     canvas.rule(x0 + 1, 20, PANEL_W - 2)
     render_functions.render_names_at_mouse_location(canvas, ix, 21, engine, width=iw, rows=2)
     canvas.rule(x0 + 1, 24, PANEL_W - 2)
-    engine.message_log.render(canvas, x=ix, y=25, width=iw, height=canvas.height - 25 - 2)
+    import music
+    song = music.now_playing()
+    log_bottom = canvas.height - 2
+    if song:
+        log_bottom -= 2
+        canvas.print(ix, log_bottom, "Now Playing:", fg=Theme.DIM)
+        canvas.print(ix, log_bottom + 1, song[: canvas.chars(iw)], fg=Theme.TEXT)
+    engine.message_log.render(canvas, x=ix, y=25, width=iw, height=log_bottom - 25)

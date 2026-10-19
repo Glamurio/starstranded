@@ -429,10 +429,39 @@ class HelpHandler(AskUserEventHandler):
             row += 1
 
 
+class InGameSettings(AskUserEventHandler):
+    """The settings screen opened from the pause menu: the same rows as the main menu's, drawn over the game. Esc saves and goes back."""
+
+    def __init__(self, engine):
+        super().__init__(engine)
+        import setup_game
+        self.inner = setup_game.SettingsMenu(engine.session)
+        self.inner.overlay = True
+
+    def on_render(self, canvas) -> None:
+        stack = self.session.handlers
+        below = next((h for h in stack if h is not self and not isinstance(h, (PauseMenu, InGameSettings))), None)
+        (below or super()).on_render(canvas)
+        canvas.dim(3)
+        self.inner.on_render(canvas)
+
+    def ev_keydown(self, event):
+        if event.sym == events.Key.ESCAPE:
+            import settings
+            settings.save(self.inner.settings)
+            return self.on_exit()
+        self.inner.ev_keydown(event)
+        return None
+
+    def ev_mousebuttondown(self, event):
+        self.inner.ev_mousebuttondown(event)
+        return None
+
+
 class PauseMenu(AskUserEventHandler):
     """Esc on the map: resume, or save and leave (to the main menu, or out of the game)."""
 
-    OPTIONS = ("Resume", "Save & Quit to Main Menu", "Save & Quit Game")
+    OPTIONS = ("Resume", "Settings", "Save & Quit to Main Menu", "Save & Quit Game")
 
     def __init__(self, engine):
         super().__init__(engine)
@@ -452,6 +481,8 @@ class PauseMenu(AskUserEventHandler):
         if index == 0:
             return self.on_exit()
         if index == 1:
+            return InGameSettings(self.engine)
+        if index == 2:
             import setup_game
             self.engine.save_as("savegame")
             menu = setup_game.MainMenu(self.session)

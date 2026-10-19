@@ -36,8 +36,8 @@ ENV_DIR = "STARSTRANDED_MUSIC"
 
 DEFAULTS = {
     "root": "data/music",
-    "fade_ms": {"landmark": 3000, "combat_in": 700, "combat_out": 2500, "resume_in": 2500, "start": 2000},
-    "timing": {"switch_delay": 6.0, "combat_cooldown": 8.0, "landmark_enter": 0.55, "landmark_leave": 0.3, "resume_min_left": 10.0},
+    "fade_ms": {"landmark": 3000, "combat_in": 700, "combat_out": 1200, "resume_in": 1500, "start": 2000},
+    "timing": {"switch_delay": 6.0, "combat_cooldown": 1.0, "landmark_enter": 0.55, "landmark_leave": 0.3, "resume_min_left": 10.0},
     "pools": {},
     "combat": {"priority": ["robot", "humanoid", "wildlife"], "default": "wildlife", "tags": {"robot": ["robot"], "humanoid": ["humanoid"]},
                "pools": {}},
@@ -216,6 +216,26 @@ class MusicDirector:
         self._factor = 1.0                               # fade level 0..1
         self._ramp: Optional[Tuple[float, float, float, float]] = None      # (start time, seconds, from, to)
         self._pending: Optional[_Pending] = None
+
+    def reset(self) -> None:
+        """Back to the start: stop at once and forget the fight, the landmark and what was cut off (leaving a game for the menu)."""
+        self.backend.stop()
+        self.playing = None
+        self.landmark = ""
+        self.mismatch_since = None
+        self.threat_until = -1.0
+        self.in_combat = False
+        self.combat_category = None
+        self.resume = None
+        self._factor = 1.0
+        self._ramp = None
+        self._pending = None
+
+    def now_playing(self) -> str:
+        """The name of the track that is playing (its file name without folder and extension); "" when nothing is."""
+        if self.playing is None or not self.backend.busy():
+            return ""
+        return os.path.splitext(os.path.basename(self.playing.track.path))[0]
 
     # ── pools ────────────────────────────────────────────────────────────────────────────────────
     def _existing(self, tracks: List[Track]) -> List[Track]:
@@ -440,26 +460,46 @@ def director() -> MusicDirector:
         manifest = load_manifest()
         current = settings.CURRENT
         _DIRECTOR = MusicDirector(manifest, make_backend(), music_root(manifest, configured=getattr(current, "music_dir", "")),
-                                  volume=current.effective("music") if current else 0.7)
+                                  volume=current.music_level() if current else 0.35)
     return _DIRECTOR
+
+
+def engine_of(handler):
+    """The game a screen belongs to (a popup or a menu opened from the game points back at it), or None for the main menu and the like."""
+    seen = 0
+    while handler is not None and seen < 8:
+        engine = getattr(handler, "engine", None)
+        if engine is not None:
+            return engine
+        handler = getattr(handler, "parent", None) or getattr(handler, "back", None)
+        seen += 1
+    return None
+
+
+def now_playing() -> str:
+    """The track playing now, for the HUD ("" when there is none)."""
+    return _DIRECTOR.now_playing() if _DIRECTOR is not None else ""
 
 
 def tick(handler) -> None:
     """Called by the main loop each frame: a few times a second, show the director what the game is like. Never raises."""
-    global _NEXT
-    engine = getattr(handler, "engine", None)
+    global _NEXT, _DIRECTOR
+    engine = engine_of(handler)
     now = time.monotonic()
-    if engine is None or now < _NEXT or getattr(engine, "player", None) is None:
+    if engine is None:
+        if _DIRECTOR is not None and (_DIRECTOR.playing is not None or _DIRECTOR._pending is not None or _DIRECTOR.in_combat):
+            _DIRECTOR.reset()          # a menu outside any game: the music stops and the next game starts from scratch
+        return
+    if now < _NEXT or getattr(engine, "player", None) is None:
         return
     _NEXT = now + TICK
     try:
         import settings
         music = director()
         if settings.CURRENT is not None:
-            music.volume = settings.CURRENT.effective("music")
+            music.volume = settings.CURRENT.music_level()
         music.update(context_for(engine, music.manifest))
     except Exception:
         import traceback
         traceback.print_exc()
-        global _DIRECTOR
         _DIRECTOR = MusicDirector(backend=NullBackend())     # whatever went wrong, the game goes on in silence

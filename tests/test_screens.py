@@ -331,14 +331,14 @@ def test_pause_menu_saves_and_leaves(new_engine, monkeypatch):
     drawn(menu)
     ys = [rect.y for rect, _ in menu.choices.rects]
     # a mouse click on "Save & Quit to Main Menu"
-    state = menu.handle_events(MouseButtonDown(Point(40, ys[1]), MouseButton.LEFT))
+    state = menu.handle_events(MouseButtonDown(Point(40, ys[2]), MouseButton.LEFT))
     assert isinstance(state, setup_game.MainMenu) and saved == ["savegame"]
     SESSION.handlers = [ih.MainGameEventHandler(new_engine)]
     menu = screens.PauseMenu(new_engine)
     SESSION.handlers.append(menu)
     drawn(menu)
     with pytest.raises(SystemExit):
-        menu.handle_events(MouseButtonDown(Point(40, ys[2]), MouseButton.LEFT))
+        menu.handle_events(MouseButtonDown(Point(40, ys[3]), MouseButton.LEFT))
 
 
 def test_a_dead_player_cannot_move_but_can_look(new_engine):

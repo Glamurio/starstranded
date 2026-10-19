@@ -13,6 +13,8 @@ PATH = "settings.json"
 CURRENT = None
 """The settings last applied (what the music reads its volume and folder from)."""
 MAX_VOLUME = 10
+MUSIC_GAIN = 0.5
+"""The music is mixed this much quieter in the game than the slider says (the tracks are mastered loud)."""
 
 
 @dataclass
@@ -35,6 +37,10 @@ class Settings:
     def effective(self, channel: str) -> float:
         """Loudness 0..1 of `channel` ('music' or 'sfx') after the master level."""
         return self.master_volume / MAX_VOLUME * getattr(self, channel + "_volume") / MAX_VOLUME
+
+    def music_level(self) -> float:
+        """What the music backend is given: the music loudness at the in-game gain."""
+        return self.effective("music") * MUSIC_GAIN
 
 
 def load(path: str = None) -> Settings:
@@ -71,4 +77,4 @@ def apply(settings: Settings, session=None) -> None:
             except pygame.error:   # e.g. the headless driver: the setting is kept, the window stays as it is
                 pass
     if pygame.mixer.get_init():
-        pygame.mixer.music.set_volume(settings.effective("music"))
+        pygame.mixer.music.set_volume(settings.music_level())
