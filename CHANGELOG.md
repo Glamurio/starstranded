@@ -3,6 +3,16 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Feedback round, 19 Oct 2026
+- New: right-hand HUD panel with the log, 10-segment bars and engraved borders; selectable colour themes (default sci-fi) in Settings.
+- New: Esc menu with Save & Quit to Main Menu / Save & Quit Game; menus are clickable; the death screen keeps mouse look; rock walls can be hovered and mined.
+- New: foreign-language names show their English name in italics when hovered; Selenite names follow the `voyage_selenite.cfg` syllables.
+- New: blood puddles under corpses (species blood colour); animals have fur, feathers, chitin, scales or skin, with matching pieces.
+- New: denser grass and leaves, a blended shore gradient, very sparse lily pads, and flowers as named, harvestable plants.
+- Removed: ferro rod, wooden spear, Selenite corpse and the rabbit.
+- Fixed: scaled and chitinous animals no longer always roll "hard".
+- Faster: plants stop building discarded items while full; the test suite runs about three times faster.
+
 ## Survival game (branch `gameplay-core`, save version 8)
 - New: races Human / Selenite / Mau, nine backgrounds, five sponsors with contracts, reputation, supplies and a cargo pod.
 - New: a crash site next to the start (ship wreck, sponsor pod), precursor ruins and a gate elsewhere; three ways off the planet

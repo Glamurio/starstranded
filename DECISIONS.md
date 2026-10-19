@@ -600,3 +600,13 @@ The plan above was implemented as written, with these specifics and deviations:
 - **Why:** unit tests call actions directly and miss UI flow bugs. This one found that targeting screens stayed open after use.
 - **Limits:** the bot reads the map for positions (what a player sees on screen); it relies on the starting knife and ferro rod, so
   finding flint is not exercised.
+
+## Feedback round of 19 Oct 2026 (items 1-17)
+- **Removed vs kept:** the ferro rod, `wooden_spear`, `selenite_people` and the `selenite_people` corpse are gone. `hide_armor` and `wooden_stairs` stay: recipes, the starting kit and `BuiltStairs` depend on them. Alternative: rewrite those recipes; rejected as out of scope for a removal request.
+- **Selenite names** are built only from the syllables in `voyage_selenite.cfg` (Start+Middle+End, seeded per concept, no triple letters). Alternative: hand-written words; rejected, the cfg is the single source of truth.
+- **Animal coverings** (fur / feathers / chitin / scales / skin) are a `covering` field on the species; each has its own piece, material noun and recipe head. Scale and chitin animals used to roll "hard" because the hardness baseline was hide; `FAMILY_TYPICAL` now has per-covering baselines.
+- **Blood** is a `Decal` entity on its own bottom render layer (one per tile), coloured by `blood_color` on the species (red default). Decals never appear in tooltips, loot lists or pickup.
+- **HUD**: the log and status moved to an engraved right panel (22 cells); the map view is now 58x45 cells. Bars are 10 segments. Themes are palettes in `ui.PALETTES` (default "ion"), chosen in Settings.
+- **Ground cover** (grass, leaves, ferns, mushrooms) is terrain graphics, not entities, and uses a coordinate hash (`TerrainNoise.scatter`) so chunk seams stay invisible; the global RNG caused visible seams. Lily pads are procedural decals. Flowers are real named plants holding a bloom, so they can feed medicine and cooking later.
+- **Test speed:** tests load 3x3 chunks instead of 5x5 (marker `full_world` opts out), the glyph-study test stubs the world simulation, and the UI fuzz test runs two seeds x 300 steps by default (`FUZZ_FULL=1` for 4 x 600). Whole suite: about 155 s -> about 55 s. Alternative: pytest-xdist; not used because the VM has two cores and it adds a dependency.
+- **Plant cycles** no longer build items when the inventory is full (`Inventory.add` discarded them anyway).
