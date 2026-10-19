@@ -226,4 +226,6 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - **Mountains (stage 6):** passes through ridges, snow and volcanic-ash rock colour, surface chasms that look down into the caves, caves at rock faces in mountain country, lava lakes in volcanic cores (a new deadly liquid), waterfalls on steep rivers. Tests: 788.
 
 - **World map (M):** one cell per chunk of what you have actually seen, with your ship, pod and ruins, a chunk info panel, zoom and a cursor.
-- **Bridges and paths:** natural plank bridges over narrow rivers, trodden paths between buildings and ruins (bridging short water), and player-built bridges (wooden floor over water from the bank). Tests: 817.
+- **Bridges and paths:** natural plank bridges over narrow rivers, trodden paths between buildings and ruins (bridging short water), and player-built bridges (wooden floor over water from the bank). Tests: 825.
+
+- **Music:** data-driven contextual music (`data/music.json`): landmark pools, ambient elsewhere, combat music by creature category (tags), fades, resume after combat, graceful fallbacks. No music is shipped; point `music_dir` (or `STARSTRANDED_MUSIC`) at a folder and fill the pools.

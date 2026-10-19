@@ -1,0 +1,49 @@
+{
+ "_help": "Music manifest. Put the audio files in the music folder (settings 'music_dir', else the STARSTRANDED_MUSIC environment variable, else the 'music' folder beside src/). Each pool lists tracks as a path below that folder, or {\"file\": path, \"weight\": 2, \"length\": seconds}. A landmark's pool is named by its 'music' key; 'ambient' plays everywhere else. Empty pools fall back (landmark -> ambient, combat category -> default category). See src/music.py for the rules.",
+ "root": "music",
+ "fade_ms": {
+  "landmark": 3000,
+  "combat_in": 700,
+  "combat_out": 2500,
+  "resume_in": 2500,
+  "start": 2000
+ },
+ "timing": {
+  "switch_delay": 6.0,
+  "combat_cooldown": 8.0,
+  "landmark_enter": 0.55,
+  "landmark_leave": 0.3,
+  "resume_min_left": 10.0
+ },
+ "pools": {
+  "ambient": [],
+  "mushroom_forest": [],
+  "cactus_desert": [],
+  "crystal_badlands": [],
+  "volcanic_mountains": [],
+  "decayed_land": [],
+  "beach": [],
+  "flowering_meadow": []
+ },
+ "combat": {
+  "priority": [
+   "robot",
+   "humanoid",
+   "wildlife"
+  ],
+  "default": "wildlife",
+  "tags": {
+   "robot": [
+    "robot"
+   ],
+   "humanoid": [
+    "humanoid"
+   ]
+  },
+  "pools": {
+   "wildlife": [],
+   "humanoid": [],
+   "robot": []
+  }
+ }
+}

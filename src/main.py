@@ -127,6 +127,8 @@ def run(handler: input_handlers.BaseEventHandler, session) -> None:
                 dirty = True
                 handler = process(handler, event, session)
 
+            import music
+            music.tick(handler)
             clock.tick(FPS)
     except exceptions.QuitWithoutSaving:
         raise

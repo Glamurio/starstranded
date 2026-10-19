@@ -10,6 +10,8 @@ import os
 from dataclasses import asdict, dataclass
 
 PATH = "settings.json"
+CURRENT = None
+"""The settings last applied (what the music reads its volume and folder from)."""
 MAX_VOLUME = 10
 
 
@@ -20,12 +22,14 @@ class Settings:
     sfx_volume: int = 7
     fullscreen: bool = False
     theme: str = "ion"
+    music_dir: str = ""       # folder of the music files; empty: STARSTRANDED_MUSIC, else the "music" folder beside src/
 
     def clamp(self) -> "Settings":
         for name in ("master_volume", "music_volume", "sfx_volume"):
             setattr(self, name, max(0, min(MAX_VOLUME, int(getattr(self, name)))))
         self.fullscreen = bool(self.fullscreen)
         self.theme = str(self.theme)
+        self.music_dir = str(self.music_dir or "")
         return self
 
     def effective(self, channel: str) -> float:
@@ -57,6 +61,8 @@ def apply(settings: Settings, session=None) -> None:
     """Put the settings into effect: fullscreen on the window, volume on the mixer if it is running."""
     import pygame
     import ui
+    global CURRENT
+    CURRENT = settings
     ui.Theme.apply(settings.theme)
     if session is not None and session.display is not None and pygame.display.get_surface() is not None:
         if bool(pygame.display.is_fullscreen()) != settings.fullscreen:
