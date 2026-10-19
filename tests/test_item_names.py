@@ -1,13 +1,20 @@
 """Item names: generated names are lower case, and a piece is not named twice ("rock stone")."""
+import re
+
 import items
 import naming
+
+
+def bare(text):
+    """The name without a trailing catalogue numeral (" II")."""
+    return re.sub(r" [IVX]+$", "", text)
 
 
 def test_generated_names_are_lower_case_except_catalogue_codes():
     namer = naming.Namer(5)
     for i in range(10):
-        assert namer.name(f"w{i}", "wood", (120, 80, 40)).text.replace(" II", "").replace(" III", "").islower()
-        assert namer.fruit(f"f{i}", (200, 40, 40), "pear").replace(" II", "").replace(" III", "").islower()
+        assert bare(namer.name(f"w{i}", "wood", (120, 80, 40)).text).islower()
+        assert bare(namer.fruit(f"f{i}", (200, 40, 40), "pear")).islower()
     assert naming.Namer(5, "corporate").name("c", "stone", (100, 100, 100)).text[0].isupper()
 
 
