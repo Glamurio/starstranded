@@ -339,9 +339,10 @@ def deliver(player, run, contract: Contract) -> Tuple[int, int]:
         contract.done = True
         run.completed.append(contract.id)
         add_reputation(run, contract.sponsor, contract.reputation)
-        run.contracts = [c for c in run.contracts if not c.done] + (
+        still_open = [c for c in run.contracts if not c.done]
+        run.contracts = still_open + (
             offer_contracts(run.seed, contract.sponsor, len(run.completed), 1, run.hunt_targets, run.kills)
-            if len(run.contracts) < 3 else [])
+            if len(still_open) < 3 else [])   # the board always refills to three
     else:
         add_reputation(run, contract.sponsor, max(1, delivered))
     return delivered, value
