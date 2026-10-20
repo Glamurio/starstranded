@@ -15,6 +15,7 @@ Nobody lives here: there are no creatures, only what they left (see DECISIONS.md
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Dict, Optional, Set, Tuple
 
 import numpy as np  # type: ignore
@@ -231,3 +232,19 @@ def populate(source, world, chunk, env: dict) -> int:
                 world.add_entity(scenery.Scenery(kind, variant, color), x, y)
                 placed += 1
     return placed
+
+
+MARGIN = 8
+"""Tiles round a chunk that count as its surroundings when asking whether a city touches it."""
+
+
+@lru_cache(maxsize=8192)
+def touches(master: int, key: Tuple[int, int]) -> bool:
+    """Whether any urban region lies within the chunk or `MARGIN` tiles of it (so farms, hamlets and sites keep out of cities whole, not just at the middle)."""
+    import regions
+    import shafts
+    from chunks import CHUNK_H, CHUNK_W
+    x0, y0 = key[0] * CHUNK_W - MARGIN, key[1] * CHUNK_H - MARGIN
+    field = regions.field(shafts.terrain_noise(master), x0, y0, CHUNK_W + 2 * MARGIN, CHUNK_H + 2 * MARGIN)
+    urban = np.array([biomes.BIOMES[k].urban is not None for k in biomes.BIOME_IDS])
+    return bool(urban[field.biome].any())

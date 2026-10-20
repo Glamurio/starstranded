@@ -289,7 +289,8 @@ def roll(master: int, key: Tuple[int, int], biome: "biomes.Biome") -> List[str]:
 def place(source, world, chunk, env: dict) -> List[str]:
     """Build the chunk's points of interest; returns the kinds that were placed. (Call inside `worldgen.seeded_rng`.)"""
     import settlements
-    if chunk.key == (0, 0) or settlements.layout(source.floor_seed, chunk.key) is not None:
+    import urban
+    if chunk.key == (0, 0) or urban.touches(source.floor_seed, chunk.key) or settlements.layout(source.floor_seed, chunk.key) is not None:
         return []
     import shafts
     import structures
