@@ -27,10 +27,10 @@ _COVER: Dict[int, str] = {}
 
 
 def _register_cover() -> None:
-    """What the little ground plants drawn on open ground are called, by sprite cell (see `worldgen.GROUND_COVER`)."""
-    import worldgen
-    for cells, label in ((worldgen._DRY, "Dry grass"), (worldgen._TUFTS, "Grass"), (worldgen._FERNS, "Ferns"),
-                         (worldgen._LEAVES, "Fallen leaves"), (((2, 10), (3, 10)), "Toadstools")):
+    """What the little ground plants drawn on open ground are called, by sprite cell (see `biomes.Biome.cover`)."""
+    import biomes
+    for cells, label in ((biomes._DRY, "Dry grass"), (biomes._TUFTS, "Grass"), (biomes._FERNS, "Ferns"), (biomes._LEAVES, "Fallen leaves"),
+                         (biomes._CAPS, "Toadstools"), (biomes._TALL, "Tall grass"), (biomes._VINES, "Vines")):
         for cell in cells:
             _COVER.setdefault(tile_types.sprite_id(*cell), label)
 

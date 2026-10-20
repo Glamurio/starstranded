@@ -64,14 +64,14 @@ def test_every_planet_can_make_a_hatchet_and_has_fuel_wood(seed):
 
 def test_species_only_spawn_where_their_habitat_allows(p):
     def env(**kw):
-        base = dict(temperature=0.0, moisture=0.0, elevation=0.0, fertility=0.6, light=1.0, water=0.0, biome=biomes.BIOME_INDEX["grassland"])
+        base = dict(temperature=0.0, moisture=0.0, elevation=0.0, fertility=0.6, light=1.0, water=0.0, biome=biomes.BIOME_INDEX["plains"])
         base.update(kw)
         return {k: np.array(v) for k, v in base.items()}
     desert = env(temperature=0.8, moisture=-0.8, fertility=0.05, biome=biomes.BIOME_INDEX["desert"])
     pool, w = p.species_weights(desert, PlantCategory.TREE)
     live = {s.key.split(":")[2] for s, x in zip(pool, w) if x > 0}
     assert "cactus" in live and "conifer" not in live and "broadleaf" not in live
-    glacier = env(temperature=-1.2, moisture=0.0, fertility=0.0, biome=biomes.BIOME_INDEX["glacial"])
+    glacier = env(temperature=-1.2, moisture=0.0, fertility=0.0, biome=biomes.BIOME_INDEX["glacial_plain"])
     pool, w = p.species_weights(glacier, PlantCategory.TREE)
     assert not (w > 0).any()
     fauna, fw = p.fauna_weights(desert)

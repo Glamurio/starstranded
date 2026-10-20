@@ -55,10 +55,12 @@ FJORD_MAX_NODES, FJORD_MIN_NODES, FJORD_MIN_RANGE, FJORD_MAX_RISE, FJORD_WIDTH =
 within 1.3 of the sea) drowned into a fjord 8.5 tiles wide."""
 BRIDGE_EVERY, BRIDGE_SPAN, APPROACH = 20, (2, 6), 2
 """One river node in `BRIDGE_EVERY` is a candidate; a bridge spans 2-6 tiles of water and has 2 path tiles on each bank."""
-HOT_CELL, HOT_CHANCE, HOT_STRENGTH = 36, 0.6, 0.45
-LAVA_STRENGTH, LAVA_SHARE = 0.75, 0.5
+HOT_CELL, HOT_CHANCE = 36, 0.6
+LAVA_HOT, LAVA_SHARE = 2.0, 0.5
+HOT_SAFE = 150.0
+"""No hot spring within this many tiles of the landing site."""
 """Landmark strength from which a hot site may be a lava lake, and the share of those that are."""
-"""Hot springs: one candidate per 36x36 tiles, kept where the volcanic landmark is at least this strong."""
+"""Hot springs: one candidate per 36x36 tiles, kept where the biome's `hot_springs` allows (volcanic and thermal ground)."""
 DIRECTIONS = ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1))
 
 
@@ -194,12 +196,15 @@ class RiverSystem:
             return None
         x, y = (i + rng.random()) * HOT_CELL, (j + rng.random()) * HOT_CELL
         radius = 2.4 + 1.4 * rng.random()
-        import landmarks
+        if math.hypot(x - relief.SPAWN[0], y - relief.SPAWN[1]) < HOT_SAFE:       # (the landing site is dry)
+            return None
+        import biomes
         import worldgen
         env = worldgen.environment_for(self.noise, int(x), int(y), 1, 1, np.ones((1, 1), dtype=np.int8))
-        if landmarks.key_of(int(env["landmark"][0, 0])) != "volcanic_mountains" or float(env["landmark_strength"][0, 0]) < HOT_STRENGTH:
+        biome = biomes.BIOMES[biomes.BIOME_IDS[int(env["biome"][0, 0])]]
+        if biome.hot_springs <= 0 or float(env["edge"][0, 0]) > 0.25 or rng.random() > min(1.0, biome.hot_springs):
             return None
-        lava = float(env["landmark_strength"][0, 0]) >= LAVA_STRENGTH and rng.random() < LAVA_SHARE
+        lava = biome.family == "volcanic" and biome.hot_springs >= LAVA_HOT and rng.random() < LAVA_SHARE
         return x, y, radius * (1.8 if lava else 1.0), lava
 
     def bridge_at(self, river: "River", k: int) -> Optional[List[Tuple[int, int, bool]]]:

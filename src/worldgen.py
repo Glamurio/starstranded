@@ -17,7 +17,7 @@ import numpy as np  # type: ignore
 import tcod
 
 import hydrology
-import landmarks
+import regions
 import relief
 import shafts
 from seeds import mix_seed  # noqa: F401  (re-exported: worldgen.mix_seed is the long-standing import path)
@@ -55,6 +55,14 @@ WOODLAND_REACH = 0.8   # how far the large-scale woodland noise moves the planti
 IMPURE_BELOW, TOXIC_BELOW = 0.15, 0.40  # liquid noise thresholds: below the first is impure, below the second toxic, else acidic
 
 OUTCROP_ABOVE = 0.28
+NOISE_COUNT = 24
+"""Generators of `TerrainNoise`: 0-15 terrain and climate, 16-17 `regions` (warp), 18 ground colour, 19 patches of the alternative ground,
+20 vegetation patches, 21 shore (beach), 22 flooding, 23 spare."""
+BEACH_REACH, BEACH_RELIEF, BEACH_NOISE = 0.7, 0.14, -0.2
+"""A shore tile (`shore` of the environment, 1 at the waterline) is beach from this far in, below this elevation, where the shore noise is above `BEACH_NOISE`
+(so not every coast has one)."""
+WET_LOW = (0.45, 0.15, -0.3)
+"""Very wet (moisture above the first), low (elevation below the second) ground that is not frozen (temperature above the third) takes the region's wetland biome."""
 
 # Terrain kinds come from `relief.elevation`: water below `relief.SEA_LEVEL`, open ground up to `relief.ROCK_LEVEL`, rock above.
 
@@ -84,7 +92,7 @@ class TerrainNoise:
         self.floor_seed = floor_seed
         self.noises = [
             tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(floor_seed, i) % 2**31)
-            for i in range(landmarks.NOISE_BASE + len(landmarks.LANDMARK_IDS))   # 0-15 terrain and climate, then one per landmark
+            for i in range(NOISE_COUNT)   # 0-15 terrain and climate, 16-17 the region warp, 18-23 the variation inside a biome
         ]
         self.shift = _SHIFTS.get(floor_seed)
         if self.shift is None:
@@ -171,32 +179,42 @@ WATER_PROXIMITY = (1.0, 1.0, 0.7, 0.4)
 
 def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: int, kinds: np.ndarray) -> dict:
     """Environment arrays (see `ecology`) for a world rectangle whose base terrain kinds (0 water) are `kinds`:
-    temperature, moisture, elevation, fertility, light, water, the biome index and the landmark (index, strength; see
-    `landmarks`). All pure functions of the seed."""
+    temperature, moisture, elevation, fertility, light, water, `biome` (index; see `biomes`), `other` and `edge` (the neighbouring
+    region's biome and its share on the borders), `region` (the number of the region), `variant` (hot/cold/wet/dry flags).
+    All pure functions of the seed."""
     from procgen import dilate
     import biomes
     elevation = relief.elevation(noise, x0, y0, width, height)
-    # Wetlands: low ground near water (river banks, lake shores, estuaries) is soaked, so the swamp and bog overlay of the
-    # biome table takes it. The damp fades out over `WET_REACH` tiles.
+    # Wetlands: low ground near water (river banks, lake shores, estuaries) is soaked, so the region's wetland twin takes it.
+    # The damp fades out over `WET_REACH` tiles.
     distance = shore_distance(kinds == 0, WET_REACH)
     damp = np.clip(1.0 - (distance - 1) / WET_REACH, 0.0, 1.0) * (distance > 0) * relief.smooth((0.3 - elevation) / 0.3)
     moisture = noise.moisture(x0, y0, width, height) + WET_BOOST * damp
     shore = np.clip(1.0 - (distance - 1) / (WET_REACH - 1), 0.0, 1.0) * (distance > 0)   # 1 at the water's edge, 0 six tiles inland
     # (the air cools with the smooth height only: rough detail would make temperature, and so the biome, jump from tile to tile)
-    cooling = relief.LAPSE * np.maximum(relief.smooth_elevation(noise, x0, y0, width, height) - relief.SNOWLINE, 0.0)
+    smooth_height = relief.smooth_elevation(noise, x0, y0, width, height)
+    cooling = relief.LAPSE * np.maximum(smooth_height - relief.SNOWLINE, 0.0)
     temperature = noise.temperature(x0, y0, width, height) - cooling
-    biome = biomes.classify(temperature, moisture, elevation)
+    reg = regions.field(noise, x0, y0, width, height)
+    biome, other = reg.biome.copy(), reg.other.copy()
+    twin = np.array([biomes.BIOME_INDEX.get(biomes.BIOMES[k].wet_twin, -1) for k in biomes.BIOME_IDS], dtype=np.int16)
+    wet = (moisture > WET_LOW[0]) & (elevation < WET_LOW[1]) & (temperature > WET_LOW[2])
+    biome = np.where(wet & (twin[biome] >= 0), twin[biome], biome)
+    other = np.where(wet & (twin[other] >= 0), twin[other], other)
+    beach = (shore >= BEACH_REACH) & (kinds != 0) & (elevation < BEACH_RELIEF) & (temperature > biomes.BIOMES["beach"].temperature[0]) \
+        & (noise.sample(21, 0.012, x0, y0, width, height) > BEACH_NOISE)
+    biome = np.where(beach, biomes.BIOME_INDEX["beach"], biome)
+    edge = np.where(beach, 0.0, reg.edge)
     water = np.zeros((width, height), dtype=float)
     reach = kinds == 0
     water[reach] = WATER_PROXIMITY[0]
     for distance in range(1, len(WATER_PROXIMITY)):
         reach = dilate(reach)
         water[reach & (water == 0)] = WATER_PROXIMITY[distance]
-    fertility = np.clip(np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[biome] / 1.6, 0.0, 1.0)
-    env = dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
-               light=np.ones((width, height)), water=water, biome=biome, land=kinds != 0, shore=shore)
-    env["landmark"], env["landmark_strength"] = landmarks.field(noise, x0, y0, width, height, env)
-    return env
+    fertility = np.clip(biomes.table("vegetation")[biome] / 1.6, 0.0, 1.0)
+    return dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
+                light=np.ones((width, height)), water=water, biome=biome, other=other, edge=edge, region=reg.region,
+                variant=biomes.variant_bits(temperature, moisture, biome), land=kinds != 0, shore=shore)
 
 
 def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_W, height: int = CHUNK_H) -> dict:
@@ -265,20 +283,17 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
 
 
 # ── ground cover and shores ─────────────────────────────────────────────────────────────────────────────
-_TUFTS = ((3, 9), (4, 9), (5, 9), (1, 9), (7, 9), (8, 9), (9, 9), (19, 9), (20, 9))
-_FERNS = ((10, 9), (11, 9), (12, 9))
-_LEAVES = ((17, 9), (18, 9))
-_DRY = ((3, 9), (4, 9), (5, 9))
-GROUND_COVER: Dict[str, Tuple[Tuple[int, int], ...]] = {
-    "glacial": _DRY, "tundra": _DRY + ((1, 9),), "taiga": _TUFTS + _FERNS, "steppe": _DRY + ((7, 9), (8, 9)),
-    "temperate_forest": _TUFTS + _FERNS + _LEAVES, "grassland": _TUFTS, "shrubland": _DRY + ((7, 9), (8, 9)),
-    "savanna": _DRY + ((7, 9), (8, 9)), "jungle": _TUFTS + _FERNS + _LEAVES + _LEAVES, "badlands": _DRY, "desert": _DRY,
-    "swamp": _TUFTS + _FERNS + _LEAVES, "bog": _TUFTS + _FERNS,
-}
-"""The little plants drawn on open ground, by biome: tufts of grass, ferns, leaves, toadstools (sprites of the sheet).
-They are part of the terrain graphics, not objects: free to draw, nothing to save, nothing to pick up."""
-COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.05, 0.22, 0.4
-"""Share of open ground that carries cover: `COVER_BASE + COVER_PER_VEGETATION * biome.vegetation` (at most `COVER_MAX`)."""
+COVER_BASE, COVER_PER_VEGETATION, COVER_MAX = 0.05, 0.22, 0.55
+"""Share of open ground that carries cover (the little plants of `Biome.cover`: tufts of grass, ferns, leaves, toadstools, vines; sprites of the
+sheet): `COVER_BASE + COVER_PER_VEGETATION * vegetation`, times the biome's `cover_boost`, at most `COVER_MAX`. They are part of the terrain graphics,
+not objects: free to draw, nothing to save, nothing to pick up."""
+TEXTURE_SHARE = 0.22
+"""Share of the bare open ground drawn with one of the biome's `texture` sprites instead of the plain dot (dimmer than the dot, so it stays a backdrop)."""
+GROUND_JITTER, GROUND_PATCH_SCALE, GROUND_SHADE_SCALE = 0.07, 0.022, 0.045
+"""The ground of a biome varies in brightness by up to `GROUND_JITTER` (slow noise at `GROUND_SHADE_SCALE`) and takes its alternative colour in patches
+(noise at `GROUND_PATCH_SCALE`), so a region is not one flat colour."""
+PATCH_REACH = 0.45
+"""How far the patch noise moves the vegetation density (a clearing, a thicker stand) inside a biome."""
 
 SHORE_WET = (0.40, 0.22, 0.09)
 """How far the damp of a shore reaches into the land: the share of the water colour mixed into the ground 1, 2 and 3 tiles
@@ -344,20 +359,67 @@ def _hue_shifted(colour: np.ndarray, angle: np.ndarray) -> np.ndarray:
     return np.einsum("nij,nj->ni", m, colour)
 
 
-def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, open_ground: np.ndarray, vegetation: np.ndarray) -> None:
-    """Scatter little plants over open ground (see `GROUND_COVER`): a sprite, tinted from the ground under it."""
+def _smooth(x: np.ndarray) -> np.ndarray:
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def ground_colours(noise: TerrainNoise, area, env: dict) -> np.ndarray:
+    """The ground colour (w, h, 3) of every tile: the biome's colour, patched with its alternative colour and slowly varying in brightness,
+    blended with the neighbouring region's over a border, nudged by the hot/cold/wet/dry variant."""
     import biomes
-    chance = np.clip(COVER_BASE + COVER_PER_VEGETATION * vegetation, 0.0, COVER_MAX)
-    covered = open_ground & (noise.scatter(2, *area) < chance)
+    biome, other, edge = env["biome"], env["other"], env["edge"][..., None]
+    base = np.array([b.ground for b in biomes.BIOMES.values()], dtype=float)
+    alt = np.array([b.ground_alt or b.ground for b in biomes.BIOMES.values()], dtype=float)
+    share = biomes.table("alt_share")
+    patch = noise.sample(19, GROUND_PATCH_SCALE, *area)
+    result = []
+    for index in (biome, other):
+        w = _smooth((patch - (0.65 - 1.3 * share[index])) / 0.18)[..., None]
+        result.append(base[index] * (1.0 - w) + alt[index] * w)
+    ground = result[0] * (1.0 - edge) + result[1] * edge
+    ground *= 1.0 + GROUND_JITTER * noise.sample(18, GROUND_SHADE_SCALE, *area)[..., None] / 0.7
+    for key, spec in biomes.VARIANTS.items():
+        ground += ((env["variant"] & biomes.VARIANT_BITS[key]) > 0)[..., None] * np.array(spec.ground, dtype=float)
+    return np.clip(ground, 0, 255).astype(np.uint8)
+
+
+def vegetation_density(noise: TerrainNoise, area, env: dict) -> np.ndarray:
+    """How thickly each tile is vegetated: the biome's (and the neighbour's on a border), with clearings and thick stands from slow noise,
+    scaled by the variant (a wet tile is lusher, a dry one thinner), never below the biome's `floor_density`."""
+    import biomes
+    biome, other, edge = env["biome"], env["other"], env["edge"]
+    veg, floor = biomes.table("vegetation"), biomes.table("floor_density")
+    density = veg[biome] * (1.0 - edge) + veg[other] * edge
+    floor_ = floor[biome] * (1.0 - edge) + floor[other] * edge
+    density = density * (1.0 + PATCH_REACH * noise.sample(20, 0.035, *area) / 0.7)
+    for key, spec in biomes.VARIANTS.items():
+        density = np.where((env["variant"] & biomes.VARIANT_BITS[key]) > 0, density * spec.vegetation, density)
+    return np.maximum(density, floor_)
+
+
+def cover_sprites() -> set:
+    """The sprite ids of every ground cover any biome uses."""
+    import biomes
+    return {sprite_id(*c) for b in biomes.BIOMES.values() for c in b.cover}
+
+
+def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, open_ground: np.ndarray, vegetation: np.ndarray) -> np.ndarray:
+    """Scatter little plants over open ground (see `Biome.cover`): a sprite, tinted from the ground under it. On a border a tile takes the
+    neighbouring region's cover now and then. Returns the mask of covered tiles."""
+    import biomes
+    boost = biomes.table("cover_boost")
+    has = np.array([bool(b.cover) for b in biomes.BIOMES.values()])
+    use_other = noise.scatter(6, *area) < env["edge"]
+    owner = np.where(use_other, env["other"], env["biome"])
+    chance = np.clip((COVER_BASE + COVER_PER_VEGETATION * vegetation) * boost[owner], 0.0, COVER_MAX)
+    covered = open_ground & has[owner] & (noise.scatter(2, *area) < chance)
     pick, turn, tone = noise.scatter(3, *area), noise.scatter(4, *area), noise.scatter(5, *area)
     hue = noise.scatter(8, *area)
-    # A landmark's own cover takes over where the landmark is strong (the edge mixes both, tile by tile).
-    own = (env["landmark"] > 0) & (noise.scatter(6, *area) < env["landmark_strength"])
-    groups = [(covered & ~own & (env["biome"] == index), GROUND_COVER[key]) for index, key in enumerate(biomes.BIOME_IDS)]
-    groups += [(covered & own & (env["landmark"] == number), landmarks.LANDMARKS[key].cover)
-               for key, number in landmarks.LANDMARK_INDEX.items()]
-    for mask, cells in groups:
-        count = int(mask.sum())
+    for index, key in enumerate(biomes.BIOME_IDS):
+        cells = biomes.BIOMES[key].cover
+        mask = covered & (owner == index)
+        count = int(mask.sum()) if cells else 0
         if not count:
             continue
         sprites = np.array([sprite_id(*cell) for cell in cells], dtype=np.int32)
@@ -372,6 +434,25 @@ def _cover_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, o
             grey = colour @ np.array([0.30, 0.59, 0.11])
             colour = grey[:, None] + (colour - grey[:, None]) * (1.0 - COVER_DESATURATE)      # and is a little paler than the ground
             landscape[layer]["fg"][mask] = np.clip(colour, 0, 255).astype(np.uint8)
+    return covered
+
+
+def _texture_ground(noise: TerrainNoise, area, landscape: np.ndarray, env: dict, bare: np.ndarray) -> None:
+    """Mottle bare open ground with the biome's texture sprites (a dimmer version of the ground colour: a backdrop, never a thing)."""
+    import biomes
+    use_other = noise.scatter(10, *area) < env["edge"]
+    owner = np.where(use_other, env["other"], env["biome"])
+    draw, pick = noise.scatter(9, *area), noise.scatter(11, *area)
+    for index, key in enumerate(biomes.BIOME_IDS):
+        cells = biomes.BIOMES[key].texture
+        mask = bare & (owner == index) & (draw < TEXTURE_SHARE) if cells else None
+        if mask is None or not mask.any():
+            continue
+        sprites = np.array([sprite_id(*cell) for cell in cells], dtype=np.int32)
+        for layer, dim in (("light", 0.5), ("dark", 0.25)):
+            landscape[layer]["sprite"][mask] = sprites[(pick[mask] * len(sprites)).astype(int)]
+            landscape[layer]["flip"][mask] = False
+            landscape[layer]["fg"][mask] = np.clip(landscape[layer]["fg"][mask].astype(float) * dim / (0.8 if layer == "light" else 0.4), 0, 255).astype(np.uint8)
 
 
 SNOW_FROM, SNOW_SPAN = 1.0, 0.45
@@ -382,14 +463,18 @@ STONE_COLOR, STONE_FROM_GROUND = (128, 120, 110), 0.22
 
 
 def _tint_rock(landscape: np.ndarray, env: dict, rock: np.ndarray, ground: np.ndarray) -> None:
-    """Mountain colour by height: bare grey-brown at the foot, snow and ice on the crests, dark ash and lava rock in
-    volcanic country (where it is too hot for snow). Only the colours change; the tiles stay ordinary walls."""
-    volcanic = (env["landmark"] == landmarks.LANDMARK_INDEX["volcanic_mountains"]) * env["landmark_strength"]
-    snow = relief.smooth((env["elevation"] - SNOW_FROM) / SNOW_SPAN) * (1.0 - np.clip(volcanic * 1.5, 0.0, 1.0))
-    ash = np.clip(volcanic * 1.2, 0.0, 0.85)
+    """Mountain colour by height: bare grey-brown at the foot, snow and ice on the crests, and the biome's own rock colour where it has one
+    (ash and lava rock in volcanic country, rust in the desert; it is also too hot for snow there). Only the colours change; the tiles stay
+    ordinary walls."""
+    import biomes
+    tints = np.array([b.rock_tint or ASH_COLOR for b in biomes.BIOMES.values()], dtype=float)
+    mixes = biomes.table("rock_mix")
+    mix = mixes[env["biome"]]
+    tint = tints[env["biome"]]
+    snow = relief.smooth((env["elevation"] - SNOW_FROM) / SNOW_SPAN) * (1.0 - np.clip(mix * 1.5, 0.0, 1.0))
     for layer, scale in (("light", 1.0), ("dark", 0.5)):
         fg = np.array(STONE_COLOR, dtype=float) * scale * (1.0 - STONE_FROM_GROUND) + ground.astype(float) * scale * STONE_FROM_GROUND
-        fg = fg * (1.0 - ash[..., None]) + np.array(ASH_COLOR, dtype=float) * scale * ash[..., None]
+        fg = fg * (1.0 - mix[..., None]) + tint * scale * mix[..., None]
         fg = fg * (1.0 - snow[..., None]) + np.array(SNOW_COLOR, dtype=float) * scale * snow[..., None]
         landscape[layer]["fg"][..., :3][rock] = np.clip(fg[rock], 0, 255).astype(np.uint8)
 
@@ -428,15 +513,15 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # Climate: the biome tints the open ground and decides how thickly it is vegetated.
     import biomes
     env = environment_for(noise, x0 - m, y0 - m, pw, ph, kinds)
-    ground = landmarks.blend_ground(biomes.ground_colors(env["biome"]), env["landmark"], env["landmark_strength"])
+    area = (x0 - m, y0 - m, pw, ph)
+    ground = ground_colours(noise, area, env)
     open_ground = kinds == 1
     _tint_rock(landscape, env, kinds == 2, ground)
     _cut_chasms(noise, landscape, env, kinds == 2, x0 - m, y0 - m, pw, ph)
     landscape["light"]["fg"][open_ground] = (ground[open_ground] * 0.8).astype(np.uint8)
     landscape["light"]["bg"][open_ground] = (ground[open_ground] * 0.10).astype(np.uint8)
     landscape["dark"]["fg"][open_ground] = (ground[open_ground] * 0.4).astype(np.uint8)
-    density = landmarks.blend_density(np.array([biomes.BIOMES[k].vegetation for k in biomes.BIOME_IDS])[env["biome"]],
-                                      env["landmark"], env["landmark_strength"])
+    density = vegetation_density(noise, area, env)
 
     # Vegetation: wherever the vegetation noise beats a random threshold (not in lakes); the threshold follows
     # the biome (barren desert ... dense jungle).
@@ -447,14 +532,14 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     threshold = BASE_THRESHOLD + (1.0 - density) * 0.4 - stands * WOODLAND_REACH
     tree_map = (noise.vegetation(x0 - m, y0 - m, pw, ph) > random_map + threshold) & (kinds != 0)
     # (the ground under vegetation stays ordinary biome ground: plants are drawn on top of it)
-    area = (x0 - m, y0 - m, pw, ph)
     _blend_shores(noise, area, landscape, kinds == 0, ground, open_ground, shallow_colors, deep_colors)
     for layer, scale in (("light", 1.0), ("dark", 0.5)):     # hot springs are a paler, greener blue; lava glows orange
         landscape[layer]["fg"][hot] = (np.array(HOT_COLOR, dtype=float) * scale).astype(np.uint8)
         landscape[layer]["fg"][fall & ~lava] = (np.array(FOAM_COLOR, dtype=float) * scale).astype(np.uint8)
         landscape[layer]["fg"][lava] = (np.array(LAVA_COLOR, dtype=float) * scale).astype(np.uint8)
     # (ground cover never goes under a tree: a tree and a tuft of grass would share a tile)
-    _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
+    covered = _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
+    _texture_ground(noise, area, landscape, env, open_ground & ~tree_map & ~covered)
     deck, banks = hydrology.bridge_tiles(noise, x0 - m, y0 - m, pw, ph)
     deck, banks = deck & (kinds == 0) & ~hot & ~fall & ~lava, banks & (kinds == 1) & ~landscape["open"]
     tile_types.lay_bridge(landscape, deck, (kinds == 1) & ~deck)     # the odd natural bridge over a narrow river
@@ -702,8 +787,7 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         if any(e.category is EntityCategory.PLANT for e in world.get_entities_at_location(x, y)):
             continue                                  # (a loose stone under a bush could not be seen)
         biome = biomes.BIOME_IDS[int(env["biome"][lx, ly])]
-        stone_landmark = landmarks.key_of(int(env["landmark"][lx, ly])) if env["landmark_strength"][lx, ly] > 0.3 else ""
-        material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome, stone_landmark)
+        material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome)
         world.add_entity(Stuff(defs.PIECE_STONE, material), x, y)
 
 

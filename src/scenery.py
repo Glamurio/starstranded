@@ -1,7 +1,7 @@
 """Scenery: the quiet things that make ground look lived-in (pebbles, small rocks, bones, skulls, rubble).
 
 A scenery piece is not an item: it cannot be picked up, blocks nothing, is drawn faint under everything and is named on hover.
-What lies where is data (`SCENERY`): each kind has a base chance per tile, a weight per biome and per landmark, and how much
+What lies where is data (`SCENERY`): each kind has a base chance per tile, a weight per biome family and per biome, and how much
 more likely it is among rocks. Chances are read from the coordinate hash of `TerrainNoise.scatter`, so a tile's scenery does not
 depend on how the world is cut into chunks. Placement rules (`tile_is_free`) keep it from burying anything you can use."""
 from __future__ import annotations
@@ -12,7 +12,6 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 import biomes
-import landmarks
 from entity import Entity
 from render_order import RenderOrder
 from species import ItemKind, register
@@ -27,29 +26,46 @@ class SceneryKind:
     sprites: Tuple[Tuple[int, int], ...]
     color: RGB
     chance: float                                   # per open tile, in a biome of weight 1
-    biome: Dict[str, float] = field(default_factory=dict)     # weight per biome (missing = `default`)
-    landmark: Dict[str, float] = field(default_factory=dict)  # weight inside a landmark (replaces the biome's)
+    family: Dict[str, float] = field(default_factory=dict)    # weight per biome family (missing = `default`); a biome's own `scenery` replaces it
     default: float = 1.0
     rocky: float = 0.0                              # extra chance per unit of nearby rock (0..1)
     near_ruin: float = 0.0                          # extra weight near a precursor ruin chunk
 
 
+def _fam(**kw: float) -> Dict[str, float]:
+    return dict(kw)
+
+
+# Kinds with default 0 appear only where a biome lists them in `Biome.scenery`.
 SCENERY: Tuple[SceneryKind, ...] = (
     SceneryKind("pebbles", "Pebbles", ((14, 6), (5, 26)), (165, 160, 150), 0.006,
-                biome=dict(grassland=0.6, temperate_forest=0.5, jungle=0.3, swamp=0.3, bog=0.3, desert=1.4, badlands=2.0, tundra=1.3),
-                landmark=dict(beach=1.8, mushroom_forest=0.3, flowering_meadow=0.4), rocky=3.0),
+                family=_fam(grass=0.6, arid=1.4, forest=0.4, fungal=0.3, crystal=1.2, volcanic=1.5, decay=1.2, alien=0.3, wet=0.3, cold=1.3, coast=1.8, urban=1.0), rocky=3.0),
     SceneryKind("small_rocks", "Small rocks", ((2, 12), (5, 12)), (140, 135, 128), 0.0025,
-                biome=dict(grassland=0.4, jungle=0.2, swamp=0.2, bog=0.3, badlands=2.5, desert=1.2, tundra=1.5, glacial=1.5, steppe=1.0),
-                landmark=dict(crystal_badlands=2.5, volcanic_mountains=3.0, mushroom_forest=0.2, flowering_meadow=0.2), rocky=4.0),
+                family=_fam(grass=0.4, arid=1.5, forest=0.3, fungal=0.2, crystal=2.0, volcanic=3.0, decay=1.0, alien=0.2, wet=0.2, cold=1.5, coast=1.0, urban=1.0), rocky=4.0),
     SceneryKind("bones", "Scattered bones", ((5, 27),), (205, 198, 180), 0.0009,
-                biome=dict(desert=3.0, badlands=3.0, savanna=2.0, steppe=1.5, tundra=1.2, glacial=1.0, grassland=0.6, temperate_forest=0.3,
-                           jungle=0.2, swamp=0.4, bog=0.5, taiga=0.5, shrubland=1.0),
-                landmark=dict(decayed_land=5.0, cactus_desert=3.5, mushroom_forest=0.2, flowering_meadow=0.1, beach=0.8)),
+                family=_fam(grass=0.6, arid=3.0, forest=0.3, fungal=0.2, crystal=0.5, volcanic=1.0, decay=5.0, alien=0.5, wet=0.4, cold=1.2, coast=0.8, urban=0.8)),
     SceneryKind("skull", "Skull", ((7, 26),), (215, 210, 195), 0.0004,
-                biome=dict(desert=2.5, badlands=2.5, savanna=1.5, steppe=1.0, grassland=0.4, jungle=0.1, temperate_forest=0.2, swamp=0.2),
-                landmark=dict(decayed_land=6.0, cactus_desert=3.0, flowering_meadow=0.0, mushroom_forest=0.0), near_ruin=4.0),
-    SceneryKind("rubble", "Rubble", ((19, 6), (18, 6)), (150, 145, 140), 0.0004, default=0.0,
-                landmark=dict(decayed_land=6.0), near_ruin=12.0),
+                family=_fam(grass=0.4, arid=2.5, forest=0.2, fungal=0.0, crystal=0.3, volcanic=0.8, decay=6.0, alien=0.5, wet=0.2, cold=0.8, coast=0.4, urban=0.5), near_ruin=4.0),
+    SceneryKind("rubble", "Rubble", ((19, 6), (18, 6)), (150, 145, 140), 0.0004, default=0.0, family=_fam(decay=1.0, urban=3.0), near_ruin=12.0),
+    # what makes a biome look like itself (default 0: only biomes that list them)
+    SceneryKind("crystal_cluster", "Crystal cluster", ((7, 11), (8, 11), (5, 11)), (150, 190, 240), 0.002, default=0.0, rocky=2.0),
+    SceneryKind("salt_crust", "Salt crust", ((9, 11), (10, 11)), (235, 235, 225), 0.003, default=0.0),
+    SceneryKind("glass_shards", "Glass shards", ((5, 13), (4, 13)), (190, 225, 235), 0.003, default=0.0),
+    SceneryKind("obsidian", "Obsidian", ((10, 11), (11, 11)), (40, 35, 50), 0.002, default=0.0, rocky=2.0),
+    SceneryKind("ash_pile", "Ash pile", ((12, 11),), (95, 90, 90), 0.003, default=0.0),
+    SceneryKind("mushroom_ring", "Mushroom ring", ((2, 10), (3, 10)), (190, 140, 200), 0.002, default=0.0),
+    SceneryKind("stump", "Stump", ((4, 10),), (110, 85, 60), 0.002, default=0.0),
+    SceneryKind("tendrils", "Tendrils", ((23, 8), (24, 8)), (190, 90, 110), 0.003, default=0.0),
+    SceneryKind("gravestone", "Gravestone", ((0, 11),), (150, 150, 145), 0.001, default=0.0),
+    SceneryKind("driftwood", "Driftwood", ((4, 10),), (170, 150, 120), 0.002, default=0.0),
+    SceneryKind("shell", "Shell", ((14, 6),), (235, 215, 200), 0.002, default=0.0),
+    SceneryKind("monolith", "Standing stone", ((1, 11),), (120, 118, 125), 0.0004, default=0.0),
+    SceneryKind("lamp_post", "Lamp post", ((73, 3),), (150, 150, 150), 0.001, default=0.0),
+    SceneryKind("signpost", "Signpost", ((60, 5),), (170, 160, 140), 0.001, default=0.0),
+    SceneryKind("wreck_car", "Wrecked car", ((59, 7),), (130, 100, 90), 0.0006, default=0.0),
+    SceneryKind("wreck_truck", "Wrecked truck", ((50, 7),), (120, 110, 95), 0.0004, default=0.0),
+    SceneryKind("pipe", "Broken pipe", ((57, 3),), (130, 120, 110), 0.0015, default=0.0),
+    SceneryKind("drum", "Rusted drum", ((76, 7),), (140, 90, 60), 0.0012, default=0.0),
 )
 BY_KEY: Dict[str, SceneryKind] = {k.key: k for k in SCENERY}
 
@@ -114,16 +130,13 @@ def _box_mean(mask: np.ndarray, radius: int) -> np.ndarray:
 
 
 def weights(kind: SceneryKind, env: dict) -> np.ndarray:
-    """The kind's weight on every tile of the chunk: landmark weight where a landmark is strong, else the biome's."""
-    table = np.array([kind.biome.get(key, kind.default) for key in biomes.BIOME_IDS], dtype=float)
+    """The kind's weight on every tile of the chunk: the biome's own weight for it, else its family's, else the kind's default;
+    over a region border the neighbour's weight comes in."""
+    table = np.array([biomes.BIOMES[k].scenery.get(kind.key, kind.family.get(biomes.BIOMES[k].family, kind.default)) for k in biomes.BIOME_IDS], dtype=float)
     out = table[env["biome"]]
-    if kind.landmark:
-        lm = np.array([kind.landmark.get(key, np.nan) for key in landmarks.LANDMARK_IDS], dtype=float)
-        index = np.clip(env["landmark"], 0, len(lm) - 1)
-        strength = np.clip(env["landmark_strength"], 0, 1)
-        value = lm[index]
-        have = ~np.isnan(value) & (env["landmark"] >= 0)
-        out = np.where(have, out * (1 - strength) + np.nan_to_num(value) * strength, out)
+    if "other" in env:
+        edge = np.asarray(env.get("edge", 0.0))
+        out = out * (1.0 - edge) + table[env["other"]] * edge
     return out
 
 

@@ -104,7 +104,7 @@ def test_mining_opens_the_tile_and_yields_the_deposit(game):
 
 def test_deposits_are_deterministic(game):
     x, y = find_wall(game)
-    args = (planet(game), game.game_world.master_seed, 0, x, y, "grassland")
+    args = (planet(game), game.game_world.master_seed, 0, x, y, "plains")
     assert resources.wall_material(*args) == resources.wall_material(*args)
 
 

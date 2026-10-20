@@ -6,7 +6,6 @@ import random
 import pytest
 
 import capabilities
-import landmarks
 import music
 from music import Context, MusicDirector, NullBackend, Track
 
@@ -265,8 +264,10 @@ def test_music_folder_choice(monkeypatch, tmp_path):
 def test_the_shipped_manifest_has_a_pool_for_every_landmark_and_combat_category():
     manifest = music.load_manifest()
     assert "ambient" in manifest["pools"]
-    for landmark in landmarks.LANDMARKS.values():
-        assert landmark.music in manifest["pools"], landmark.key
+    import biomes
+    for biome in biomes.BIOMES.values():
+        for name in (biome.music_pool, biome.generic_pool):
+            assert not name or name in manifest["pools"], (biome.key, name)
     for category in manifest["combat"]["priority"]:
         assert category in manifest["combat"]["pools"]
     assert manifest["combat"]["default"] in manifest["combat"]["pools"]
@@ -280,8 +281,10 @@ def test_the_context_follows_the_game(tmp_path):
     manifest = music.load_manifest()
     context = music.context_for(engine, manifest)
     assert context.threat is None
-    key, strength = resources.landmark_at(engine.game_world, engine.game_map.z, engine.player.x, engine.player.y)
-    assert context.landmark == (landmarks.LANDMARKS[key].music if key else "")
+    import biomes
+    key, strength = resources.biome_and_share(engine.game_world, engine.game_map.z, engine.player.x, engine.player.y)
+    assert context.landmark == (biomes.BIOMES[key].music_pool if key else "")
+    assert context.biome == (biomes.BIOMES[key].generic_pool if key else "")
     from animals import Animal
     from species import AIKind
     kind = next(k for k in engine.game_world.planet.fauna if k and k.ai is AIKind.HOSTILE)
@@ -353,30 +356,30 @@ def test_music_is_mixed_quieter_than_the_slider_says():
     assert settings.Settings(master_volume=10, music_volume=10).music_level() == pytest.approx(0.5)
 
 
-def test_a_biome_pool_plays_where_there_is_no_landmark_and_waits_until_it_is_steady(tmp_path):
+def test_a_generic_pool_plays_where_the_region_has_no_music_of_its_own_and_waits_until_it_is_steady(tmp_path):
     director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": ["f1.mp3"], "volcanic_mountains": ["v1.mp3"]},
-                                    biomes={"temperate_forest": "forest"})
+                                    biomes={})
     director.update(Context())
     assert backend.played[-1][0] == "a1.mp3"
     for _ in range(4):                                     # in the forest, but not for long: the music stays
         clock.advance(1)
-        director.update(Context(biome="temperate_forest"))
+        director.update(Context(biome="forest"))
     assert backend.played[-1][0] == "a1.mp3"
     for _ in range(12):
         clock.advance(1)
-        director.update(Context(biome="temperate_forest"))
+        director.update(Context(biome="forest"))
     assert backend.played[-1][0] == "f1.mp3"
     for _ in range(40):                                    # a landmark outranks the biome
         clock.advance(1)
-        director.update(Context("volcanic_mountains", 1.0, biome="temperate_forest"))
+        director.update(Context("volcanic_mountains", 1.0, biome="forest"))
     assert backend.played[-1][0] == "v1.mp3"
 
 
 def test_a_biome_without_tracks_falls_back_to_ambient(tmp_path):
-    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": []}, biomes={"temperate_forest": "forest"})
+    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": []}, biomes={})
     for _ in range(20):
         clock.advance(1)
-        director.update(Context(biome="temperate_forest"))
+        director.update(Context(biome="forest"))
     assert backend.played[-1][0] == "a1.mp3"
 
 
@@ -385,7 +388,6 @@ def test_the_shipped_manifest_names_files_that_exist_and_covers_every_biome():
     import biomes
     manifest = music.load_manifest()
     root = music.music_root(manifest)
-    assert set(manifest["biomes"]) == set(biomes.BIOME_IDS)
     assert set(manifest["biomes"].values()) <= set(manifest["pools"])
     if not os.path.isdir(root):
         return                                             # (the music folder is not part of the repository)

@@ -115,8 +115,8 @@ def test_fjords_are_drowned_valleys_that_reach_the_sea_through_mountains():
 
 
 # ── hot springs ─────────────────────────────────────────────────────────────────────────────────────────
-def test_hot_springs_lie_in_volcanic_country_and_are_real_pools():
-    import landmarks
+def test_hot_springs_lie_in_hot_ground_and_are_real_pools():
+    import biomes
     seen = 0
     for seed in (1, 5, 99):
         noise = worldgen.TerrainNoise(seed)
@@ -129,7 +129,7 @@ def test_hot_springs_lie_in_volcanic_country_and_are_real_pools():
                 seen += 1
                 x, y, radius, lava = site
                 env = worldgen.environment_for(noise, int(x), int(y), 1, 1, np.ones((1, 1), dtype=np.int8))
-                assert landmarks.key_of(int(env["landmark"][0, 0])) == "volcanic_mountains"
+                assert biomes.BIOMES[biomes.BIOME_IDS[int(env["biome"][0, 0])]].hot_springs > 0
                 pool = hydrology.hot_spring_mask(noise, int(x) - 8, int(y) - 8, 17, 17, lava=lava)
                 assert pool.sum() >= 12
     assert seen >= 3
@@ -154,8 +154,8 @@ def test_hot_spring_tiles_are_hot_liquid_and_scald_waders(new_engine):
     assert engine.player.hp == hp - liquids.HOT_WADE_DAMAGE
 
 
-def test_lava_lakes_are_unwalkable_deep_and_only_in_the_volcanic_core():
-    import landmarks
+def test_lava_lakes_are_unwalkable_deep_and_only_in_lava_country():
+    import biomes
     import liquids
     found = 0
     for seed in (1, 5, 99, 7, 21, 33):
@@ -168,8 +168,8 @@ def test_lava_lakes_are_unwalkable_deep_and_only_in_the_volcanic_core():
                     continue
                 x, y = int(site[0]), int(site[1])
                 env = worldgen.environment_for(noise, x, y, 1, 1, np.ones((1, 1), dtype=np.int8))
-                assert landmarks.key_of(int(env["landmark"][0, 0])) == "volcanic_mountains"
-                assert float(env["landmark_strength"][0, 0]) >= hydrology.LAVA_STRENGTH
+                biome = biomes.BIOMES[biomes.BIOME_IDS[int(env["biome"][0, 0])]]
+                assert biome.family == "volcanic" and biome.hot_springs >= hydrology.LAVA_HOT
                 tiles, _ = worldgen.generate_terrain(noise, x - 35, y - 20, 70, 40)
                 lava = tiles["liquid"] == int(liquids.LiquidKind.LAVA)
                 assert lava.sum() >= 12
