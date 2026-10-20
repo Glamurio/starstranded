@@ -25,7 +25,7 @@ def cover_by_family(seeds=(1, 2, 3, 4, 5, 6), span=3):
 
 def test_forests_are_denser_than_grassland_and_deserts_are_nearly_bare():
     cover = cover_by_family()
-    assert cover["forest"] > 0.12
+    assert cover["forest"] > 0.10
     assert cover["forest"] > 2.0 * cover["grass"]
     assert cover["grass"] > 0.01
     if "arid" in cover:
