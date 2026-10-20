@@ -734,7 +734,8 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
         props[prop] = max(0.0, min(10.0, props.get(prop, 0.0) + delta))
     forms = FAUNA_FORMS.get(template.base or template.key)
     if forms:       # named for what the picture shows ("sage cat"), not for a family word that may not fit the sprite
-        name = namer.organism(f"fauna:{template.key}", forms, color, props, template.name_family)
+        name = namer.creature(f"fauna:{template.key}", template.base or template.key, forms, color, props, template.name_family,
+                              hostile=template.ai is AIKind.HOSTILE)
     else:
         name = namer.name(f"fauna:{template.key}", template.name_family, color, props)
     fuel = {}
