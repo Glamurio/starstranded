@@ -210,3 +210,61 @@ def test_known_places_come_with_their_world_sprites_and_the_map_draws_them_as_ic
     handler.on_render(canvas)                                    # (an icon is blitted, not just a square: drawing must not fail)
     area, cell, kx0, ky0 = handler._geometry
     assert cell == 24
+
+
+def test_every_seen_block_of_a_chunk_has_a_picture():
+    engine = new_game()
+    engine.update_fov()
+    known = worldmap.records(engine.game_world.run)
+    seen_blocks = 0
+    for key, info in known.items():
+        assert len(info.blocks) == worldmap.BLOCKS_X * worldmap.BLOCKS_Y
+        chunk = engine.game_map.chunks[key]
+        for index, block in enumerate(info.blocks):
+            bx, by = index % worldmap.BLOCKS_X, index // worldmap.BLOCKS_X
+            seen = chunk.explored[bx * worldmap.BLOCK:(bx + 1) * worldmap.BLOCK, by * worldmap.BLOCK:(by + 1) * worldmap.BLOCK].any()
+            assert (block is not None) == bool(seen)       # (a block is drawn exactly when part of it was seen)
+            if block is not None:
+                sprite, fg, bg = block
+                assert sprite >= 0 and len(fg) == 3 and len(bg) == 3
+                seen_blocks += 1
+    assert seen_blocks
+
+
+def test_a_block_shows_what_stands_in_it():
+    engine = new_game()
+    chunk = next(iter(engine.game_map.chunks.values()))
+    chunk.explored[:] = True
+    chunk.tiles["depth"][:] = 0
+    chunk.tiles["depth"][:worldmap.BLOCK, :worldmap.BLOCK] = 2           # the first block is a pond
+    blocks = worldmap._blocks(chunk)
+    water_sprite = int(chunk.tiles["light"]["sprite"][0, 0])
+    assert blocks[0][0] == water_sprite
+    from entity import EntityCategory
+    trees = [p for p in chunk.by_category[EntityCategory.PLANT] if p.kind.category.name == "TREE"]
+    assert all(b is not None for b in blocks)
+    assert trees        # (the fixture world grows trees: some block shows one)
+    shown = {b[0] for b in blocks}
+    assert any(t.sprite_id in shown for t in trees)
+
+
+def test_the_map_draws_pictures_at_every_zoom_and_old_records_still_draw():
+    engine = new_game()
+    engine.update_fov()
+    run = engine.game_world.run
+    known = worldmap.records(run)
+    for zoom in (3, 6, 8, 16, 24, 40):
+        handler = screens.WorldMapHandler(engine)
+        handler.zoom = zoom
+        handler.on_render(_canvas(1280, 720))
+    old = {k: worldmap.Known(v.seen, v.color, v.water, v.rock, v.biome) for k, v in known.items()}
+    run.flags["map"] = old
+    assert all(v.blocks == () for v in old.values())
+    screens.WorldMapHandler(engine).on_render(_canvas(1280, 720))
+
+
+def test_block_size_fits_the_known_world():
+    assert worldmap.fit_block(1, 1, 4000, 4000) == 24
+    assert worldmap.fit_block(100, 100, 400, 400) == 3
+    size = worldmap.fit_block(6, 4, 1000, 800)
+    assert 6 * worldmap.BLOCKS_X * size <= 1000 and 4 * worldmap.BLOCKS_Y * size <= 800

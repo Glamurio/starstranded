@@ -236,16 +236,23 @@ class WorldMapHandler(AskUserEventHandler):
         return (wx, wy, ww, wh), side
 
     def _cell_px(self, known, area_px):
+        """Pixels per block (a chunk is `BLOCKS_X` x `BLOCKS_Y` blocks, each one picture)."""
         import worldmap
         if self.zoom:
             return self.zoom
         x0, y0, x1, y1 = worldmap.bounds(known, [self.home, self.cursor])
-        return worldmap.fit_cell(x1 - x0 + 3, y1 - y0 + 3, *area_px)
+        return worldmap.fit_block(x1 - x0 + 3, y1 - y0 + 3, *area_px)
+
+    @staticmethod
+    def _chunk_px(cell):
+        import worldmap
+        return worldmap.BLOCKS_X * cell, worldmap.BLOCKS_Y * cell
 
     def _view(self, known, area_px, cell):
         """`(kx0, ky0, columns, rows)`: the chunk rectangle shown, kept around the cursor (or the fitted known world)."""
         import worldmap
-        columns, rows = max(area_px[0] // cell, 1), max(area_px[1] // cell, 1)
+        cw, ch = self._chunk_px(cell)
+        columns, rows = max(area_px[0] // cw, 1), max(area_px[1] // ch, 1)
         x0, y0, x1, y1 = worldmap.bounds(known, [self.home, self.cursor])
         if not self.zoom and x1 - x0 + 3 <= columns and y1 - y0 + 3 <= rows:     # all of it fits: centre it
             return x0 - (columns - (x1 - x0 + 1)) // 2, y0 - (rows - (y1 - y0 + 1)) // 2, columns, rows
@@ -256,7 +263,7 @@ class WorldMapHandler(AskUserEventHandler):
     def on_render(self, canvas) -> None:
         import pygame
         import worldmap
-        from chunks import chunk_key
+        from chunks import CHUNK_H, CHUNK_W
         from ui import CELL, Theme
         super().on_render(canvas)
         engine = self.engine
@@ -268,6 +275,7 @@ class WorldMapHandler(AskUserEventHandler):
         area = pygame.Rect(ix * CELL, iy * CELL, map_w * CELL, map_h * CELL)
         cell = self._cell_px(known, (area.width, area.height))
         kx0, ky0, columns, rows = self._view(known, (area.width, area.height), cell)
+        cw, ch = self._chunk_px(cell)
         self._geometry = (area, cell, kx0, ky0)
         surface = canvas.surface
         surface.fill(self.UNDISCOVERED, area)
@@ -277,31 +285,85 @@ class WorldMapHandler(AskUserEventHandler):
         for (kx, ky), info in known.items():
             if not (kx0 <= kx < kx0 + columns and ky0 <= ky < ky0 + rows):
                 continue
-            rect = pygame.Rect(area.x + (kx - kx0) * cell, area.y + (ky - ky0) * cell, cell, cell)
+            rect = pygame.Rect(area.x + (kx - kx0) * cw, area.y + (ky - ky0) * ch, cw, ch)
             live = (kx, ky) in visible
-            dim = 1.0 if live else 0.7
-            fade = 0.55 + 0.45 * min(1.0, info.share * 2.0)         # a chunk seen only in part is paler
-            shown = tuple(min(255, int(min(255, c * self.BRIGHTEN) * dim * fade + u * (1 - dim * fade))) for c, u in zip(info.color, self.UNDISCOVERED))
-            surface.fill(shown, rect.inflate(-1, -1) if cell >= 6 else rect)
-            if live and cell >= 6:
-                pygame.draw.rect(surface, (235, 245, 255), rect.inflate(-1, -1), 1)
+            self._draw_chunk(canvas, surface, info, rect, cell, 1.0 if live else 0.72)
+            if live and cell >= 4:
+                pygame.draw.rect(surface, (235, 245, 255), rect, 1)
+
+        def tile_px(x, y):
+            """Pixel centre of a world tile on the map."""
+            return (area.x + round((x - kx0 * CHUNK_W + 0.5) * cell / worldmap.BLOCK), area.y + round((y - ky0 * CHUNK_H + 0.5) * cell / worldmap.BLOCK))
+
+        from chunks import chunk_key
         for name, (x, y), tint, sprite in known_places(engine):
             key = chunk_key(x, y)
             if key in known and kx0 <= key[0] < kx0 + columns and ky0 <= key[1] < ky0 + rows:
-                centre = (area.x + (key[0] - kx0) * cell + cell // 2, area.y + (key[1] - ky0) * cell + cell // 2)
-                self._draw_icon(canvas, surface, sprite, tint, centre, cell)
-        px, py = self.home
-        if kx0 <= px < kx0 + columns and ky0 <= py < ky0 + rows:             # you: a red-ringed white mark (blinks a little)
-            rect = pygame.Rect(area.x + (px - kx0) * cell, area.y + (py - ky0) * cell, cell, cell)
-            pygame.draw.rect(surface, (255, 70, 70), rect, max(1, cell // 8))
-            mark = rect.inflate(-max(cell // 2, 2), -max(cell // 2, 2))
-            surface.fill((255, 255, 255), mark)
+                self._draw_icon(canvas, surface, sprite, tint, tile_px(x, y), cell)
+        player = engine.player
+        if engine.game_map.z == 0 and chunk_key(player.x, player.y) == self.home:       # you: a red-ringed white mark
+            centre = tile_px(player.x, player.y)
+        else:
+            centre = (area.x + (self.home[0] - kx0) * cw + cw // 2, area.y + (self.home[1] - ky0) * ch + ch // 2)
+        size = max(cell, 6)
+        mark = pygame.Rect(0, 0, size, size)
+        mark.center = centre
+        pygame.draw.rect(surface, (255, 70, 70), mark.inflate(4, 4), max(2, size // 6))
+        surface.fill((255, 255, 255), mark.inflate(-max(size // 3, 2), -max(size // 3, 2)))
         cx, cy = self.cursor
         if kx0 <= cx < kx0 + columns and ky0 <= cy < ky0 + rows:
-            rect = pygame.Rect(area.x + (cx - kx0) * cell, area.y + (cy - ky0) * cell, cell, cell)
+            rect = pygame.Rect(area.x + (cx - kx0) * cw, area.y + (cy - ky0) * ch, cw, ch)
             pygame.draw.rect(surface, (255, 220, 90), rect, 2)
         surface.set_clip(clip)
         self._side_panel(canvas, known, ix, iy, iw, ih, side, visible)
+
+    PICTURE_MIN_BLOCK = 7
+    """Below this block size (pixels) a block is a plain tinted square; from here up it is its own picture."""
+
+    def _draw_chunk(self, canvas, surface, info, rect, cell: int, dim: float) -> None:
+        """One known chunk: a picture per seen block (what is there, in its colours), or, for a record from an older save,
+        one square of the average colour."""
+        import pygame
+        if not info.blocks:
+            fade = 0.55 + 0.45 * min(1.0, info.share * 2.0)
+            shown = tuple(min(255, int(min(255, c * self.BRIGHTEN) * dim * fade + u * (1 - dim * fade))) for c, u in zip(info.color, self.UNDISCOVERED))
+            surface.fill(shown, rect)
+            return
+        import worldmap
+        for index, block in enumerate(info.blocks):
+            if block is None:
+                continue
+            sprite, fg, bg = block
+            spot = pygame.Rect(rect.x + (index % worldmap.BLOCKS_X) * cell, rect.y + (index // worldmap.BLOCKS_X) * cell, cell, cell)
+            surface.fill(self._shade(bg, dim), spot)
+            if cell < self.PICTURE_MIN_BLOCK:
+                surface.fill(self._shade(fg, dim * 0.8), spot.inflate(-max(cell // 3, 1), -max(cell // 3, 1)))
+            else:
+                picture = self._picture(canvas, sprite, self._shade(fg, dim), cell)
+                if picture is not None:
+                    surface.blit(picture, spot)
+
+    def _shade(self, colour, factor: float):
+        return tuple(min(255, int(c * self.BRIGHTEN * factor)) if factor else 0 for c in colour)
+
+    _pictures: dict = {}
+
+    def _picture(self, canvas, sprite: int, tint, size: int):
+        """A map block's sprite, tinted and scaled (kept for the next frame)."""
+        import pygame
+        import atlas
+        if sprite == atlas.NO_SPRITE:
+            return None
+        key = (sprite, tuple(tint), size)
+        found = self._pictures.get(key)
+        if found is None:
+            found = canvas.sprites.get(sprite, False, tuple(tint))
+            if size != found.get_width():
+                found = pygame.transform.scale(found, (size, size))
+            if len(self._pictures) > 4000:
+                self._pictures.clear()
+            self._pictures[key] = found
+        return found
 
     ICON_MIN_CELL = 8
     """Below this chunk size (pixels) a place is a plain coloured square; from here up it is its own picture."""
@@ -376,7 +438,7 @@ class WorldMapHandler(AskUserEventHandler):
             self.cursor = self.home
             return None
         if key in (Key.PLUS, Key.EQUALS, Key.KP_PLUS):
-            self.zoom = min((self.zoom or self._fitted()) + 2, 32)
+            self.zoom = min((self.zoom or self._fitted()) + 2, 40)
             return None
         if key in (Key.MINUS, Key.KP_MINUS):
             self.zoom = max((self.zoom or self._fitted()) - 2, 3)
@@ -386,7 +448,7 @@ class WorldMapHandler(AskUserEventHandler):
         return None            # (any other key does nothing: the map is for looking)
 
     def _fitted(self) -> int:
-        return self._geometry[1] if self._geometry else 8
+        return self._geometry[1] if self._geometry else 12
 
     def _chunk_at(self, position):
         if not self._geometry:
@@ -396,7 +458,8 @@ class WorldMapHandler(AskUserEventHandler):
         px, py = int(position[0]) * CELL + CELL // 2, int(position[1]) * CELL + CELL // 2
         if not area.collidepoint(px, py):
             return None
-        return kx0 + (px - area.x) // cell, ky0 + (py - area.y) // cell
+        cw, ch = self._chunk_px(cell)
+        return kx0 + (px - area.x) // cw, ky0 + (py - area.y) // ch
 
     def ev_mousemotion(self, event):
         key = self._chunk_at(event.position)

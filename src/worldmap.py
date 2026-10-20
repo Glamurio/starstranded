@@ -14,6 +14,11 @@ import numpy as np  # type: ignore
 from chunks import CHUNK_H, CHUNK_W, ChunkKey
 
 FLAG = "map"
+BLOCK = 10
+"""Tiles per side of a map block: a chunk is drawn as a grid of blocks, each one picture (a tree, water, rock, grass ...)."""
+BLOCKS_X, BLOCKS_Y = CHUNK_W // BLOCK, CHUNK_H // BLOCK
+TREE_BLOCK, SHRUB_BLOCK = 4, 6
+"""Plants in a block (of 100 tiles) that make it a wood or a thicket."""
 
 
 @dataclass(frozen=True)
@@ -25,6 +30,9 @@ class Known:
     water: float
     rock: float
     biome: str = ""
+    blocks: tuple = ()
+    """`BLOCKS_X * BLOCKS_Y` entries, row by row: `(sprite, colour, background)` of what the block shows, or None for a block
+    not yet seen (empty in saves from before the picture map)."""
 
     @property
     def share(self) -> float:
@@ -49,7 +57,76 @@ def summarise(chunk, master_seed: Optional[int] = None) -> Optional[Known]:
     rock = explored & ~water & ~tiles["walkable"] & ~tiles["open"]
     colors = tiles["light"]["fg"][explored].astype(float)
     color = tuple(int(c) for c in colors.mean(axis=0))
-    return Known(seen, color, float(water.sum()) / seen, float(rock.sum()) / seen, _biome(chunk, master_seed))
+    return Known(seen, color, float(water.sum()) / seen, float(rock.sum()) / seen, _biome(chunk, master_seed), _blocks(chunk))
+
+
+def _common(values) -> int:
+    """The most frequent of a list of ints."""
+    found, counts = np.unique(np.asarray(values), return_counts=True)
+    return int(found[counts.argmax()])
+
+
+def _mean_colour(colours) -> Tuple[int, int, int]:
+    return tuple(int(c) for c in np.asarray(colours, dtype=float).reshape(-1, 3).mean(axis=0))
+
+
+def _plants_by_block(chunk) -> Dict[Tuple[int, int], Dict[str, list]]:
+    """Seen plants of the chunk, sorted into its blocks as `{"tree": [(sprite, colour)], "shrub": [...]}`."""
+    from entity import EntityCategory
+    from species import PlantCategory
+    out: Dict[Tuple[int, int], Dict[str, list]] = {}
+    for plant in chunk.by_category[EntityCategory.PLANT]:
+        lx, ly = plant.x - chunk.x0, plant.y - chunk.y0
+        if not chunk.explored[lx, ly]:
+            continue
+        kind = getattr(plant, "kind", None)
+        word = "tree" if getattr(kind, "category", None) is PlantCategory.TREE else "shrub"
+        entry = out.setdefault((lx // BLOCK, ly // BLOCK), {"tree": [], "shrub": []})
+        entry[word].append((int(plant.sprite_id), tuple(int(c) for c in plant.color)))
+    return out
+
+
+def _blocks(chunk) -> tuple:
+    """One picture per block of the explored part of a chunk, chosen from what was seen there: water, a wood (its commonest
+    tree), a settlement, rock, a thicket, or else the ground."""
+    plants = _plants_by_block(chunk)
+    tiles = chunk.tiles
+    out = []
+    for by in range(BLOCKS_Y):
+        for bx in range(BLOCKS_X):
+            sx, sy = slice(bx * BLOCK, (bx + 1) * BLOCK), slice(by * BLOCK, (by + 1) * BLOCK)
+            seen = chunk.explored[sx, sy]
+            n = int(seen.sum())
+            if not n:
+                out.append(None)
+                continue
+            light = tiles["light"][sx, sy][seen]
+            bg = _mean_colour(light["bg"])
+            water = tiles["depth"][sx, sy][seen] > 0
+            built = tiles["built"][sx, sy][seen]
+            rock = ~water & ~tiles["walkable"][sx, sy][seen] & ~tiles["open"][sx, sy][seen]
+            found = plants.get((bx, by), {"tree": [], "shrub": []})
+
+            def pick(mask):
+                sprites = light["sprite"][mask]
+                sprite = _common(sprites)
+                return sprite, _mean_colour(light["fg"][mask][sprites == sprite])
+
+            if water.sum() * 2 >= n:
+                sprite, fg = pick(water)
+            elif len(found["tree"]) >= TREE_BLOCK:
+                (sprite, fg) = max(set(found["tree"]), key=found["tree"].count)
+            elif built.sum() * 3 >= n:
+                sprite, fg = pick(built)
+            elif rock.sum() * 2 >= n:
+                sprite, fg = pick(rock)
+            elif len(found["shrub"]) >= SHRUB_BLOCK:
+                (sprite, fg) = max(set(found["shrub"]), key=found["shrub"].count)
+            else:
+                ground = ~water
+                sprite, fg = pick(ground if ground.any() else water)
+            out.append((int(sprite), fg, bg))
+    return tuple(out)
 
 
 def _biome(chunk, master_seed: Optional[int]) -> str:
@@ -110,3 +187,8 @@ def fit_cell(columns: int, rows: int, width_px: int, height_px: int, lowest: int
     in `width_px` x `height_px`; `lowest` when even that does not fit (the map then scrolls)."""
     best = min(width_px // max(columns, 1), height_px // max(rows, 1))
     return max(lowest, min(highest, best))
+
+
+def fit_block(columns: int, rows: int, width_px: int, height_px: int, lowest: int = 3, highest: int = 24) -> int:
+    """The largest block size (pixels, `lowest`..`highest`) with which `columns` x `rows` chunks fit in the area."""
+    return fit_cell(columns * BLOCKS_X, rows * BLOCKS_Y, width_px, height_px, lowest, highest)
