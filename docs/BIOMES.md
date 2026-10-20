@@ -106,41 +106,10 @@ scenery, fauna adaptation and music; **basic** biomes are defined and generated 
 
 66 biomes are marked full, 6 basic.
 
-## 3. Variants and compatibility rules
+## 3. No variants
 
-A variant is a modifier of a biome, not a biome. Flags: `hot`, `cold` (temperature beyond the edge of the biome's range), `wet`, `dry` (moisture likewise);
-hot and cold, wet and dry exclude each other. Effects (`biomes.VARIANTS`): ground tint, vegetation density (hot 0.85, cold 0.8, wet 1.2, dry 0.75) and ambient temperature
-(+8, -10, -2, +2). The displayed name is `variant_name` (for example "Hot Plains"). Rules: a variant never changes the biome key, its plants (only their density), its music or its underground biome;
-`wet_twin` names the biome a very wet region of a biome becomes (for instance a woodland that floods) where the catalogue defines one.
-
-**Suggested named combinations (not implemented; choose which, if any, you want promoted to biomes or kept as names):**
-
-| combination | name idea | reads as |
-|---|---|---|
-| plains + hot + dry | Scorched Plains | yellowed grass, sparse trees |
-| plains + cold | Frostbitten Plains | pale grass, snow patches |
-| plains + wet | Water Meadows | lush, standing pools |
-| temperate_woodland + cold | Winter Wood | bare trees, frost |
-| temperate_woodland + hot + dry | Tinderwood | dry wood that burns easily |
-| dense_forest + wet | Drowned Forest | roots in water (cf. flooded_forest) |
-| jungle + hot + wet | Steam Jungle | the thickest, hottest growth |
-| desert + cold | Cold Desert | stony, frozen dunes |
-| cactus_desert + wet | Bloom Desert | brief flowering after rain |
-| fungal_forest + wet | Spore Fen | dripping caps, low mist |
-| fungal_forest + dry | Withered Caps | shrivelled, pale mushrooms |
-| crystal_fields + cold | Rime Crystals | frosted spires |
-| crystal_fields + hot | Glass Heath | heat-fused, glassy crystal |
-| volcanic_wastes + wet | Steam Vents | geysers and mud |
-| volcanic_wastes + cold | Ash Barrens | cooled, grey, no lava |
-| swamp + cold | Frozen Fen | ice over the water |
-| swamp + hot | Miasma Marsh | rot and gas |
-| taiga + dry | Needle Barrens | thin, brittle pines |
-| decaying_lands + wet | Rot Marsh | slime and spores |
-| abandoned_district + wet | Drowned District | flooded streets (needs water tiles) |
-| abandoned_district + cold | Frozen City | snow on roofs |
-| steppe + dry | Dust Steppe | dust and bone |
-| savanna + wet | Rain Savanna | the green season |
-| visceral_heap + hot | Fever Heap | warmest and rawest |
+A biome is just its biome: there are no hot, cold, wet or dry variants (removed 20 Oct 2026). A tile's look comes from its biome, the blend with the neighbouring
+region over the border, and slow noise. `wet_twin` names the biome a very wet region of a biome becomes (for instance a woodland that floods) where the catalogue defines one.
 
 ## 4. Surface to underground mapping
 

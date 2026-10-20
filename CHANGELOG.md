@@ -3,6 +3,9 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Variants removed, 20 Oct 2026
+- Removed: hot/cold/wet/dry variants of a biome (their ground tint, vegetation change and temperature offset, and the code behind them). A biome is only its biome.
+
 ## Usability round, 20 Oct 2026
 - Fixed: a fruit inside a plant can be scanned from the scanner's range (it was measured from the wrong place); unscanned blooms read "bud" or "blossom" again.
 - Changed: a flower is gone once its bloom is picked; new flowers sprout now and then (out of sight) where their species grow.
@@ -10,7 +13,7 @@ Behavior changes made by the modernization project (branch `modernize`). Pure re
 - Fixed: scattered bones, skulls and pebbles that were picked up can be dropped; "wire of drawn wire" reads "drawn wire".
 - New: right click on the map opens a menu of what can be done there (attack, grab, scan, look inside, walk). The keys are unchanged.
 - Changed: a key press or a click stops a walk (click to walk, or a long path).
-- Changed: biome names stay plain ("Savanna"); hot/cold/wet/dry only shift colour, plants and warmth.
+- Changed: biome names stay plain ("Savanna").
 - Changed: crafting icons are white until a material is chosen, then take the colour of the material that colours the tool.
 - Changed: a scan lists every property of a material (also low ones); when a skill rises from scanning, the log says so (that is why a rescan can suddenly read more).
 - Changed: creatures get real names ("smoke scuttler", "dread prowler") instead of "<colour> <animal>"; colour words are for the unscanned name.

@@ -40,7 +40,7 @@ def biome_key_at(game_world, z: int, x: int, y: int) -> str:
 
 
 def biome_label(game_world, z: int, x: int, y: int) -> str:
-    """The name of the biome the tile lies in ("Hot, dry crystal fields" on the surface, "Ice cave" below; "" on upper floors)."""
+    """The name of the biome the tile lies in ("Crystal fields" on the surface, "Ice cave" below; "" on upper floors)."""
     if z > 0:
         return ""
     if z < 0:
@@ -49,8 +49,7 @@ def biome_label(game_world, z: int, x: int, y: int) -> str:
     import shafts
     env = shafts.environment(game_world.master_seed, chunk_key(x, y))
     lx, ly = local(x, y)
-    bits = int(env["variant"][lx, ly]) if "variant" in env else 0
-    return biomes.variant_name(biomes.BIOME_IDS[int(env["biome"][lx, ly])], bits)
+    return biomes.BIOMES[biomes.BIOME_IDS[int(env["biome"][lx, ly])]].name
 
 
 def biome_and_share(game_world, z: int, x: int, y: int) -> Tuple[str, float]:
@@ -76,9 +75,8 @@ def ambient_temperature(game_world, z: int, x: int, y: int, now: int) -> float:
     env = shafts.environment(game_world.master_seed, chunk_key(x, y))
     lx, ly = local(x, y)
     biome = biomes.BIOMES[biomes.BIOME_IDS[int(env["biome"][lx, ly])]]
-    local_heat = sum(spec.ambient * float(env[f"amount_{k}"][lx, ly]) for k, spec in biomes.VARIANTS.items() if f"amount_{k}" in env)
     light = lighting.daylight(now, game_world.engine.config) if z == 0 else 1.0
-    return biome.ambient + local_heat + offset - biome.night_drop * (1.0 - light)
+    return biome.ambient + offset - biome.night_drop * (1.0 - light)
 
 
 def deposit_rng(master: int, z: int, x: int, y: int) -> random.Random:

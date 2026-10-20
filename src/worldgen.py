@@ -182,7 +182,7 @@ WATER_PROXIMITY = (1.0, 1.0, 0.7, 0.4)
 def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: int, kinds: np.ndarray) -> dict:
     """Environment arrays (see `ecology`) for a world rectangle whose base terrain kinds (0 water) are `kinds`:
     temperature, moisture, elevation, fertility, light, water, `biome` (index; see `biomes`), `other` and `edge` (the neighbouring
-    region's biome and its share on the borders), `region` (the number of the region), `variant` (hot/cold/wet/dry flags).
+    region's biome and its share on the borders), `region` (the number of the region).
     All pure functions of the seed."""
     from procgen import dilate
     import biomes
@@ -214,10 +214,8 @@ def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: i
         reach = dilate(reach)
         water[reach & (water == 0)] = WATER_PROXIMITY[distance]
     fertility = np.clip(biomes.table("vegetation")[biome] / 1.6, 0.0, 1.0)
-    amounts = {f"amount_{k}": v for k, v in biomes.variant_amounts(temperature, moisture, biome).items()}
     return dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
-                light=np.ones((width, height)), water=water, biome=biome, other=other, edge=edge, region=reg.region,
-                variant=biomes.variant_bits(temperature, moisture, biome), land=kinds != 0, shore=shore, **amounts)
+                light=np.ones((width, height)), water=water, biome=biome, other=other, edge=edge, region=reg.region, land=kinds != 0, shore=shore)
 
 
 def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_W, height: int = CHUNK_H) -> dict:
@@ -373,7 +371,7 @@ def _smooth(x: np.ndarray) -> np.ndarray:
 
 def ground_colours(noise: TerrainNoise, area, env: dict) -> np.ndarray:
     """The ground colour (w, h, 3) of every tile: the biome's colour, patched with its alternative colour and slowly varying in brightness,
-    blended with the neighbouring region's over a border, nudged by the hot/cold/wet/dry variant."""
+    blended with the neighbouring region's over a border."""
     import biomes
     biome, other, edge = env["biome"], env["other"], env["edge"][..., None]
     base = np.array([b.ground for b in biomes.BIOMES.values()], dtype=float)
@@ -386,22 +384,18 @@ def ground_colours(noise: TerrainNoise, area, env: dict) -> np.ndarray:
         result.append(base[index] * (1.0 - w) + alt[index] * w)
     ground = result[0] * (1.0 - edge) + result[1] * edge
     ground *= 1.0 + GROUND_JITTER * noise.sample(18, GROUND_SHADE_SCALE, *area)[..., None] / 0.7
-    for key, spec in biomes.VARIANTS.items():
-        ground += env[f"amount_{key}"][..., None] * np.array(spec.ground, dtype=float)
     return np.clip(ground, 0, 255).astype(np.uint8)
 
 
 def vegetation_density(noise: TerrainNoise, area, env: dict) -> np.ndarray:
     """How thickly each tile is vegetated: the biome's (and the neighbour's on a border), with clearings and thick stands from slow noise,
-    scaled by the variant (a wet tile is lusher, a dry one thinner), never below the biome's `floor_density`."""
+    never below the biome's `floor_density`."""
     import biomes
     biome, other, edge = env["biome"], env["other"], env["edge"]
     veg, floor = biomes.table("vegetation"), biomes.table("floor_density")
     density = veg[biome] * (1.0 - edge) + veg[other] * edge
     floor_ = floor[biome] * (1.0 - edge) + floor[other] * edge
     density = density * (1.0 + PATCH_REACH * noise.sample(20, 0.035, *area) / 0.7)
-    for key, spec in biomes.VARIANTS.items():
-        density = density * (1.0 + env[f"amount_{key}"] * (spec.vegetation - 1.0))
     return np.maximum(density, floor_)
 
 

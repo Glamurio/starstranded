@@ -115,17 +115,3 @@ def test_borderless_is_a_setting_and_tabbing_out_does_not_minimise():
     import os
     display.Display(headless=True)
     assert os.environ.get("SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS") == "0"
-
-
-def test_variant_amounts_are_smooth_and_agree_with_the_flags():
-    import numpy as np
-    import biomes
-    ids = np.full((1, 50), biomes.BIOME_IDS.index("forest") if "forest" in biomes.BIOME_IDS else 0)
-    temp = np.linspace(0.0, 1.0, 50)[None, :]
-    amounts = biomes.variant_amounts(temp, np.full((1, 50), 0.5), ids)
-    for arr in amounts.values():
-        assert arr.min() >= 0.0 and arr.max() <= 1.0
-        assert np.abs(np.diff(arr[0])).max() < 0.2
-    bits = biomes.variant_bits(temp, np.full((1, 50), 0.5), ids)
-    hot = (bits & biomes.VARIANT_BITS["hot"]) > 0
-    assert (amounts["hot"][hot] >= 0.5 - 1e-6).all()

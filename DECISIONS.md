@@ -878,3 +878,9 @@ giving them climate bands, which would make them cover every matching tile (no m
 - **Why:** the readability round fixed the nouns but flattened the names; hiding zero properties made rocks look inconsistent; the scan range was measured from the item's stale position inside a plant.
 - **Alternatives:** keep `organism` and add more colour words (still colour + animal); a new key for the context menu (the brief asked for a mouse-only addition; the keys stay).
 - **Not reproduced:** an empty "grab all" (tests with stacks on the ground, in plants and after DropStack pass); the code now reports only what went into the pack and picks a whole stack from its row.
+
+
+## Hot/cold/wet/dry variants removed (20 Oct 2026)
+- **What:** `biomes.VARIANTS`, `variant_bits`, `variant_amounts`, `variant_name` and the `variant` / `amount_*` environment arrays are gone; ground colour, vegetation and ambient temperature depend only on the biome and the region blend.
+- **Why:** the brief never asked for them (I added them), and they made patchy colour steps and names like "cold savanna".
+- **Alternative:** keep them without names (what the previous round did): rejected, they still changed the look unasked.
