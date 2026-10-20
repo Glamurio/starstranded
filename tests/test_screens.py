@@ -3,6 +3,7 @@
 These are end-to-end checks of the handler stack after the pygame port: each handler must accept the
 events it handled under tcod, switch handlers the same way, and draw something without raising.
 """
+import types
 import numpy as np
 import pygame
 import pytest
@@ -356,3 +357,22 @@ def test_a_dead_player_cannot_move_but_can_look(new_engine):
     assert (player.x, player.y) == start
     state.handle_events(MouseMotion(Point(10, 10)))   # looking around still works
     drawn(state)
+
+
+def test_hovering_a_skill_explains_it_and_how_to_raise_it(game):
+    import skills
+    e, handler = game
+    e.player.skills = skills.skills(biology=1)
+    screen = press(handler, Key.C)
+    drawn(screen)
+    dx, width, top, count = screen.skill_rows
+    assert count >= 1
+    screen.ev_mousemotion(types.SimpleNamespace(position=(dx + 1, top)))
+    assert screen.hover_row == top
+    drawn(screen)
+    for skill in skills.Skill:
+        what, how = skills.SKILL_INFO[skill]
+        assert what and how
+    assert "Practice" in ih._skill_tip_lines(skills.Skill.BIOLOGY, 1, 3)[2]
+    screen.ev_mousemotion(types.SimpleNamespace(position=(0, 0)))
+    assert screen.hover_row is None

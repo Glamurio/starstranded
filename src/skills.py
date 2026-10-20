@@ -70,3 +70,22 @@ def skills(**levels: int) -> SkillSet:
 PRACTICE_NEEDED = (6, 14, 28, 50, 80)
 """Practice points needed to go from level 0->1, 1->2 ... 4->5. Using a skill (crafting something that needs it, scanning
 something of its field) earns a point; the first levels come quickly, the last take a long run."""
+
+
+SKILL_INFO = {
+    Skill.ENGINEERING: ("Machines, structures and electronics. Builds sturdier things and reads more from machines and ruins.",
+                        "Build structures, craft with machines and scan machinery."),
+    Skill.BIOLOGY: ("Animals and plants. Each level reveals more when you scan a creature, plant or fruit (toxins, diet, what it yields).",
+                    "Scan creatures, plants and fruit you have not fully read yet."),
+    Skill.CHEMISTRY: ("Liquids and compounds. Tells clean water from poison and acid, and what a reaction will make.",
+                      "Scan liquids and craft recipes that need chemistry."),
+    Skill.GEOLOGY: ("Rock, minerals and ore. Reveals what a stone or vein is made of and how it can be used.",
+                    "Mine and break rock, and scan stone and ore."),
+    Skill.LINGUISTICS: ("Languages and inscriptions. Lets you read more of ancient writing.",
+                        "Study inscriptions and writing in ruins."),
+    Skill.SURVIVAL: ("Shelter, fire, foraging and weather. Better camps and gear, and recipes that need survival craft.",
+                     "Craft fires, shelters and tools that need it."),
+    Skill.MARKSMANSHIP: ("Ranged weapons. A higher level shoots more reliably.", "Fire your ranged weapons at targets."),
+    Skill.COMBAT: ("Fighting hand to hand. Adds to the power of every melee hit.", "Land blows on creatures."),
+}
+"""skill -> (what it does, how to raise it). Shown when hovering a skill on the character sheet."""

@@ -324,11 +324,11 @@ class Panel(AskUserEventHandler):
     switches to the next screen with TAB. Subclasses draw their content into the area `frame()` returns."""
 
     TITLE = ""
-    WIDTH = 62
+    WIDTH = 58      # (the map view's width: the side panel with the log stays visible)
     HEIGHT = 36
     TABBED = False
     HINTS: list = [("Esc", "close")]
-    X = 4
+    X = 0
     Y = 2
 
     def frame(self, canvas: Canvas, hints=None, title: Optional[str] = None):
@@ -509,6 +509,27 @@ class CharacterScreenEventHandler(Panel):
 
     TITLE = "Character"
     TABBED = True
+    hover_row = None
+    skill_rows = None
+
+    def ev_mousemotion(self, event: events.MouseMotion) -> None:
+        cx, cy = int(event.position[0]), int(event.position[1])
+        self.hover_row = None
+        if self.skill_rows:
+            dx, width, top, count = self.skill_rows
+            if dx <= cx < dx + width and top <= cy < top + count:
+                self.hover_row = cy
+
+    def _draw_skill_tip(self, canvas: Canvas, x: int, y: int, width: int, hovered) -> None:
+        import widgets
+        from ui import Theme
+        canvas.print(x, y, "Skill", fg=Theme.TITLE)
+        if hovered is None:
+            widgets.text_block(canvas, x, y + 1, width, 6, [("Hover a skill to see what it does and how to raise it.", Theme.DIM)])
+            return
+        skill, level = hovered
+        what, how, progress = _skill_tip_lines(skill, level, self.engine.player.skill_practice.get(skill, 0))
+        widgets.text_block(canvas, x, y + 1, width, 14, [(what, Theme.TEXT), ("", Theme.TEXT), (how, Theme.TEXT), ("", Theme.TEXT), (progress, Theme.DIM)])
 
     def on_render(self, canvas: Canvas) -> None:
         import widgets
@@ -547,10 +568,16 @@ class CharacterScreenEventHandler(Panel):
         if not skills:
             canvas.print(dx, row, "untrained", fg=Theme.DIM)
             row += 1
+        hovered = None
         for skill, level in skills:
-            canvas.print(dx, row, skill.value, fg=Theme.TEXT)
+            over = self.hover_row == row
+            canvas.print(dx, row, skill.value, fg=Theme.HILITE_TEXT if over else Theme.TEXT)
             canvas.print(dx + width - 1, row, str(level), fg=Theme.HILITE_TEXT, alignment=ui_right())
+            if over:
+                hovered = (skill, level)
             row += 1
+        self.skill_rows = (dx, width, iy + 1, len(skills))
+        self._draw_skill_tip(canvas, ix, iy + 15, dx - ix - 2, hovered)
         row += 1
         canvas.print(dx, row, "Traits and abilities", fg=Theme.TITLE)
         row += 1
@@ -558,6 +585,17 @@ class CharacterScreenEventHandler(Panel):
             row += widgets.text_block(canvas, dx, row, width, ih - (row - iy), [(f"{tag.replace('_', ' ')}: {capabilities.TAGS[tag].description}", Theme.TEXT)])
             if row >= iy + ih:
                 break
+
+
+def _skill_tip_lines(skill, level, practice):
+    """(what it does, how to raise it, progress) for one skill."""
+    import skills as skill_defs
+    what, how = skill_defs.SKILL_INFO[skill]
+    if level >= skill_defs.MAX_LEVEL:
+        progress = "Fully trained."
+    else:
+        progress = f"Practice {practice}/{skill_defs.PRACTICE_NEEDED[level]} towards level {level + 1}."
+    return what, f"Raise it: {how}", progress
 
 
 def ui_right() -> int:
@@ -650,7 +688,7 @@ class InventoryEventHandler(AskUserEventHandler):
         self.offset = offset
         self.canvas = canvas
 
-    WIDTH = 62
+    WIDTH = 58      # (the map view's width: the side panel with the log stays visible)
     HEIGHT = 36
     DETAIL = 24
     RESERVED = ""        # hotkey letters an inventory screen keeps for itself
@@ -689,7 +727,7 @@ class InventoryEventHandler(AskUserEventHandler):
         if not self.inventory and self.entries_amount:
             self.TITLE = f"Objects at {(self.inventory_entries[0].x, self.inventory_entries[0].y)}"
 
-        x0, y0 = 4 + 3 * self.offset, 2 + self.offset
+        x0, y0 = 3 * self.offset, 2 + self.offset
         self.console_x, self.console_y = x0, y0
         self.menu_width, self.menu_height = self.WIDTH, self.HEIGHT
         hints = [("a-z", "choose"), ("Enter", "select"), ("s", "scan")]
@@ -865,7 +903,7 @@ class CraftingMenuHandler(AskUserEventHandler):
         recipe = recipe or self.recipe
         return crafting.check(recipe, self.engine.player, self.choices.get(recipe.key))
 
-    WIDTH = 62
+    WIDTH = 58      # (the map view's width: the side panel with the log stays visible)
     HEIGHT = 36
     LIST_W = 28
 
@@ -877,7 +915,7 @@ class CraftingMenuHandler(AskUserEventHandler):
         (parent or super()).on_render(canvas)
         hints = [("a-z", "choose"), ("Enter", "make"), ("Space", "all known" if not self.show_all else "only doable"),
                  ("Left/Right", "material"), (",/.", "part"), ("Tab", "next screen"), ("Esc", "close")]
-        ix, iy, iw, ih = canvas.window(4, 2, self.WIDTH, self.HEIGHT, title="Recipes", hints=hints, tabs=widgets.tab_titles(), active=widgets.tab_index(self))
+        ix, iy, iw, ih = canvas.window(0, 2, self.WIDTH, self.HEIGHT, title="Recipes", hints=hints, tabs=widgets.tab_titles(), active=widgets.tab_index(self))
         if not self.recipes:
             canvas.print(ix, iy + 1, "Nothing you can make here and now.", fg=Theme.TITLE)
             widgets.text_block(canvas, ix, iy + 3, iw, 6, [
