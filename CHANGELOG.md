@@ -2,6 +2,17 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Survival, map and polish round, 20 Oct 2026
+- Changed: thirst empties in about 3 days and hunger in about 7. Neither costs health any more: at 0 you die. Heat and cold no longer drain through hit points either.
+- New: the death message and the ending name the cause: the killer and the damage type, or starvation, thirst, poison, cold, suffocation.
+- Fixed: toxic fruit and blooms really poison whoever eats them (toxicity was never applied). Fruit called "rot spore" is always toxic.
+- Fixed: a bloom shares the sprite of its flower; the flower text reads "Its bud is poisonous" instead of "It bears ...".
+- Changed: grey is judged more strictly in colour names; mushrooms and other plants unknown to the provisional-name table are named for what they look like ("glowing mushroom", "tall grass").
+- New: once a fruit is known to come from a plant (picked from it or scanned), the plant lists "fruit: ???" and fills it in with what you learn about the fruit.
+- Changed: inventory, character, codex and recipe screens open at the left edge (58 wide) so the log on the right stays visible.
+- New: hovering a skill on the character sheet shows what it does, how to raise it and the practice progress.
+- Changed: the world map draws a picture for every seen block (10x10 tiles) of a chunk: water, the commonest tree, settlement, rock, thicket or ground, instead of one colour square per chunk. Places and your own mark sit on their real tile. Older saves keep colour squares until the chunk is seen again.
+
 
 ## Flower cap, 20 Oct 2026
 - Changed: each chunk remembers how many flowers its ground grew with; picked flowers come back one at a time (a 4% chance per chunk every 20 turns, out of sight) but never beyond that number.

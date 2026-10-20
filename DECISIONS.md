@@ -890,3 +890,10 @@ giving them climate bands, which would make them cover every matching tile (no m
 - **What:** `Chunk.flower_capacity` is the number of flowers the chunk was generated with (a chunk without one takes what it holds on its first check); `worldgen.regrow_flowers` plants at most one at a time and only below it, at 4% per chunk per 20 turns.
 - **Why:** the first version capped at the generation maximum (60), which could fill a poor biome. The generated count already follows the biome's species and the tile suitability, so it is the per-biome limit without a separate table.
 - **Alternative:** a per-biome table of flower counts: more data to keep in step with the habitats for no gain.
+
+
+## Survival, map and polish round (20 Oct 2026)
+- **What:** `simulation.HUNGER_DAYS, THIRST_DAYS = 7, 3` give the drain periods (34 and 15 turns per point; a day is 480 turns). At 0 `Unit.die` runs with `last_harm` set; `Unit.handle_health(..., entity, cause, damage_type)` records the last harm and `cause_of_death()` writes it. `Knowledge.note` lists a fact as "???" before it is known (used for a plant's "fruit"). `ItemKind.bloom` marks a flower's bloom. Tabbed screens are 58 wide at x=0. `worldmap.Known.blocks` holds one `(sprite, colour, background)` per 10x10 block and the map draws them (`PICTURE_MIN_BLOCK` 7 px; smaller blocks are tinted squares).
+- **Why:** health loss from needs made thirst and hunger a slow chore; a bare death hid the cause; the inventory covered the log; the map showed nothing about the land.
+- **Alternatives:** keep the drain with scaled damage (rejected: the brief says they just kill you); a sprite per chunk (too coarse); a sprite per tile (a 70x40 chunk would need 2800 records, ten tiles per block reads the same at far less data).
+- **Limits:** blocks are chosen when a chunk's explored share grows, so a block shows what was in view then; the unscanned plant-name table is by template, not by sprite.
