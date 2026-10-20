@@ -653,7 +653,7 @@ class NoiseWorldSource:
                 import scenery
                 scenery.populate(self, world, chunk, env, reserved, ruin_chunk=chunk.key in structures.ruin_chunks(self.floor_seed))
                 self._spawn_fauna(world, chunk, env, reserved)
-                self._place_sites(world, chunk)
+                self._place_sites(world, chunk, env)
                 settlements.populate(world, chunk, self.floor_seed, self.planet)
                 import housing
                 housing.raise_building(world, chunk, self.floor_seed, 0)
@@ -796,8 +796,9 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         world.add_entity(Stuff(defs.PIECE_STONE, material), x, y)
 
 
-def _place_sites(self, world: "World", chunk: Chunk) -> None:
-    """The crash site around the spawn (chunk (0, 0)) and the precursor ruins and gate in their chunks (surface only)."""
+def _place_sites(self, world: "World", chunk: Chunk, env: dict) -> None:
+    """The crash site around the spawn (chunk (0, 0)), the precursor ruins and gate in their chunks, and the points of interest a biome holds
+    (`pois`); surface only."""
     import structures
     game_world = getattr(world.engine, "game_world", None)
     run = getattr(game_world, "run", None)
@@ -812,6 +813,8 @@ def _place_sites(self, world: "World", chunk: Chunk) -> None:
         at = structures.place_ruin(world, chunk, self.floor_seed, site)
         if run is not None:
             run.flags.setdefault("sites", {})[site] = at
+    import pois
+    pois.place(self, world, chunk, env)
 
 
 NoiseWorldSource._place_sites = _place_sites
