@@ -63,7 +63,7 @@ class Unit(Entity):
         self.skill_practice: dict = {}                     # Skill -> practice points toward the next level
         self.extra_grants: tuple = ()                      # tags from background, sponsor gear, statuses
         self.move_debt: float = 0.0                        # fractional turns carried between steps (move_speed)
-        self.cold: int = 0                                 # turns spent below the comfort temperature (survival)
+        self.body_heat: float = 0.0                        # exposure: negative builds up in the cold (hypothermia), positive in the heat (see survival.py)
         self.breath: Optional[float] = None                # breath left in bad air or under water (None: breathing normally)
         self.wet: int = 0                                  # turns left of being wet from swimming or wading
         self.sleeping: bool = False
@@ -322,6 +322,8 @@ class Unit(Entity):
         if self.thirst == 0 and self.is_alive:
             self.last_harm = (None, None, "thirst")
             self.die(None)
+
+    body_heat = 0.0         # (class default: saves from before this existed)
 
     NEED_WARN = (0.2, 0.08)
     """Shares of a full need at which the player is told."""

@@ -52,24 +52,55 @@ def test_warmth_adds_up_from_clothes_fire_shelter_and_bed(monkeypatch):
     assert survival.effective_temperature(e, p, sleeping=True) > survival.effective_temperature(e, p)
 
 
-def test_cold_hurts_and_a_fire_stops_it(monkeypatch):
+def test_cold_builds_up_a_hypothermia_meter_and_a_fire_empties_it(monkeypatch):
     e = new_game()
     p = e.player
     p.equipment.armor = None
     freeze(monkeypatch, -15.0)
     hp = p.hp
-    for _ in range(30):
-        survival.tick(e, p)
-    assert p.cold == 30 and p.hp < hp
+    survival.tick(e, p, 20)
+    assert p.body_heat < -20 and p.hp == hp          # it fills; it costs no hit points on the way
+    built = p.body_heat
     fire = crafting.Campfire()
     fire.place_on_map(p.x + 1, p.y, e.game_map)
     fire.add_fuel(200)
     freeze(monkeypatch, -4.0)  # with the fire that is comfortable
+    survival.tick(e, p, 5)
+    assert p.body_heat > built  # warming up
+    survival.tick(e, p, 60)
+    assert p.body_heat == 0 and p.hp == hp
+
+
+def test_a_full_meter_kills_and_names_the_cause(monkeypatch):
+    e = new_game()
+    p = e.player
+    p.equipment.armor = None
+    freeze(monkeypatch, -30.0)
+    survival.tick(e, p, 200)
+    assert not p.is_alive
+    assert e.game_world.run.flags["death_cause"] == "hypothermia"
+
+
+def test_heat_builds_hyperthermia_and_kills(monkeypatch):
+    e = new_game()
+    p = e.player
+    p.equipment.armor = None
+    freeze(monkeypatch, 60.0)
     survival.tick(e, p, 10)
-    assert p.cold < 30  # warming up
-    hp = p.hp
-    survival.tick(e, p, 40)
-    assert p.hp == hp and p.cold == 0
+    assert p.body_heat > 0
+    survival.tick(e, p, 300)
+    assert not p.is_alive and e.game_world.run.flags["death_cause"] == "hyperthermia"
+
+
+def test_the_hud_shows_the_meter_only_while_it_is_not_empty(monkeypatch):
+    import hud
+    from ui_helpers import SESSION
+    e = new_game()
+    e.player.body_heat = -60.0
+    SESSION.draw(__import__("input_handlers").MainGameEventHandler(e))      # (drawing the meter must not fail)
+    e.player.body_heat = 70.0
+    e.player.breath = 3.0
+    SESSION.draw(__import__("input_handlers").MainGameEventHandler(e))
 
 
 def test_comfortable_weather_costs_nothing(monkeypatch):
@@ -77,7 +108,7 @@ def test_comfortable_weather_costs_nothing(monkeypatch):
     freeze(monkeypatch, 20.0)
     hp = e.player.hp
     survival.tick(e, e.player, 50)
-    assert e.player.hp == hp and e.player.cold == 0
+    assert e.player.hp == hp and e.player.body_heat == 0
 
 
 def test_heat_dries_you_out(monkeypatch):

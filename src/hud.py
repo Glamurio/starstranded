@@ -46,15 +46,22 @@ def draw(canvas, engine) -> None:
         canvas.print(ix, row, "GOD MODE", fg=Theme.TITLE)
         row += 1
     for text, shade in survival.status_lines(engine):
-        if row > 8:
+        if row > (7 if abs(player.body_heat) >= 1.0 and player.breath is not None else 8):
             break
         canvas.print(ix, row, text[: canvas.chars(iw)], fg=message_log.legible(shade))
         row += 1
 
+    meter_row = 9
+    heat = player.body_heat
+    if abs(heat) >= 1.0:        # exposure: a meter that fills (cold or heat); at the top you die
+        hypo = heat < 0
+        canvas.print(ix, meter_row, "Hypothermia" if hypo else "Hyperthermia", fg=Theme.TEXT)
+        canvas.segments(ix + 13, meter_row, iw - 13, segments_lit(abs(heat), survival.BODY_HEAT_LIMIT), Theme.THIRST if hypo else Theme.BAD, count=7)
+        meter_row -= 1
     if player.breath is not None:       # held breath (diving, or foul air): a meter that empties
         capacity = max(1.0, player.capabilities.stat("breath_turns"))
-        canvas.print(ix, 9, "Breath", fg=Theme.TEXT)
-        canvas.segments(ix + 8, 9, iw - 8, segments_lit(max(0, player.breath), capacity), Theme.THIRST if player.breath > 0.3 * capacity else Theme.BAD)
+        canvas.print(ix, meter_row, "Breath", fg=Theme.TEXT)
+        canvas.segments(ix + 8, meter_row, iw - 8, segments_lit(max(0, player.breath), capacity), Theme.THIRST if player.breath > 0.3 * capacity else Theme.BAD)
     canvas.rule(x0 + 1, 10, PANEL_W - 2)
     for k, (label, value, maximum, shade) in enumerate((
         ("HP", player.hp, player.max_hp, Theme.HP),

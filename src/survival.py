@@ -4,8 +4,9 @@ Everything is deterministic and computed from the tile and the clock:
 
 * **Temperature** (`effective_temperature`): the biome's ambient temperature (colder at night, constant underground, see
   `resources.ambient_temperature`) plus what keeps you warm: worn insulation, a lit fire within `FIRE_RADIUS`, being
-  enclosed by walls, resting on a bed. Below `COMFORT` you chill (`unit.cold` counts up) and lose health at a rate that
-  grows with the deficit; above `HEAT` you lose water faster. Warm up and the chill fades.
+  enclosed by walls, resting on a bed. Below `COMFORT` your body heat (`unit.body_heat`) falls, above `HEAT` it rises, by the
+  degrees out of range times `EXPOSURE_RATE` every turn. It is a meter that fills: at `-BODY_HEAT_LIMIT` you die of hypothermia, at
+  `+BODY_HEAT_LIMIT` of hyperthermia; comfort empties it again. The heat also costs water.
 * **Bad air** (`gas_at`): pockets of foul gas in caves two or more levels down. You can hold your breath for the
   `breath_turns` stat (Selenites three times longer), then you suffocate until you leave.
 * **Sleep** (`actions.SleepAction`): on a bed, heals, and in Casual mode saves your game.
@@ -150,21 +151,36 @@ def _say(engine, text: str, fg=color.impossible) -> None:
 
 HEAT_THIRST_PERIOD = 15
 """Turns between the extra points of thirst the heat costs (the normal rate is `simulation.THIRST_PERIOD`)."""
+BODY_HEAT_LIMIT = 100.0
+EXPOSURE_RATE = 0.1
+"""Body heat gained or lost per turn for every degree outside the comfortable range."""
+RECOVERY_RATE = 1.5
+"""What comfort takes off the meter every turn (a fire or good clothes put you there quickly)."""
+WARNINGS = ((0.8, "You are shivering badly. You will not last long like this!", "You are overheating badly!"),
+            (0.5, "You are getting dangerously cold.", "You are getting dangerously hot."),
+            (0.2, "You are cold. Find a fire or shelter, or wear something warmer.", "You are too hot. Find shade, water or a cooler place."))
 
 
 def _temperature_turn(engine, unit) -> None:
+    import debug
     effective = effective_temperature(engine, unit, sleeping=getattr(unit, "sleeping", False))
-    deficit = COMFORT - effective
-    if deficit > 0:
-        unit.cold += 1
-        interval = max(2, 10 - int(deficit // 2))
-        if unit.cold == 1:
-            _say(engine, "You are cold. Find a fire or shelter, or wear something warmer.")
-        if unit.cold % interval == 0:
-            _say(engine, "The cold bites." if deficit < 15 else "You are freezing!", color.enemy_atk)
-            unit.handle_health(-1, None, cause="the cold")
-    else:
-        unit.cold = max(0, unit.cold - 2)
+    before = unit.body_heat
+    if effective < COMFORT:
+        unit.body_heat -= (COMFORT - effective) * EXPOSURE_RATE
+    elif effective > HEAT:
+        unit.body_heat += (effective - HEAT) * EXPOSURE_RATE
+    elif unit.body_heat:
+        unit.body_heat -= min(abs(unit.body_heat), RECOVERY_RATE) * (1 if unit.body_heat > 0 else -1)
+    unit.body_heat = max(-BODY_HEAT_LIMIT, min(BODY_HEAT_LIMIT, unit.body_heat))
+    for share, cold_text, hot_text in WARNINGS:      # told as it builds, once per threshold crossed
+        mark = share * BODY_HEAT_LIMIT
+        if abs(unit.body_heat) >= mark > abs(before):
+            _say(engine, cold_text if unit.body_heat < 0 else hot_text, color.enemy_atk if share >= 0.5 else color.impossible)
+            break
+    if abs(unit.body_heat) >= BODY_HEAT_LIMIT and not debug.protects(unit):
+        unit.last_harm = (None, None, "hypothermia" if unit.body_heat < 0 else "hyperthermia")
+        unit.die(None)
+        return
     if effective > HEAT and engine.game_world.current_time % HEAT_THIRST_PERIOD == 0:
         unit.handle_thirst(-1)
         if engine.game_world.current_time % (HEAT_THIRST_PERIOD * 10) == 0:
