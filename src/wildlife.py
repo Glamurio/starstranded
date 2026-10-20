@@ -10,8 +10,8 @@ a day of breeding and moving in had happened for each day away):
 - **Recovery.** A chunk below its capacity may draw one animal a day (`IMMIGRATION_CHANCE`) from the species its ground suits (the same
   table as at generation), placed out of the player's sight. A hunted-out chunk therefore fills up again over a few days.
 
-It is deliberately small: no ages, no genes, no herd movement. Only the surface's own planet species take part (not Selenites, robots,
-settlers or cave animals)."""
+It is deliberately small: no ages, no genes, no herd movement. Only the surface's own planet species take part (not Selenites, robots
+or cave animals)."""
 from __future__ import annotations
 
 import random

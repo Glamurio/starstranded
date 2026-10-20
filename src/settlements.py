@@ -1,4 +1,4 @@
-"""Farms and towns: chunks of the surface that people have built up.
+"""Abandoned farms and hamlets: chunks of the surface that people built and left.
 
 A settlement is a chunk with neither a building nor a cave (the roll of `shafts.structure` is 0.6 or more) that wins a second
 roll of its own. Like everything about the world it is a pure function of `(master_seed, chunk_key)`, so a chunk knows what it
@@ -209,10 +209,9 @@ def _build_farm(world, chunk, found: Layout, planet) -> None:
 
 
 def populate(world, chunk, master: int, planet=None) -> None:
-    """The people and supplies of a settlement: rations (and now and then a medkit) on the floors of its houses, and settlers
-    about the street (a town) or the farmyard. Uses the chunk's seeded `random`."""
+    """The buildings and supplies of an abandoned farm or hamlet: walls round its houses, a field, and rations (now and then a
+    medkit) left on the floors. Nobody lives there. Uses the chunk's seeded `random`."""
     import types
-    import components.unit as units
     from components.consumable import Ration
     import structures
     found = layout(master, chunk.key)
@@ -234,20 +233,6 @@ def populate(world, chunk, master: int, planet=None) -> None:
         if random.random() < MEDKIT_CHANCE:
             x, y = random.choice(floor)
             world.add_entity(structures.salvage_piece("medkit", nobody), chunk.x0 + x, chunk.y0 + y)
-    if found.kind == "town":
-        spots = [(x + random.randrange(w), y + random.randrange(h)) for x, y, w, h in found.streets for _ in range(8)]
-        count = random.randint(2, 4)
-    else:
-        fx, fy, fw, fh = found.fence
-        spots = [(fx + 1 + random.randrange(fw - 2), fy + 1 + random.randrange(fh - 2)) for _ in range(8)]
-        count = random.randint(1, 2)
-    for lx, ly in spots:
-        if count <= 0:
-            break
-        x, y = chunk.x0 + lx, chunk.y0 + ly
-        if world.is_walkable(x, y) and not world.is_blocked(x, y) and not world.get_entities_at_location(x, y):
-            world.add_entity(units.Settler(), x, y)
-            count -= 1
 
 
 def _house(tiles: np.ndarray, tree_map: np.ndarray, house: House) -> None:

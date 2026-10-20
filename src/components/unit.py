@@ -13,7 +13,7 @@ from components.level import Level
 from components.consumable import Meat
 from capabilities import CapabilitySet, Grant
 from skills import SkillSet
-from species import AIKind, HUMAN, ROBOT, SELENITE, SETTLER, UnitSpecies
+from species import AIKind, HUMAN, ROBOT, SELENITE, UnitSpecies
 
 from utilities import clamp, generate_name, get_gaussian_shade, get_random_color
 
@@ -337,12 +337,6 @@ class Player(Unit):
 class Selenite(Unit):
     def __init__(self, name: Optional[str] = None):
         Unit.__init__(self, SELENITE, name)
-
-
-class Settler(Unit):
-    """A farmer or townsperson: a peaceful Federation human who lives in a settlement."""
-    def __init__(self, name: Optional[str] = None):
-        Unit.__init__(self, SETTLER, name)
 
 
 class Robot(Unit):

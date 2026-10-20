@@ -13,13 +13,13 @@ from entity import EntityCategory
 SKELETON_AFTER = 3.0      # days from death to a skeleton
 GONE_AFTER = 12.0         # days from death until nothing is left
 LOOKS_PER_DAY = 8
-HUMAN_KEYS = ("human", "selenite_people", "mau", "selenite", "settler")
+HUMAN_KEYS = ("human", "selenite_people", "mau", "selenite")
 SKELETON_SPRITES = {"animal": (3, 26), "human": (22, 16)}      # a ribcage; a standing skeleton
 BONE_COLOR = (214, 207, 190)
 
 
 def skeleton_kind(unit) -> str:
-    """"human" for the people (and settlers), "animal" for every creature."""
+    """"human" for the people, "animal" for every creature."""
     return "human" if getattr(unit.kind, "key", "") in HUMAN_KEYS else "animal"
 
 

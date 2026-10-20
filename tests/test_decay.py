@@ -45,7 +45,7 @@ def test_a_person_leaves_a_human_skeleton(new_engine):
     world, p = new_engine.game_map, new_engine.player
     spot = next((p.x + dx, p.y + dy) for dx in range(-5, 6) for dy in range(-5, 6)
                 if world.is_walkable(p.x + dx, p.y + dy) and not world.get_entities_at_location(p.x + dx, p.y + dy))
-    settler = units.Settler()
+    settler = units.Selenite()
     world.add_entity(settler, *spot)
     settler.die(quiet=True)
     assert decay.skeleton_kind(settler) == "human"
