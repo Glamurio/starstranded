@@ -58,21 +58,6 @@ def test_families_name_valid_traits_and_underground_biomes():
         assert b.under_key in underground.UBIOMES, b.key
 
 
-def test_variants_flag_a_hot_dry_tile_of_a_biome_and_name_it():
-    b = BIOME_IDS.index("plains")
-    mid_t, mid_m = BIOMES["plains"].mid_temperature, BIOMES["plains"].mid_moisture
-    bits = biomes.variant_bits(np.array([mid_t + 0.5, mid_t, mid_t - 0.5]), np.array([mid_m - 0.5, mid_m, mid_m + 0.5]), np.array([b, b, b]))
-    assert bits[0] & biomes.VARIANT_BITS["hot"] and bits[0] & biomes.VARIANT_BITS["dry"]
-    assert bits[1] == 0
-    assert bits[2] & biomes.VARIANT_BITS["cold"] and bits[2] & biomes.VARIANT_BITS["wet"]
-    assert biomes.variant_name("plains", int(bits[0])) == BIOMES["plains"].name       # (a variant does not rename the biome)
-    biomes.NAME_VARIANTS = True
-    try:
-        assert biomes.variant_name("plains", int(bits[0])) == "Hot, Dry plains"
-    finally:
-        biomes.NAME_VARIANTS = False
-
-
 def test_native_plants_take_on_the_traits_of_the_country_they_grow_in():
     assert "volcanic" in biomes.plant_traits("ash_shrub") and "hot" in biomes.plant_traits("ash_shrub")
     assert "cold" in biomes.plant_traits("frost_tree")

@@ -10,9 +10,6 @@ Three things are kept apart on purpose:
 
 - **biome** - what a region *is* (this module). 72 of them, in 12 **families** (`FAMILIES`) that share defaults: music, animals,
   the underground below and the way living things adapt (`TRAITS`: a hot family's plants and creatures are heat-proof);
-- **variant** - how hot, cold, wet or dry a tile is *for its biome* (`variant_bits`): they colour, thin or thicken the biome and
-  change its temperature without changing what it is ("Cold Crystal Fields"); the list of named combinations to offer is
-  in `docs/BIOMES.md`;
 - **point of interest** - a single place inside a biome (`pois.py`): a wreck, a ruin, a research outpost. They take the
   biome's context but never replace it.
 
@@ -563,72 +560,6 @@ def ground_colors(index: np.ndarray) -> np.ndarray:
 def table(attr: str, dtype=float) -> np.ndarray:
     """One number per biome (by index) for the attribute `attr`."""
     return np.array([getattr(BIOMES[k], attr) for k in BIOME_IDS], dtype=dtype)
-
-
-# ── variants ───────────────────────────────────────────────────────────────────────────────────────────
-@dataclass(frozen=True)
-class VariantSpec:
-    key: str
-    name: str
-    ground: Tuple[int, int, int]      # added to the ground colour (before it is clipped)
-    vegetation: float                 # multiplies the vegetation density
-    ambient: int                      # degrees C added
-
-
-VARIANTS: Dict[str, VariantSpec] = {
-    "hot": VariantSpec("hot", "Hot", (14, 4, -10), 0.85, 8),
-    "cold": VariantSpec("cold", "Cold", (-8, 2, 16), 0.8, -10),
-    "wet": VariantSpec("wet", "Wet", (-10, -2, 4), 1.2, -2),
-    "dry": VariantSpec("dry", "Dry", (14, 8, -6), 0.75, 2),
-}
-VARIANT_BITS = {"hot": 1, "cold": 2, "wet": 4, "dry": 8}
-VARIANT_EDGE = 0.7
-VARIANT_SOFT = 0.8
-"""Width of the ramp (in the same units) over which a variant fades in."""
-"""A tile counts as hot (wet ...) for its biome when it lies in the hottest (wettest...) third beyond the middle of the biome's climate range
-(or, for a biome with an open range, beyond +- 0.35 of the climate's middle)."""
-
-
-def variant_bits(temperature: np.ndarray, moisture: np.ndarray, biome: np.ndarray) -> np.ndarray:
-    """Variant flags (bits of `VARIANT_BITS`) of tiles, from how far their climate is from the middle of their biome's."""
-    mid_t, mid_m = table("mid_temperature"), table("mid_moisture")
-    half_t = np.array([min((BIOMES[k].temperature[1] - BIOMES[k].temperature[0]) / 2.0, 0.5) for k in BIOME_IDS])
-    half_m = np.array([min((BIOMES[k].moisture[1] - BIOMES[k].moisture[0]) / 2.0, 0.5) for k in BIOME_IDS])
-    dt = (np.asarray(temperature) - mid_t[biome]) / np.maximum(half_t[biome], 0.15)
-    dm = (np.asarray(moisture) - mid_m[biome]) / np.maximum(half_m[biome], 0.15)
-    out = np.zeros(np.shape(biome), dtype=np.int8)
-    out |= np.where(dt > VARIANT_EDGE, VARIANT_BITS["hot"], 0).astype(np.int8)
-    out |= np.where(dt < -VARIANT_EDGE, VARIANT_BITS["cold"], 0).astype(np.int8)
-    out |= np.where(dm > VARIANT_EDGE, VARIANT_BITS["wet"], 0).astype(np.int8)
-    out |= np.where(dm < -VARIANT_EDGE, VARIANT_BITS["dry"], 0).astype(np.int8)
-    return out
-
-
-def variant_amounts(temperature: np.ndarray, moisture: np.ndarray, biome: np.ndarray) -> Dict[str, np.ndarray]:
-    """How much each variant applies to every tile, 0..1 and smooth (a ramp over the climate's distance from the middle of the biome's,
-    half way at `VARIANT_EDGE`), so the colour and lushness shift gradually instead of in patches with hard edges."""
-    mid_t, mid_m = table("mid_temperature"), table("mid_moisture")
-    half_t = np.array([min((BIOMES[k].temperature[1] - BIOMES[k].temperature[0]) / 2.0, 0.5) for k in BIOME_IDS])
-    half_m = np.array([min((BIOMES[k].moisture[1] - BIOMES[k].moisture[0]) / 2.0, 0.5) for k in BIOME_IDS])
-    dt = (np.asarray(temperature) - mid_t[biome]) / np.maximum(half_t[biome], 0.15)
-    dm = (np.asarray(moisture) - mid_m[biome]) / np.maximum(half_m[biome], 0.15)
-
-    def ramp(d):
-        x = np.clip((d - (VARIANT_EDGE - VARIANT_SOFT / 2.0)) / VARIANT_SOFT, 0.0, 1.0)
-        return x * x * (3.0 - 2.0 * x)
-
-    return {"hot": ramp(dt), "cold": ramp(-dt), "wet": ramp(dm), "dry": ramp(-dm)}
-
-
-NAME_VARIANTS = False
-"""Say "Hot, dry plains" in the biome's name? Off: a biome keeps its own name ("Savanna") and its variants only shift its colour, plants and warmth."""
-
-
-def variant_name(biome_key: str, bits: int) -> str:
-    """"Hot, Dry Crystal fields" for a biome and a variant flag set (just the biome's name unless `NAME_VARIANTS`)."""
-    words = [] if not NAME_VARIANTS else [spec.name for k, spec in VARIANTS.items() if bits & VARIANT_BITS[k]]
-    name = BIOMES[biome_key].name
-    return (", ".join(words) + " " + name[0].lower() + name[1:]) if words else name
 
 
 def validate_content() -> None:
