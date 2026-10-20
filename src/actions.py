@@ -80,14 +80,29 @@ class MassPickupAction(Action):
         super().__init__(entity)
         self.items = items
 
-    # TODO: Rework so that it takes more time per item, also fix multi-pickup
     def perform(self) -> None:
-        for item in reversed(self.items):
-            if item.has_inventory:  # units/plants are containers, not loot
+        inventory = self.entity.inventory
+        picked, full = [], False
+        for item in list(self.items):
+            if getattr(item, "has_inventory", False):  # units/plants are containers, not loot
                 continue
-            self.entity.inventory.loot(item)
-            self.engine.message_log.add_message(f"You picked up {item.get_title()}!")
-            
+            try:
+                inventory.loot(item)
+            except exceptions.Impossible:
+                full = True
+                break
+            if item in inventory.items:                # (only what really went into the pack is reported)
+                picked.append(item)
+            else:
+                full = True
+                break
+        log = self.engine.message_log.add_message
+        if picked:
+            title = picked[0].get_title()
+            log(f"You picked up {title}!" if len(picked) == 1 else f"You picked up {title} x{len(picked)}!")
+            self.engine.game_world.pass_time(unit=self.entity, time=1)
+        if full:
+            raise exceptions.Impossible("Your Inventory is full." if picked else "Your Inventory is full: you picked up nothing.")
 
 
 class ItemAction(Action):
@@ -788,6 +803,17 @@ class ScanAction(Action):
             log(f"  {label}: {text}{suffix}" if fact.key != "name" else f"  identified: {text}", color.player_atk)
 
 
+def _position_of(thing):
+    """Where a thing is on the map: its own tile, or that of whatever holds it (a fruit in a plant, a piece in a corpse); (None, None) if nowhere."""
+    from components.inventory import Inventory
+    for _ in range(5):
+        holder = getattr(thing, "parent", None)
+        if not isinstance(holder, Inventory):
+            break
+        thing = holder.parent
+    return getattr(thing, "x", None), getattr(thing, "y", None)
+
+
 class ScanThingAction(ScanAction):
     """Scan one particular thing: an item in a pack, or a body or item in a list of what lies around. One turn; the thing
     has to be in your pack or within the scanner's range."""
@@ -800,7 +826,7 @@ class ScanThingAction(ScanAction):
         import lore
         user = self.entity
         carried = self.thing in getattr(getattr(user, "inventory", None), "items", ())
-        x, y = getattr(self.thing, "x", None), getattr(self.thing, "y", None)
+        x, y = _position_of(self.thing)
         if not carried and x is not None and max(abs(x - user.x), abs(y - user.y)) > self.SCAN_RANGE:
             raise exceptions.Impossible("That is out of scanner range.")
         self._read(lore.scan(self.engine, 0, 0, entity=self.thing))

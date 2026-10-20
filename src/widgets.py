@@ -244,7 +244,8 @@ def item_details(engine, item) -> List:
     run = engine.game_world.run
     lines.append((item.get_title(), Theme.TITLE))
     if isinstance(item, Stuff):
-        lines.append((f"{item.form.lower()} of {lore.material_name(run, item.substance)}", Theme.DIM))
+        name = lore.material_name(run, item.substance)
+        lines.append((name if name.lower().endswith(item.form.lower()) else f"{item.form.lower()} of {name}", Theme.DIM))
         lines.extend(_property_lines(run, item.substance))
     elif isinstance(item, Composite):
         lines.append((f"quality {item.quality:.1f}", Theme.DIM))
@@ -268,8 +269,6 @@ def _property_lines(run, material) -> List:
     out = []
     for prop in PROPERTY_KEYS:
         value = material.get(prop)
-        if not value:
-            continue
         shown = f"{value:.1f}" if lore.property_known(run, material, prop) else "?"
         out.append((f"{prop.replace('_', ' ')}: {shown}", Theme.TEXT))
     return out

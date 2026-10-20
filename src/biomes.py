@@ -620,9 +620,13 @@ def variant_amounts(temperature: np.ndarray, moisture: np.ndarray, biome: np.nda
     return {"hot": ramp(dt), "cold": ramp(-dt), "wet": ramp(dm), "dry": ramp(-dm)}
 
 
+NAME_VARIANTS = False
+"""Say "Hot, dry plains" in the biome's name? Off: a biome keeps its own name ("Savanna") and its variants only shift its colour, plants and warmth."""
+
+
 def variant_name(biome_key: str, bits: int) -> str:
-    """"Hot, Dry Crystal fields" for a biome and a variant flag set."""
-    words = [spec.name for k, spec in VARIANTS.items() if bits & VARIANT_BITS[k]]
+    """"Hot, Dry Crystal fields" for a biome and a variant flag set (just the biome's name unless `NAME_VARIANTS`)."""
+    words = [] if not NAME_VARIANTS else [spec.name for k, spec in VARIANTS.items() if bits & VARIANT_BITS[k]]
     name = BIOMES[biome_key].name
     return (", ".join(words) + " " + name[0].lower() + name[1:]) if words else name
 

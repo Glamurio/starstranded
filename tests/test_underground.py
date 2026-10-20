@@ -99,7 +99,9 @@ def test_cave_animals_have_their_own_names_and_are_scannable_like_the_rest():
     planet = pl.generate_planet(5, "human")
     names = [s.name for s in planet.fauna if s.key.split(":")[-1].startswith("cave_")]
     assert len(names) == len(set(names)) == len(pl.CAVE_FAUNA)
-    assert all(any(form in name for form in ("beetle", "moth", "slug", "bat", "worm", "crab")) for name in names)
+    import naming
+    cave_nouns = {n for key, nouns in naming.CREATURE_NOUNS.items() if key.startswith("cave_") for n in nouns}
+    assert all(name.split(" ")[-1] in cave_nouns for name in names), names      # (a noun that fits the picture, not always its plain word)
 
 
 def test_visitors_are_rare_below_and_commoner_in_the_ruins():

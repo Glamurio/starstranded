@@ -193,7 +193,10 @@ class Stump(Entity):
 
 
 class Flower(Plant):
-    """A small ground plant that bears one bloom: grab it with G, and a new one opens each growth cycle. Walked over freely."""
+    """A small ground plant that bears one bloom: grab it with G and the flower is gone (new ones sprout elsewhere now and then,
+    see `worldgen.regrow_flowers`). Walked over freely."""
+
+    picked_clean_vanishes = True
 
     def __init__(self, species: PlantSpecies):
         Plant.__init__(self, species)

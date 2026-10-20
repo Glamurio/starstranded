@@ -84,6 +84,16 @@ def edge_exit(camera, x: int, y: int) -> Tuple[int, int]:
     return dx, dy
 
 
+def walk_cancelled() -> bool:
+    """Has the player pressed a key or clicked since the last step? Any of them stops a walk that repeats (a click to walk, a long
+    path); the key or click that stops it is used up, so it does not also start something."""
+    stop = False
+    for event in pygame.event.get((pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN)):
+        if event.type == pygame.MOUSEBUTTONDOWN or event.key not in (pygame.K_LSHIFT, pygame.K_RSHIFT, pygame.K_LCTRL, pygame.K_RCTRL, pygame.K_LALT, pygame.K_RALT):
+            stop = True
+    return stop
+
+
 def travel_target(engine: Engine, x: int, y: int) -> Tuple[int, int]:
     """Where a left click on tile (x, y) sends the player. A click on the edge ring of the view means "leave this
     screen that way": the goal is the tile just past the edge, so mouse-only play walks into the next chunk, which
@@ -252,6 +262,9 @@ class EventHandler(BaseEventHandler):
             # Actions return `True` for repeat
             repeat = action.perform()
             while repeat and self.engine.player.is_alive and self.engine.game_world.run.ending is None:
+                if walk_cancelled():
+                    self.engine.message_log.add_message("You stop.")
+                    break
                 repeat = action.perform()
                 # time.sleep(0.05)
                 self.session.render(self)
@@ -670,6 +683,7 @@ class InventoryEventHandler(AskUserEventHandler):
         if self.inventory:
             self.inventory.instantiate_placeholders()
             self.TITLE = "Inventory" if is_player else f"{self.inventory.parent.get_title()}"
+            self.COUNT = f"{len(self.inventory.items)}/{self.inventory.capacity}"
         self.inventory_entries = self._source()
         self.entries_amount = len(self.inventory_entries)
         if not self.inventory and self.entries_amount:
@@ -687,7 +701,7 @@ class InventoryEventHandler(AskUserEventHandler):
             hints.append(("g", "grab all"))
         hints.append(("Esc", "close"))
         tabs = widgets.tab_titles() if self.TABBED and is_player else None
-        ix, iy, iw, ih = canvas.window(x0, y0, self.WIDTH, self.HEIGHT, title=self.TITLE, hints=hints, tabs=tabs, active=0)
+        ix, iy, iw, ih = canvas.window(x0, y0, self.WIDTH, self.HEIGHT, title=f"{self.TITLE} ({self.COUNT})" if getattr(self, "COUNT", None) and self.inventory else self.TITLE, hints=hints, tabs=tabs, active=0)
 
         list_w = iw - self.DETAIL - 1
         if not self.entries_amount:
@@ -723,7 +737,7 @@ class InventoryEventHandler(AskUserEventHandler):
 
     def _activate(self, index: int) -> Optional[ActionOrHandler]:
         item = self.inventory_entries[index]
-        if isinstance(item, Item):
+        if isinstance(item, Item) or getattr(item, "scenery", False):     # (bones and pebbles may be picked up, and put down again)
             return self.on_item_selected(item)
         return self.on_entity_selected(item)
 
@@ -784,7 +798,7 @@ class InventoryEventHandler(AskUserEventHandler):
             return None
         if scan:
             return actions.ScanThingAction(player, thing)
-        if self.inventory is not None and self.inventory.parent == player and isinstance(thing, Item):
+        if self.inventory is not None and self.inventory.parent == player and (isinstance(thing, Item) or getattr(thing, "scenery", False)):
             rows = getattr(getattr(self, "list", None), "rows", ())
             group = next((row.group for row in rows if row.data is thing), ())
             if len(group) > 1:
@@ -878,7 +892,7 @@ class CraftingMenuHandler(AskUserEventHandler):
                 rows.append(widgets.Row(f"Stage {recipe.stage}", header=True))
                 last = recipe.stage
             result = recipe.result
-            icon = (result.sprite_id, result.color, False) if result is not None else None
+            icon = (result.sprite_id, (255, 255, 255), False) if result is not None else None      # (white: it takes a colour once materials are chosen)
             ok = self.plan(recipe).ok
             rows.append(widgets.Row(recipe.name, icon=icon, color=None if ok else Theme.DIM, data=recipe))
         self.list = widgets.ListView(rows)
@@ -893,7 +907,8 @@ class CraftingMenuHandler(AskUserEventHandler):
         plan = self.plan()
         result = recipe.result
         if result is not None:
-            widgets.sprite_slot(canvas, dx, iy, result.sprite_id, result.color)
+            chosen = plan.parts.get(recipe.designation)         # the material that colours the tool; white until one is chosen
+            widgets.sprite_slot(canvas, dx, iy, result.sprite_id, tuple(chosen.color) if chosen is not None else (255, 255, 255))
         canvas.print(dx + 5, iy, recipe.name, fg=Theme.TITLE)
         canvas.print(dx + 5, iy + 1, f"stage {recipe.stage}   takes {recipe.time} turn{'s' if recipe.time != 1 else ''}", fg=Theme.DIM)
         row = iy + 5
@@ -1020,6 +1035,8 @@ class InventoryActivateHandler(InventoryEventHandler):
     TABBED = True
 
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
+        if getattr(item, "scenery", False):
+            raise exceptions.Impossible(f"{item.get_title()} is only for show: put it down with D.")
         if isinstance(item, Equippable):
             return actions.EquipAction(self.inventory.parent, item)
         from components.consumable import FoodConsumable
@@ -1058,6 +1075,10 @@ class InventoryLootHandler(InventoryEventHandler):
         super().on_render(self.canvas)
     
     def on_item_selected(self, item: Item) -> Optional[ActionOrHandler]:
+        rows = getattr(getattr(self, "list", None), "rows", ())
+        group = next((row.group for row in rows if row.data is item), ())
+        if len(group) > 1:
+            return self.on_items_selected(group)               # a stack (one row of identical things) comes up together
         if not self.inventory and item in self.entities:
             self.entities.remove(item)
         return actions.PickupAction(self.looter, item)
@@ -1226,6 +1247,11 @@ class MainGameEventHandler(EventHandler):
             if not any(e is not player and not getattr(e, "decal", False) for e in self.engine.game_map.stack_at(x, y)):
                 x, y = travel_target(self.engine, x, y)
             return actions.BumpAction(player, x, y)
+        if event.button == MouseButton.RIGHT and self.engine.player.is_alive:
+            xy = screen_to_world(self.engine, event.position)
+            if xy is not None and self.engine.game_map.in_bounds(*xy) and self.engine.game_map.is_explored(*xy):
+                import screens
+                return screens.ContextMenu(self.engine, xy[0], xy[1], event.position)
 
     def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
         action: Optional[actions.Action] = None

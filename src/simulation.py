@@ -166,6 +166,8 @@ def run_turn(engine: Engine) -> None:
     wildlife.tick(world, active + near, now)
     import decay
     decay.tick(world, active + near, now)
+    import worldgen
+    worldgen.regrow_flowers(world, active + near, now)
 
     for chunk in active:
         for entity in list(chunk.actors):  # snapshot: AIs may add/remove/move entities

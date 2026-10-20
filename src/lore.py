@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional, Tuple
 
+import color
 import naming
 from knowledge import Fact, Know
 from liquids import LiquidKind
@@ -52,10 +53,9 @@ def name_fact(value: str) -> Fact:
 def facts_for_material(material: Material, planet=None) -> List[Fact]:
     facts = [name_fact(material.name)]
     for prop in PROPERTY_KEYS:
-        value = getattr(material, prop)
-        if value > 0:
-            skill, level = PROPERTY_READING[prop]
-            facts.append(Fact(prop, skill, level, round(value, 1)))
+        value = getattr(material, prop)           # (every property is listed, even a tiny or zero one)
+        skill, level = PROPERTY_READING[prop]
+        facts.append(Fact(prop, skill, level, round(value, 1)))
     if material.refines_to and planet is not None:
         target = planet.material(material.refines_to)
         facts.append(Fact("refines_to", Skill.CHEMISTRY, 3, f"smelts to {target.name}", hint="Might hold metal.",
@@ -169,7 +169,10 @@ def fruit_name(run, kind) -> str:
     """The fruit's name once identified; before that its colour and "fruit" (or "bloom")."""
     if run is None or not kind.parent_key or name_known(run, fruit_subject(kind)):
         return kind.species
-    return f"{naming.hue_name(kind.color)} {'bloom' if kind.species.endswith('bloom') else 'fruit'}"
+    last = kind.species.split()[-1] if kind.species else ""
+    is_bloom = tuple(kind.sprite) == (107, 0) if isinstance(kind.sprite, tuple) else False
+    noun = last if last in ("bloom", "blossom", "bud") else "bloom" if is_bloom else "fruit"      # (a flower's bloom stays a bud or a blossom until it is identified)
+    return f"{naming.hue_name(kind.color)} {noun}"
 
 
 def species_name(run, kind) -> str:
@@ -289,7 +292,8 @@ def scan(engine, x: int, y: int, entity=None):
     learned = run.knowledge.scan(subject, facts, player.skills, player.capabilities)
     for fact, level in learned:
         if level is Know.FULL and fact.key != "name":
-            player.practice(fact.domain, 1)
+            if player.practice(fact.domain, 1):       # a skill that rises reads more next time: say so, it is not luck
+                engine.message_log.add_message(f"Your {fact.domain.value} skill rose to {player.skills.level(fact.domain)}: scan again to read more.", color.orange)
     return title, learned
 
 

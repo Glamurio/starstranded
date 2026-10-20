@@ -65,7 +65,12 @@ def test_variants_flag_a_hot_dry_tile_of_a_biome_and_name_it():
     assert bits[0] & biomes.VARIANT_BITS["hot"] and bits[0] & biomes.VARIANT_BITS["dry"]
     assert bits[1] == 0
     assert bits[2] & biomes.VARIANT_BITS["cold"] and bits[2] & biomes.VARIANT_BITS["wet"]
-    assert biomes.variant_name("plains", int(bits[0])) == "Hot, Dry plains"
+    assert biomes.variant_name("plains", int(bits[0])) == BIOMES["plains"].name       # (a variant does not rename the biome)
+    biomes.NAME_VARIANTS = True
+    try:
+        assert biomes.variant_name("plains", int(bits[0])) == "Hot, Dry plains"
+    finally:
+        biomes.NAME_VARIANTS = False
 
 
 def test_native_plants_take_on_the_traits_of_the_country_they_grow_in():

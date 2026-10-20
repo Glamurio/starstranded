@@ -263,6 +263,42 @@ def coined(rng: random.Random) -> str:
     return "".join(rng.choice(_ONSETS) + rng.choice(_VOWELS) + rng.choice(_CODAS) for _ in range(2))
 
 
+# ── creature names ───────────────────────────────────────────────────────────────────────────────────────────
+# A creature's final name is meant to be a name, not a description: "smoke scuttler", "ashen arthropod", "dread prowler". Plain colour
+# words ("grey crab") belong to the unscanned name (see `lore.species_name`), so here they are rare and never come alone.
+CREATURE_NOUNS: Dict[str, Tuple[str, ...]] = {
+    "hopper": ("hopper", "leaper", "bounder", "springer", "nibbler", "scut", "thumper", "cottontail", "hare"),
+    "grazer": ("grazer", "browser", "herder", "forager", "tine", "antlerback", "muzzle", "deer"),
+    "strider": ("strider", "galloper", "longleg", "charger", "stag", "mane", "courser", "horse"),
+    "rooter": ("rooter", "tusker", "grubber", "snout", "wallower", "bristleback", "hog", "boar"),
+    "hunter": ("hunter", "howler", "ripper", "fang", "snapper", "runner", "jackal", "hound"),
+    "stalker": ("stalker", "pouncer", "prowler", "slinker", "clawfoot", "hisser", "lynx", "cat"),
+    "scuttler": ("scuttler", "skitterer", "arthropod", "pincer", "clacker", "carapace", "crawler", "crab"),
+    "webspinner": ("weaver", "spinner", "lurker", "tangler", "silkhand", "spider"),
+    "serpent": ("serpent", "slider", "coil", "adder", "lash", "viper", "snake"),
+    "flitter": ("flitter", "darter", "glider", "trill", "swift", "finch", "songbird"),
+    "cave_beetle": ("beetle", "delver", "carapace", "gnawer", "shellback", "dungroller"),
+    "cave_moth": ("moth", "flutterer", "dustwing", "glimmer", "wisp"),
+    "cave_slug": ("slug", "creeper", "glider", "ooze", "slick"),
+    "cave_bat": ("bat", "screecher", "nightwing", "flapper", "clinger", "duskwing"),
+    "cave_worm": ("worm", "borer", "burrower", "wriggler", "gullet"),
+    "cave_crab": ("crab", "scuttler", "claw", "pincer", "rockback"),
+}
+COLOUR_ADJECTIVES: Dict[str, Tuple[str, ...]] = {
+    "red": ("ruddy", "rusted", "sanguine", "flushed", "crimson", "blooded"), "orange": ("tawny", "amber", "fiery", "burnt", "russet"),
+    "yellow": ("sallow", "golden", "straw-haired", "tawny", "saffron"), "green": ("verdant", "mossy", "leafy", "jaded", "viridian"),
+    "teal": ("tidal", "verdigris", "lagoon", "glaucous"), "blue": ("azure", "cobalt", "indigo", "stormy", "sea-dark"),
+    "indigo": ("midnight", "inky", "dusk", "twilit", "deep"), "violet": ("lilac", "mauve", "plum", "heathered", "amethyst"),
+    "pink": ("rosy", "blushing", "coral", "salmon", "pale-rose"), "brown": ("dun", "umber", "chestnut", "russet", "peaty", "bark-coated"),
+    "white": ("pale", "ivory", "snowy", "chalky", "frosted", "bleached"), "black": ("sooty", "ebon", "inky", "pitch", "jet", "shadowed"),
+    "grey": ("ashen", "smoky", "leaden", "hoary", "dun", "slate", "ghostly", "stone-grey"),
+}
+MOODS: Dict[str, Tuple[str, ...]] = {
+    "hostile": ("dread", "grim", "savage", "wicked", "gaunt", "snarling", "wary", "cruel", "keen"),
+    "peaceable": ("meek", "drowsy", "placid", "shy", "soft", "gentle", "idle", "tame"),
+}
+
+
 class Namer:
     """Names one planet's things for one culture, resolving collisions in call order."""
 
@@ -334,6 +370,49 @@ class Namer:
                 return Name(text, gloss, (), modifier, form)
         text = self._unique(rng, f"{rng.choice(palette)} {forms[0]}")
         return Name(text, f"{colour} {forms[0]}", (), text.split(" ")[0], forms[0])
+
+    def creature(self, key: str, base: str, forms: Sequence[str], color: RGB, props: Optional[Mapping[str, float]] = None,
+                 family: str = "animal", hostile: bool = False) -> Name:
+        """A creature's name: a word that fits it (a trait, a mood, an evocative colour, an invented word) and a noun that fits its picture
+        ("smoke scuttler", "dread prowler", "thirsar crab"). The plain "<colour> <animal>" is kept for the unscanned name. Other cultures
+        keep their own word-building."""
+        if self.culture != "human":
+            return self.name(key, family, color, props)
+        rng = random.Random(mix_seed(self.seed, hash_key(key)))
+        colour = hue_name(color)
+        traits = salient_traits(props or {}, limit=1, family=family)
+        trait_words = [w.lower() for w in HUMAN[TRAIT_CONCEPTS[(traits[0][0], traits[0][1])]]] if traits else []
+        nouns = list(CREATURE_NOUNS.get(base, ())) or list(forms)
+        plain = {w for w in forms}
+        adjectives = list(COLOUR_ADJECTIVES.get(colour, ()))
+        colour_words = [w.lower() for w in HUMAN[colour][1:]]               # (not the bare hue word: "grey", "red")
+        moods = list(MOODS["hostile" if hostile else "peaceable"])
+        for attempt in range(60):
+            noun = rng.choice(nouns)
+            roll = rng.random() if attempt < 20 else 0.9
+            if roll < 0.28:
+                text = f"{rng.choice(adjectives)} {noun}" if adjectives else f"{rng.choice(colour_words)} {noun}"
+            elif roll < 0.46:
+                text = f"{rng.choice(colour_words)} {noun}"
+            elif roll < 0.62:
+                text = f"{rng.choice(moods)} {noun}"
+            elif roll < 0.72 and trait_words:
+                text = f"{rng.choice(trait_words)} {noun}"
+            elif roll < 0.86:
+                text = f"{rng.choice(adjectives or colour_words)} {rng.choice(moods)} {noun}"
+            else:
+                text = f"{coined(rng)} {noun}"
+            words = text.split(" ")
+            if len(set(words)) != len(words) or _norm(text) in self.used:
+                continue
+            if noun in plain and len(words) == 2 and words[0] in colour_words:
+                continue                                                  # no "<colour> <everyday animal>"
+            self.used.add(_norm(text))
+            gloss = f"{colour} {noun}"
+            self.glosses[text] = gloss
+            return Name(text, gloss, (), words[0], noun)
+        text = self._unique(rng, f"{rng.choice(adjectives or colour_words)} {nouns[0]}")
+        return Name(text, f"{colour} {nouns[0]}", (), text.split(" ")[0], nouns[0])
 
     def fruit_of(self, key: str, parent: Name, nouns: Sequence[str]) -> str:
         """A fruit's name from its parent plant and its own kind: "scarlet" fir -> "scarlet cone"; a clash adds the parent's form."""

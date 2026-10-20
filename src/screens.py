@@ -524,3 +524,81 @@ class PauseMenu(AskUserEventHandler):
     def ev_mousebuttondown(self, event):
         index = self.choices.handle(event)
         return None if index is None else self._choose(index)
+
+
+class ContextMenu(AskUserEventHandler):
+    """Right click on the map: every action that makes sense for what lies on that tile (scan, grab, attack, look inside, walk there).
+    A convenience on top of the roguelike keys, which all keep working."""
+
+    def __init__(self, engine, x: int, y: int, position=(0, 0)):
+        super().__init__(engine)
+        import widgets
+        self.x, self.y, self.position = x, y, position
+        self.entries = self.options(engine, x, y)
+        self.choices = widgets.Choices([label for label, _ in self.entries], gap=0)
+
+    @staticmethod
+    def options(engine, x: int, y: int) -> list:
+        """`[(label, make)]`: `make()` gives the action (or screen) to run when it is chosen."""
+        import actions
+        import render_functions
+        from entity import EntityCategory, Item
+        player, world = engine.player, engine.game_map
+        near = max(abs(x - player.x), abs(y - player.y)) <= 1
+        out = []
+        seen = world.is_visible(x, y)
+        things = [e for e in world.stack_at(x, y) if e is not player and not getattr(e, "decal", False)][:5] if seen else []
+        for thing in things:
+            name = thing.get_title()
+            unit = getattr(thing, "category", None) is EntityCategory.UNIT
+            alive = unit and getattr(thing, "is_alive", False)
+            if alive:
+                out.append((f"Attack {name}", lambda: actions.BumpAction(player, x, y)))
+            if isinstance(thing, Item) or getattr(thing, "scenery", False):
+                if near:
+                    out.append((f"Grab {name}", lambda t=thing: actions.PickupAction(player, t)))
+            elif getattr(thing, "has_inventory", False) and near and not alive:
+                import input_handlers
+                label = "Look inside" if unit else "Gather from"
+                out.append((f"{label} {name}", lambda t=thing: input_handlers.InventoryLootHandler(engine, player, t.inventory)))
+            if not getattr(thing, "scenery", False):
+                out.append((f"Scan {name}", lambda t=thing: actions.ScanThingAction(player, t)))
+        if not things and seen and render_functions.rock_face_at(engine, x, y) is not None:
+            out.append(("Scan rock", lambda: actions.ScanAction(player, x, y)))
+        elif not things and seen and int(world.tile_at(x, y)["liquid"]):
+            out.append(("Scan liquid", lambda: actions.ScanAction(player, x, y)))
+        if world.is_walkable(x, y) and (x, y) != (player.x, player.y):
+            out.append(("Walk here", lambda: actions.BumpAction(player, x, y)))
+        return out or [("Nothing to do here", lambda: None)]
+
+    def on_render(self, canvas) -> None:
+        parent = self.session.handlers[self.session.handlers.index(self) - 1] if self in self.session.handlers and self.session.handlers.index(self) > 0 else None
+        (parent or super()).on_render(canvas)
+        width = max(16, max(len(label) for label, _ in self.entries) + 4)
+        height = len(self.entries) + 2
+        x = max(0, min(int(self.position[0]), canvas.width - width))
+        y = max(0, min(int(self.position[1]), canvas.height - height))
+        ix, iy, iw, ih = canvas.window(x, y, width, height, title="Actions")
+        self.choices.draw(canvas, ix, iy, iw)
+
+    def _choose(self, index: int):
+        make = self.entries[index][1]
+        self.resolve_handler()                    # this menu is done; what comes out runs on the map
+        return make()
+
+    def ev_keydown(self, event):
+        if event.sym == events.Key.ESCAPE:
+            return self.on_exit()
+        index = self.choices.handle(event)
+        return None if index is None else self._choose(index)
+
+    def ev_mousemotion(self, event):
+        self.choices.handle(event)
+
+    def ev_mousebuttondown(self, event):
+        if event.button == events.MouseButton.RIGHT:
+            return self.on_exit()
+        if event.button == events.MouseButton.LEFT and self.choices.at(event.position) is None:
+            return self.on_exit()                  # a click away from the menu closes it
+        index = self.choices.handle(event)
+        return None if index is None else self._choose(index)

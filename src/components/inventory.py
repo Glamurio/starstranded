@@ -42,6 +42,8 @@ class Inventory(BaseComponent):
         self.add(item)
         if source_plant is not None and getattr(source_plant, "category", None) is EntityCategory.PLANT:
             self._harvest_bonus(item, source_plant)
+            if getattr(source_plant, "picked_clean_vanishes", False) and not source_plant.inventory.items and source_plant.parent is not None:
+                source_plant.parent.remove_entity(source_plant)       # a flower with its bloom taken is gone
         # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
 
     def _harvest_bonus(self, item: Item, plant) -> None:

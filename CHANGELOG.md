@@ -3,6 +3,18 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Usability round, 20 Oct 2026
+- Fixed: a fruit inside a plant can be scanned from the scanner's range (it was measured from the wrong place); unscanned blooms read "bud" or "blossom" again.
+- Changed: a flower is gone once its bloom is picked; new flowers sprout now and then (out of sight) where their species grow.
+- Fixed: grabbing a stack takes the whole stack and only reports what really went into the pack; the inventory title shows how full it is.
+- Fixed: scattered bones, skulls and pebbles that were picked up can be dropped; "wire of drawn wire" reads "drawn wire".
+- New: right click on the map opens a menu of what can be done there (attack, grab, scan, look inside, walk). The keys are unchanged.
+- Changed: a key press or a click stops a walk (click to walk, or a long path).
+- Changed: biome names stay plain ("Savanna"); hot/cold/wet/dry only shift colour, plants and warmth.
+- Changed: crafting icons are white until a material is chosen, then take the colour of the material that colours the tool.
+- Changed: a scan lists every property of a material (also low ones); when a skill rises from scanning, the log says so (that is why a rescan can suddenly read more).
+- Changed: creatures get real names ("smoke scuttler", "dread prowler") instead of "<colour> <animal>"; colour words are for the unscanned name.
+
 ## Biome regions, second round, 20 Oct 2026
 - Changed: regions are much larger (about 300-tile cells, grouped into provinces that favour one family), with soft borders 34 tiles wide, so similar biomes sit together and the odd one out is a thin transition.
 - Changed: caves follow the surface region above them, with the same blended borders (colour lerp), instead of their own small noise patches. Hovering a cave tile now describes its contents, not its biome.
