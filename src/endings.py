@@ -95,6 +95,8 @@ def epilogue(engine) -> List[str]:
     ending = ENDINGS[run.ending]
     player = engine.player
     lines = [ending.title, "", ending.text, ""]
+    if run.ending == "death" and run.flags.get("death_cause"):
+        lines += [f"Cause of death: {run.flags['death_cause']}.", ""]
     from clock import days_survived
     lines.append(f"{player.name}, a {player.kind.name} {player.background or 'castaway'}: survived {days_survived(engine)} day{'s' if days_survived(engine) != 1 else ''}.")
     done = len(run.completed)

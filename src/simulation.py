@@ -25,8 +25,10 @@ if TYPE_CHECKING:
     from engine import Engine
     from entity import Entity
 
-HUNGER_PERIOD = 4  # hunger -1 every 4th turn
-THIRST_PERIOD = 2  # thirst -1 every 2nd turn
+HUNGER_DAYS, THIRST_DAYS = 7, 3
+"""Full hunger lasts this many days of `GameConfig.day_length` (480 turns) with nothing eaten, full thirst this many without drinking: then you die."""
+HUNGER_PERIOD = -(-HUNGER_DAYS * 480 // 100)  # hunger -1 every 34th turn (a little over 7 days from 100 to 0)
+THIRST_PERIOD = -(-THIRST_DAYS * 480 // 100)  # thirst -1 every 15th turn (a little over 3 days)
 GROWTH_PERIOD = 2  # plants grow every 2nd turn
 
 
@@ -71,11 +73,9 @@ def _unit_upkeep(unit, last: int, now: int, elapsed: int) -> None:
     foraged = elapsed > 2 * world.config.near_interval and chunk is not None and chunk.has_food()
     unit.hunger, hunger_damage = _bulk(unit.hunger, hunger_steps, unit.max_hunger if foraged else 0)
     unit.thirst, thirst_damage = _bulk(unit.thirst, thirst_steps, unit.max_thirst if foraged else 0)
-    damage = hunger_damage + thirst_damage
-    if damage:
-        unit.hp = max(0, unit.hp - damage)
-        if unit.hp == 0 and unit.is_alive:
-            unit.die(None, quiet=True)
+    if (hunger_damage or thirst_damage) and unit.is_alive:       # (a unit left to starve or dehydrate dies of it)
+        unit.last_harm = (None, None, "starvation" if hunger_damage else "thirst")
+        unit.die(None, quiet=True)
 
 
 def _bulk(value: int, steps: int, foraged_max: int) -> Tuple[int, int]:

@@ -21,36 +21,60 @@ def test_thirst_clamps_between_zero_and_max(small_world):
     assert p.thirst == 0
 
 
-def test_time_drives_hunger_every_4_and_thirst_every_2_minutes(small_world):
+def test_time_drives_hunger_and_thirst_by_their_periods(small_world):
+    import simulation
     e = small_world()
-    for _ in range(8):
+    e.player.max_hp = e.player.hp = 10 ** 6
+    for _ in range(simulation.HUNGER_PERIOD):
         actions.WaitAction(e.player).perform()
-    assert e.game_world.current_time == 8
-    assert e.player.hunger == 100 - 2
-    assert e.player.thirst == 100 - 4
+    assert e.game_world.current_time == simulation.HUNGER_PERIOD
+    assert e.player.hunger == 100 - 1
+    assert e.player.thirst == 100 - simulation.HUNGER_PERIOD // simulation.THIRST_PERIOD
 
 
-def test_starvation_damages_the_unit_and_messages_the_player_once(small_world):
+def test_full_thirst_lasts_three_days_and_full_hunger_seven():
+    import simulation
+    assert 3 * 480 <= 100 * simulation.THIRST_PERIOD < 3.2 * 480
+    assert 7 * 480 <= 100 * simulation.HUNGER_PERIOD < 7.2 * 480
+
+
+def test_starving_kills_the_player_outright_and_says_so(small_world):
     e = small_world()
     p = e.player
     p.hunger = 1
-    p.handle_hunger(-1)  # reaches 0: message + 1 damage
-    assert p.hunger == 0 and p.hp == p.max_hp - 1
-    p.handle_hunger(-1)  # stays at 0: damage, no repeated message
-    assert p.hp == p.max_hp - 2
-    msgs = [m.plain_text for m in e.message_log.messages if "starving" in m.plain_text]
-    assert len(msgs) == 1
+    p.handle_hunger(-1)
+    assert p.hunger == 0 and not p.is_alive and p.hp == p.max_hp          # (no slow loss of health: it simply kills)
+    assert e.game_world.run.flags["death_cause"] == "starvation"
+    assert any("You died: starvation" in m.plain_text for m in e.message_log.messages)
 
 
-def test_dehydration_damages_the_unit_and_messages_the_player_once(small_world):
+def test_dehydration_kills_the_player_outright_and_says_so(small_world):
     e = small_world()
     p = e.player
     p.thirst = 1
     p.handle_thirst(-1)
-    p.handle_thirst(-1)
-    assert p.hp == p.max_hp - 2
-    msgs = [m.plain_text for m in e.message_log.messages if "dehydrated" in m.plain_text]
-    assert len(msgs) == 1
+    assert not p.is_alive and e.game_world.run.flags["death_cause"] == "thirst"
+
+
+def test_the_player_is_warned_before_the_end(small_world):
+    e = small_world()
+    p = e.player
+    p.hunger = 21
+    p.handle_hunger(-1)
+    assert any("You are hungry" in m.plain_text for m in e.message_log.messages)
+
+
+def test_death_names_the_attacker_and_the_kind_of_damage(small_world):
+    from animals import Animal
+    import damage
+    e = small_world()
+    a = Animal(); a.place(3, 3, e.game_map)
+    p = e.player
+    p.hp = 1
+    p.handle_health(-5, a, damage_type=damage.DamageType.SHARP)
+    assert not p.is_alive
+    cause = e.game_world.run.flags["death_cause"]
+    assert cause.startswith("killed by ") and "(sharp damage)" in cause
 
 
 def test_npc_starves_to_death_without_player_messages(small_world):
@@ -58,8 +82,8 @@ def test_npc_starves_to_death_without_player_messages(small_world):
     e = small_world()
     a = Animal(); a.place(4, 4, e.game_map)
     a.hunger = 0
-    a.handle_hunger(-1)  # max_hp is 1 -> dies
-    assert a.hp == 0 and not a.is_alive
+    a.handle_hunger(-1)
+    assert not a.is_alive
     assert not any("starving" in m.plain_text for m in e.message_log.messages)
     assert not any("experience" in m.plain_text for m in e.message_log.messages)  # no self-kill XP
 
@@ -123,6 +147,7 @@ def test_npc_hunger_ticks_in_ai_perform(small_world):
     from components.ai import BaseAI
     e = small_world()
     a = Animal(); a.place(5, 5, e.game_map)
-    e.game_world.current_time = 4
+    import simulation
+    e.game_world.current_time = simulation.HUNGER_PERIOD * simulation.THIRST_PERIOD
     BaseAI.perform(a.ai)
     assert a.hunger == 99 and a.thirst == 99

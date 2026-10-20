@@ -196,10 +196,21 @@ class Unit(Entity):
             return self.diet is not Diet.CARNIVORE
         return False
 
+    def cause_of_death(self) -> str:
+        """What the last harm was: "killed by a grey hound (sharp damage)", "poison", "thirst" ..."""
+        attacker, damage_type, cause = getattr(self, "last_harm", (None, None, None))
+        if attacker is not None:
+            kind = f" ({damage_type} damage)" if damage_type is not None else ""
+            return f"killed by {attacker.get_title()}{kind}"
+        return cause or "wounds"
+
     def die(self, killer: Unit = None, quiet: bool = False) -> None:
         """Become a corpse (with two pieces of meat). `quiet`: no message (deaths in chunks the player cannot see)."""
         if self is self.engine.player:
-            death_message = "You died!"
+            death_message = f"You died: {self.cause_of_death()}."
+            game_world = getattr(self.engine, "game_world", None)
+            if getattr(game_world, "run", None) is not None:
+                game_world.run.flags["death_cause"] = self.cause_of_death()
             death_message_color = color.player_die
         else:
             death_message = f"{self.get_title()} is dead!"
@@ -255,10 +266,16 @@ class Unit(Entity):
 
         return amount_recovered
 
-    def handle_health(self, amount: int, entity: Optional[Entity]) -> None:
+    def handle_health(self, amount: int, entity: Optional[Entity], cause: Optional[str] = None, damage_type=None) -> None:
+        """Change hit points. A loss remembers what did it (`last_harm`: the attacker, the kind of damage, or a plain cause such as "poison"),
+        so that a death can say what killed the unit."""
         import debug
         if amount < 0 and debug.protects(self):
             return
+        if amount < 0:
+            if damage_type is None and entity is not None and entity is not self:
+                damage_type = getattr(entity, "damage_type", None)
+            self.last_harm = (entity if entity is not self else None, damage_type, cause)
         self.hp = clamp((self.hp + amount), 0, self.max_hp)
         ai = getattr(self, "ai", None)
         if amount < 0 and entity is not None and entity is not self and ai is not None and not ai.is_hostile and self.hp > 0:
@@ -276,43 +293,45 @@ class Unit(Entity):
             return
         hurt = min(self.poison, turns)
         self.poison -= hurt
-        self.handle_health(-hurt, None)
+        self.handle_health(-hurt, None, cause="poison")
 
     MAX_POISON = 60
 
     def handle_hunger(self, amount: int) -> None:
-        """Change hunger by `amount`. At 0 hunger *any* unit loses 1 HP per call (starvation).
+        """Change hunger by `amount`. At 0 the unit starves to death (it no longer loses hit points on the way).
 
-        Only the player gets the message, once, when hunger first reaches 0.
-        """
+        The player is warned when hunger first drops low, and again when it is nearly gone."""
         import debug
         if amount < 0 and debug.protects(self):
             return
-        prev_hunger = self.hunger
+        prev = self.hunger
         self.hunger = clamp((self.hunger + amount), 0, self.max_hunger)
-        if self.hunger == 0:
-            if self is self.engine.player and prev_hunger > 0:
-                self.engine.message_log.add_message(
-                    f"{self.get_title()} is starving!", color.enemy_atk
-                )
-            self.handle_health(-1, None)
+        self._warn_need("hungry", "starving", prev, self.hunger, self.max_hunger)
+        if self.hunger == 0 and self.is_alive:
+            self.last_harm = (None, None, "starvation")
+            self.die(None)
 
     def handle_thirst(self, amount: int) -> None:
-        """Change thirst by `amount`. At 0 thirst *any* unit loses 1 HP per call (dehydration).
-
-        Only the player gets the message, once, when thirst first reaches 0.
-        """
+        """Change thirst by `amount`. At 0 the unit dies of thirst (no slow loss of hit points)."""
         import debug
         if amount < 0 and debug.protects(self):
             return
-        prev_thirst = self.thirst
+        prev = self.thirst
         self.thirst = clamp((self.thirst + amount), 0, self.max_thirst)
-        if self.thirst == 0:
-            if self is self.engine.player and prev_thirst > 0:
-                self.engine.message_log.add_message(
-                    f"{self.get_title()} is severely dehydrated!", color.enemy_atk
-                )
-            self.handle_health(-1, None)
+        self._warn_need("thirsty", "dying of thirst", prev, self.thirst, self.max_thirst)
+        if self.thirst == 0 and self.is_alive:
+            self.last_harm = (None, None, "thirst")
+            self.die(None)
+
+    NEED_WARN = (0.2, 0.08)
+    """Shares of a full need at which the player is told."""
+
+    def _warn_need(self, low: str, critical: str, before: int, after: int, full: int) -> None:
+        if self is not self.engine.player or after >= before or after == 0:
+            return
+        for share, word in zip(self.NEED_WARN, (low, critical)):
+            if before > share * full >= after:
+                self.engine.message_log.add_message(f"You are {word}.", color.enemy_atk)
 
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""

@@ -263,7 +263,7 @@ class MeleeAction(ActionWithDirection):
                 self.engine.message_log.add_message(
                     f"{attack_desc} for {damage} {damage_type} damage.", attack_color
                 )
-            target.handle_health(-damage, attacker)
+            target.handle_health(-damage, attacker, damage_type=damage_type)
         elif seen:
             self.engine.message_log.add_message(
                 f"{attack_desc} but does no damage.", attack_color
@@ -750,7 +750,7 @@ class FireAction(Action):
             damage = resolve(user.power + bonus, target.defense, weapon.damage_type, target.resistances())
             engine.message_log.add_message(f"You shoot {target.get_title()} for {damage} {weapon.damage_type} damage.", color.player_atk)
             if damage > 0:
-                target.handle_health(-damage, user)
+                target.handle_health(-damage, user, damage_type=weapon.damage_type)
             user.practice(Skill.MARKSMANSHIP, 1)
         engine.game_world.pass_time(unit=user, time=1)
 

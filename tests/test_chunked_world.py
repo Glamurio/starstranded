@@ -8,6 +8,7 @@ import dataclasses
 
 import numpy as np
 import pytest
+import simulation
 
 import actions
 import tile_types
@@ -292,6 +293,7 @@ def _into_chunk_1_0(e):
 
 
 def test_far_chunks_unload_and_reload_with_catch_up():
+    import simulation
     e = flat_engine()
     world = e.game_map
     rabbit = boxed_rabbit(world, 10, 10)
@@ -302,8 +304,8 @@ def test_far_chunks_unload_and_reload_with_catch_up():
     back = world.find_uid(uid)
     assert back is not None and back is not rabbit  # restored from bytes: same uid and state, new object
     assert back.last_upkeep == now
-    assert back.hunger == max(0, hunger - steps_between(last, now, 4))
-    assert back.thirst == max(0, thirst - steps_between(last, now, 2))
+    assert back.hunger == max(0, hunger - steps_between(last, now, simulation.HUNGER_PERIOD))
+    assert back.thirst == max(0, thirst - steps_between(last, now, simulation.THIRST_PERIOD))
     assert back.hp == hp  # nothing reached zero in 120 turns
     assert_index_consistent(world)
 
@@ -321,10 +323,10 @@ def test_plants_grow_while_their_chunk_is_away():
     uid, growth, count, last, cycle = tree.uid, tree.growth, len(tree.inventory.items), tree.last_upkeep, int(tree.avg_cycle) + 1
     now = _away_and_back(e, (0, 0), 90)
     back = world.find_uid(uid)
-    cycles = (growth + steps_between(last, now, 2)) // cycle
+    cycles = (growth + steps_between(last, now, simulation.GROWTH_PERIOD)) // cycle
     assert cycles >= 1
     assert len(back.inventory.items) == min(count + 2 * cycles, back.inventory.capacity)
-    assert back.growth == (growth + steps_between(last, now, 2)) % cycle and back.last_upkeep == now
+    assert back.growth == (growth + steps_between(last, now, simulation.GROWTH_PERIOD)) % cycle and back.last_upkeep == now
 
 
 def test_long_absence_with_food_counts_as_foraging():
@@ -336,15 +338,15 @@ def test_long_absence_with_food_counts_as_foraging():
     world = e.game_map
     rabbit = boxed_rabbit(world, 10, 10)
     rabbit.last_upkeep = 0
-    upkeep(rabbit, 1000)
-    assert rabbit.hp == 0 and not rabbit.is_alive  # no food anywhere: starved (quietly)
+    upkeep(rabbit, 4000)
+    assert not rabbit.is_alive  # no food anywhere: starved (quietly)
     species = next(s for s in (make_plant_species(PlantCategory.TREE, _random.Random(i)) for i in range(50)) if s.fruit)
     tree = components.plant.Tree(species)
     tree.place(20, 10, world)
     tree.inventory.add(components.plant.Fruit(tree.inventory, species.fruit))
     survivor = boxed_rabbit(world, 30, 30)
     survivor.last_upkeep = 0
-    upkeep(survivor, 1000)
+    upkeep(survivor, 4000)
     assert survivor.is_alive and survivor.hunger == survivor.max_hunger // 2
 
 

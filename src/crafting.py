@@ -331,7 +331,7 @@ class Wall(Entity):
             self._ground = (bool(tile["walkable"]), bool(tile["transparent"]), tile["dark"].item())
         game_map.modify_tile(self.x, self.y, transparent=False, walkable=False)
 
-    def handle_health(self, amount: int, attacker=None) -> None:
+    def handle_health(self, amount: int, attacker=None, cause=None, damage_type=None) -> None:
         self.hp = max(0, min(self.max_hp, self.hp + amount))
         if self.hp == 0 and not self.dead:
             self.collapse()

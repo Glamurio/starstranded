@@ -959,9 +959,10 @@ class GameWorld:
                 import debug
                 if debug.is_god(self.engine):
                     continue   # God Mode: time passes, needs do not
-                if not self.current_time % 4:
+                import simulation
+                if not self.current_time % simulation.HUNGER_PERIOD:
                     unit.handle_hunger(-1)
-                if not self.current_time % 2:
+                if not self.current_time % simulation.THIRST_PERIOD:
                     unit.handle_thirst(-1)
                 unit.tick_poison(1)
                 if self.planet is not None:  # the old single-species test worlds have no climate

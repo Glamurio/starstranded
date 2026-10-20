@@ -145,7 +145,7 @@ class Plant(Entity):
     def resistances(self):
         return self.kind.resistances
 
-    def handle_health(self, amount: int, attacker: Optional[Entity] = None) -> None:
+    def handle_health(self, amount: int, attacker: Optional[Entity] = None, cause=None, damage_type=None) -> None:
         self.hp = clamp(self.hp + amount, 0, self.max_hp)
         if self.hp == 0 and not self.dead:
             self.die(attacker)

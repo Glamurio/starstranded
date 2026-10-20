@@ -148,6 +148,10 @@ def _say(engine, text: str, fg=color.impossible) -> None:
     engine.message_log.add_message(text, fg)
 
 
+HEAT_THIRST_PERIOD = 15
+"""Turns between the extra points of thirst the heat costs (the normal rate is `simulation.THIRST_PERIOD`)."""
+
+
 def _temperature_turn(engine, unit) -> None:
     effective = effective_temperature(engine, unit, sleeping=getattr(unit, "sleeping", False))
     deficit = COMFORT - effective
@@ -158,12 +162,12 @@ def _temperature_turn(engine, unit) -> None:
             _say(engine, "You are cold. Find a fire or shelter, or wear something warmer.")
         if unit.cold % interval == 0:
             _say(engine, "The cold bites." if deficit < 15 else "You are freezing!", color.enemy_atk)
-            unit.handle_health(-1, None)
+            unit.handle_health(-1, None, cause="the cold")
     else:
         unit.cold = max(0, unit.cold - 2)
-    if effective > HEAT and engine.game_world.current_time % 3 == 0:
+    if effective > HEAT and engine.game_world.current_time % HEAT_THIRST_PERIOD == 0:
         unit.handle_thirst(-1)
-        if engine.game_world.current_time % 30 == 0:
+        if engine.game_world.current_time % (HEAT_THIRST_PERIOD * 10) == 0:
             _say(engine, "The heat parches you.")
 
 
@@ -191,7 +195,7 @@ def _breath_turn(engine, unit) -> None:
         unit.breath -= 1
         if unit.breath <= 0:
             _say(engine, "You are drowning!" if diving else "You choke on the foul air!", color.enemy_atk)
-            unit.handle_health(-SUFFOCATION_DAMAGE, None)
+            unit.handle_health(-SUFFOCATION_DAMAGE, None, cause="suffocation")
     elif unit.breath is not None:
         unit.breath = min(capacity, unit.breath + 2)
         if unit.breath >= capacity:
