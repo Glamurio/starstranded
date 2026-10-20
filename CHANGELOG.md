@@ -3,6 +3,9 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Flower cap, 20 Oct 2026
+- Changed: each chunk remembers how many flowers its ground grew with; picked flowers come back one at a time (a 4% chance per chunk every 20 turns, out of sight) but never beyond that number.
+
 ## Variants removed, 20 Oct 2026
 - Removed: hot/cold/wet/dry variants of a biome (their ground tint, vegetation change and temperature offset, and the code behind them). A biome is only its biome.
 

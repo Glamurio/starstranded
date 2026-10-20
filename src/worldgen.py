@@ -689,12 +689,12 @@ LILY_PADS_PER_100_WATER_TILES = 1.2
 
 def _scatter_flowers(self, world: "World", chunk: Chunk, env: dict, reserved) -> None:
     """Flowers on free open ground, each a species whose habitat suits the tile."""
-    self._plant_flowers(world, chunk, env, reserved, random.randint(*FLOWERS_PER_CHUNK))
+    chunk.flower_capacity = self._plant_flowers(world, chunk, env, reserved, random.randint(*FLOWERS_PER_CHUNK))
 
 
-def _plant_flowers(self, world: "World", chunk: Chunk, env: dict, reserved, count: int, hidden: bool = False) -> int:
+def _plant_flowers(self, world: "World", chunk: Chunk, env: dict, reserved, count: int, hidden: bool = False, limit: int = 0) -> int:
     """Try `count` random tiles of the chunk for a new flower (a species the tile suits, on free unbuilt ground; `hidden`: only out of the
-    player's sight); returns how many were planted."""
+    player's sight; `limit`: stop after that many); returns how many were planted."""
     import components.plant
     pool, weights = self.planet.species_weights(env, PlantCategory.FLOWER)   # one pass over the whole chunk
     if not pool:
@@ -714,13 +714,16 @@ def _plant_flowers(self, world: "World", chunk: Chunk, env: dict, reserved, coun
         plant.growth = random.randrange(int(plant.avg_cycle) + 1)
         world.add_entity(plant, x, y)
         planted += 1
+        if limit and planted >= limit:
+            break
     return planted
 
 
 REGROW_EVERY = 20
 """Turns between the times new flowers may sprout in the loaded chunks."""
-REGROW_CHANCE = 0.08
-"""Chance, per loaded chunk each time, that a flower sprouts there (when the chunk holds fewer than `FLOWERS_PER_CHUNK`'s top)."""
+REGROW_CHANCE = 0.04
+"""Chance, per loaded chunk each time, that one flower sprouts there, and only while the chunk holds fewer than its `flower_capacity`
+(the number it grew with, so picking flowers lets them come back, but the ground never fills up beyond what its biome carried)."""
 
 
 def regrow_flowers(world: "World", chunks, now: int) -> int:
@@ -734,10 +737,13 @@ def regrow_flowers(world: "World", chunks, now: int) -> int:
     for chunk in chunks:
         if random.random() >= REGROW_CHANCE:
             continue
-        if sum(isinstance(e, components.plant.Flower) for e in chunk.by_category[EntityCategory.PLANT]) >= FLOWERS_PER_CHUNK[1]:
+        have = sum(isinstance(e, components.plant.Flower) for e in chunk.by_category[EntityCategory.PLANT])
+        if chunk.flower_capacity is None:
+            chunk.flower_capacity = have                # (a chunk from an old save: what it holds now is what it carries)
+        if have >= chunk.flower_capacity:
             continue
         env = shafts.environment(source.floor_seed, chunk.key)
-        sprouted += source._plant_flowers(world, chunk, env, (), 6, hidden=True) and 1
+        sprouted += source._plant_flowers(world, chunk, env, (), 6, hidden=True, limit=1)
     return sprouted
 
 

@@ -884,3 +884,9 @@ giving them climate bands, which would make them cover every matching tile (no m
 - **What:** `biomes.VARIANTS`, `variant_bits`, `variant_amounts`, `variant_name` and the `variant` / `amount_*` environment arrays are gone; ground colour, vegetation and ambient temperature depend only on the biome and the region blend.
 - **Why:** the brief never asked for them (I added them), and they made patchy colour steps and names like "cold savanna".
 - **Alternative:** keep them without names (what the previous round did): rejected, they still changed the look unasked.
+
+
+## Flower regrowth is capped per chunk (20 Oct 2026)
+- **What:** `Chunk.flower_capacity` is the number of flowers the chunk was generated with (a chunk without one takes what it holds on its first check); `worldgen.regrow_flowers` plants at most one at a time and only below it, at 4% per chunk per 20 turns.
+- **Why:** the first version capped at the generation maximum (60), which could fill a poor biome. The generated count already follows the biome's species and the tile suitability, so it is the per-biome limit without a separate table.
+- **Alternative:** a per-biome table of flower counts: more data to keep in step with the habitats for no gain.
