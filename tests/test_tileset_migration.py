@@ -12,11 +12,20 @@ from sprite_refs import sprite_hash, sprite_refs
 GOLDEN = json.loads((Path(__file__).parent / "data" / "sprite_golden.json").read_text())
 
 
+def _plain_atlas():
+    """The sheet without the black outline the game adds (these tests are about the artwork itself)."""
+    atlas.OUTLINE = False
+    try:
+        return atlas.SpriteAtlas.load("urizen_white.png")
+    finally:
+        atlas.OUTLINE = True
+
+
 @pytest.fixture(scope="module")
 def sheet():
     pygame.display.init()
     pygame.display.set_mode((64, 64))
-    return atlas.SpriteAtlas.load("urizen_white.png")
+    return _plain_atlas()
 
 
 REDRAWN = {"tile.built_floor"}

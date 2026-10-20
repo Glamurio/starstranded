@@ -23,6 +23,7 @@ class Settings:
     music_volume: int = 7
     sfx_volume: int = 7
     fullscreen: bool = False
+    borderless: bool = False  # a borderless window the size of the desktop: tabbing out does not minimise it
     theme: str = "ion"
     music_dir: str = ""       # folder of the music files; empty: STARSTRANDED_MUSIC, else the manifest root (src/data/music)
 
@@ -30,6 +31,7 @@ class Settings:
         for name in ("master_volume", "music_volume", "sfx_volume"):
             setattr(self, name, max(0, min(MAX_VOLUME, int(getattr(self, name)))))
         self.fullscreen = bool(self.fullscreen)
+        self.borderless = bool(self.borderless)
         self.theme = str(self.theme)
         self.music_dir = str(self.music_dir or "")
         return self
@@ -71,6 +73,8 @@ def apply(settings: Settings, session=None) -> None:
     CURRENT = settings
     ui.Theme.apply(settings.theme)
     if session is not None and session.display is not None and pygame.display.get_surface() is not None:
+        if getattr(session.display, "borderless", False) != settings.borderless and not settings.fullscreen:
+            session.display.set_borderless(settings.borderless)
         if bool(pygame.display.is_fullscreen()) != settings.fullscreen:
             try:
                 pygame.display.toggle_fullscreen()

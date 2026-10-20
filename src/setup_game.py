@@ -209,7 +209,7 @@ class SettingsMenu(input_handlers.BaseEventHandler):
     """Audio levels and fullscreen. UP/DOWN pick a row, LEFT/RIGHT change it, ESC saves and goes back."""
 
     ROWS = (("Master volume", "master_volume"), ("Music volume", "music_volume"), ("Effects volume", "sfx_volume"),
-            ("Fullscreen", "fullscreen"), ("Colour theme", "theme"))
+            ("Fullscreen", "fullscreen"), ("Borderless window", "borderless"), ("Colour theme", "theme"))
 
     def __init__(self, session=None, back=None, settings=None):
         self.settings = settings if settings is not None else settings_module.load()
@@ -219,8 +219,8 @@ class SettingsMenu(input_handlers.BaseEventHandler):
 
     def change(self, step: int) -> None:
         field = self.ROWS[self.row][1]
-        if field == "fullscreen":
-            self.settings.fullscreen = not self.settings.fullscreen
+        if field in ("fullscreen", "borderless"):
+            setattr(self.settings, field, not getattr(self.settings, field))
         elif field == "theme":
             from ui import THEME_ORDER
             order = list(THEME_ORDER)
@@ -239,7 +239,7 @@ class SettingsMenu(input_handlers.BaseEventHandler):
         for rect, i in getattr(self, "row_rects", []):
             if rect.collidepoint(x, y):
                 self.row = i
-                if self.ROWS[i][1] == "fullscreen":
+                if self.ROWS[i][1] in ("fullscreen", "borderless"):
                     self.change(1)
                 else:
                     self.change(1 if x >= rect.x + rect.w // 2 else -1)
@@ -260,7 +260,7 @@ class SettingsMenu(input_handlers.BaseEventHandler):
             if selected:
                 canvas.fill(ix, row, iw, 1, Theme.HILITE)
             canvas.print(ix, row, label, fg=Theme.HILITE_TEXT if selected else Theme.TEXT)
-            if field == "fullscreen":
+            if field in ("fullscreen", "borderless"):
                 canvas.print(ix + iw - 1, row, "on" if value else "off", fg=Theme.HILITE_TEXT if selected else Theme.TEXT, alignment=RIGHT)
             elif field == "theme":
                 from ui import PALETTES
