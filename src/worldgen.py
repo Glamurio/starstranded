@@ -40,8 +40,10 @@ DEEP_COLOR = (58, 104, 148)
 HUE_STOPS = ((0.00, 205.0), (0.30, 218.0), (0.45, 182.0), (0.58, 152.0), (0.68, 110.0), (0.76, 62.0), (0.84, 292.0), (0.92, 322.0), (1.00, 345.0))
 """Lake hue (degrees) along the slowly varying lake-colour noise (0..1): mostly sea blues and teals, then greens, lime, gold, and the
 violets and rose of an alien chemistry. Interpolated, so neighbouring lakes shade into each other."""
-PLATEAU_EDGE = 0.25
+PLATEAU_EDGE = 0.7
 KIND_HUE, KIND_PULL = {2: 285.0, 3: 78.0}, 0.3
+KIND_FADE = 0.16
+"""Width (in the kind noise) over which one kind's tint fades into the next, so a lake changes colour gradually."""
 """What a lake is made of tints it a little (toxic towards violet, acid towards yellow-green): a faint tell, never a label, since
 the colour field is independent of the kind field and plenty of clean-looking lakes are poisonous."""
 LIQUID_SATURATION, SHALLOW_VALUE, DEEP_VALUE = 0.68, 0.80, 0.54
@@ -212,9 +214,10 @@ def environment_for(noise: TerrainNoise, x0: int, y0: int, width: int, height: i
         reach = dilate(reach)
         water[reach & (water == 0)] = WATER_PROXIMITY[distance]
     fertility = np.clip(biomes.table("vegetation")[biome] / 1.6, 0.0, 1.0)
+    amounts = {f"amount_{k}": v for k, v in biomes.variant_amounts(temperature, moisture, biome).items()}
     return dict(temperature=temperature, moisture=moisture, elevation=elevation, fertility=fertility,
                 light=np.ones((width, height)), water=water, biome=biome, other=other, edge=edge, region=reg.region,
-                variant=biomes.variant_bits(temperature, moisture, biome), land=kinds != 0, shore=shore)
+                variant=biomes.variant_bits(temperature, moisture, biome), land=kinds != 0, shore=shore, **amounts)
 
 
 def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_W, height: int = CHUNK_H) -> dict:
@@ -238,8 +241,11 @@ def liquid_palette(noise: TerrainNoise, kind: np.ndarray, x0: int, y0: int, widt
     base = np.floor(cells)
     blend = np.clip((cells - base - 0.5) / PLATEAU_EDGE + 0.5, 0.0, 1.0)
     hue = stops[np.minimum(base.astype(int), len(stops) - 1), 1] * (1 - blend) + stops[np.minimum(base.astype(int) + 1, len(stops) - 1), 1] * blend
+    kv = noise.liquid_kind_field(x0, y0, width, height)
+    soft = lambda x: np.clip(x, 0.0, 1.0) ** 2 * (3.0 - 2.0 * np.clip(x, 0.0, 1.0))      # noqa: E731 (a smooth step: the tint never jumps at a kind's border)
+    weights = {2: soft((kv - IMPURE_BELOW) / KIND_FADE + 0.5) * (1.0 - soft((kv - TOXIC_BELOW) / KIND_FADE + 0.5)), 3: soft((kv - TOXIC_BELOW) / KIND_FADE + 0.5)}
     for number, target in KIND_HUE.items():
-        pull = np.where(kind == number, KIND_PULL, 0.0)
+        pull = KIND_PULL * weights[number]
         delta = (target - hue + 180.0) % 360.0 - 180.0         # the short way round the colour wheel
         hue = (hue + delta * pull) % 360.0
     out = []
@@ -273,7 +279,8 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
     kind_value = noise.liquid_kind_field(x0, y0, width, height)
     kind = np.where(kind_value < IMPURE_BELOW, 1, np.where(kind_value < TOXIC_BELOW, 2, 3)).astype(np.int8)
     shallow, deep = liquid_palette(noise, kind, x0, y0, width, height)
-    light = np.where((depth >= 2)[..., None], deep, shallow).astype(np.uint8)
+    mix = (np.clip(depth - 1, 0, 2) / 2.0)[..., None]                       # shallow on the shore, deep two tiles in: a gradient, not a step
+    light = (shallow * (1.0 - mix) + deep * mix).astype(np.uint8)
     landscape["liquid"][liquid] = kind[liquid]
     landscape["depth"][liquid] = depth[liquid]
     landscape["walkable"][liquid] = depth[liquid] == 1
@@ -380,7 +387,7 @@ def ground_colours(noise: TerrainNoise, area, env: dict) -> np.ndarray:
     ground = result[0] * (1.0 - edge) + result[1] * edge
     ground *= 1.0 + GROUND_JITTER * noise.sample(18, GROUND_SHADE_SCALE, *area)[..., None] / 0.7
     for key, spec in biomes.VARIANTS.items():
-        ground += ((env["variant"] & biomes.VARIANT_BITS[key]) > 0)[..., None] * np.array(spec.ground, dtype=float)
+        ground += env[f"amount_{key}"][..., None] * np.array(spec.ground, dtype=float)
     return np.clip(ground, 0, 255).astype(np.uint8)
 
 
@@ -394,7 +401,7 @@ def vegetation_density(noise: TerrainNoise, area, env: dict) -> np.ndarray:
     floor_ = floor[biome] * (1.0 - edge) + floor[other] * edge
     density = density * (1.0 + PATCH_REACH * noise.sample(20, 0.035, *area) / 0.7)
     for key, spec in biomes.VARIANTS.items():
-        density = np.where((env["variant"] & biomes.VARIANT_BITS[key]) > 0, density * spec.vegetation, density)
+        density = density * (1.0 + env[f"amount_{key}"] * (spec.vegetation - 1.0))
     return np.maximum(density, floor_)
 
 
@@ -776,8 +783,8 @@ def _scatter_stones(self, world: "World", chunk: Chunk, env: dict, reserved) -> 
         x, y = chunk.x0 + lx, chunk.y0 + ly
         if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
             continue
-        if any(e.category is EntityCategory.PLANT for e in world.get_entities_at_location(x, y)):
-            continue                                  # (a loose stone under a bush could not be seen)
+        if world.get_entities_at_location(x, y):
+            continue                                  # (a loose stone under a bush, on another stone or on a lamp post could not be seen)
         biome = biomes.BIOME_IDS[int(env["biome"][lx, ly])]
         material = resources.surface_stone(self.planet, self.floor_seed, x, y, random.getrandbits(16), biome)
         world.add_entity(Stuff(defs.PIECE_STONE, material), x, y)

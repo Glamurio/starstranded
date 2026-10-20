@@ -122,6 +122,42 @@ def draw_lily_pad(surface: pygame.Surface, variant: int) -> None:
             surface.set_at((cx + dx, cy + dy), (255, 255, 255, 255))
 
 
+OUTLINE = True
+"""Give every sprite a one pixel black outline (inside its own cell, round the lit pixels), so coloured sprites keep their shape on any background.
+On the black of the unexplored and of most ground it cannot be seen."""
+
+
+def add_outline(sheet: pygame.Surface) -> pygame.Surface:
+    """A copy of `sheet` (white pixels, alpha is the sprite) whose transparent pixels next to a sprite pixel are opaque black. Cells are treated
+    one by one, so a sprite never draws its outline into the cell beside it. Tinting multiplies, and black stays black."""
+    alpha = pygame.surfarray.array_alpha(sheet) > 0
+    width, height = alpha.shape
+    cols, rows = width // TILE, height // TILE
+    cells = alpha[:cols * TILE, :rows * TILE].reshape(cols, TILE, rows, TILE)
+    near = np.zeros_like(cells)
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue
+            shifted = np.zeros_like(cells)
+            xs_from = slice(max(0, -dx), TILE - max(0, dx))
+            xs_to = slice(max(0, dx), TILE - max(0, -dx))
+            ys_from = slice(max(0, -dy), TILE - max(0, dy))
+            ys_to = slice(max(0, dy), TILE - max(0, -dy))
+            shifted[:, xs_to, :, ys_to] = cells[:, xs_from, :, ys_from]
+            near |= shifted
+    ring = np.zeros_like(alpha)
+    ring[:cols * TILE, :rows * TILE] = (near & ~cells).reshape(cols * TILE, rows * TILE)
+    out = sheet.copy()
+    rgb = pygame.surfarray.pixels3d(out)
+    rgb[ring] = (0, 0, 0)
+    del rgb
+    a = pygame.surfarray.pixels_alpha(out)
+    a[ring] = 255
+    del a
+    return out
+
+
 class SpriteAtlas:
     """Holds the sheet once and hands out cached sprite surfaces.
 
@@ -132,6 +168,8 @@ class SpriteAtlas:
     """
 
     def __init__(self, sheet: pygame.Surface):
+        if OUTLINE:
+            sheet = add_outline(sheet)
         if pygame.display.get_surface() is not None:
             sheet = sheet.convert_alpha()
         self.sheet = sheet

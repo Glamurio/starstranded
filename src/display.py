@@ -40,13 +40,27 @@ class Display:
     def __init__(self, *, title: str = "Starstranded", headless: bool = False, window_size: Optional[Tuple[int, int]] = None):
         if headless:
             os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        os.environ.setdefault("SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS", "0")      # (tabbing out of the game must not minimise it)
         pygame.display.init()
         pygame.font.init()
         pygame.display.set_caption(title)
         self.window = pygame.display.set_mode(window_size or self._initial_window_size(), pygame.RESIZABLE)
+        self.borderless = False
         self.surface = pygame.Surface(LOGICAL_SIZE).convert()
         self.cursor_cell: Optional[events.Point] = None
         self.frames_presented = 0
+
+    def set_borderless(self, on: bool) -> None:
+        """A borderless window over the whole desktop (or back to the ordinary resizable window)."""
+        try:
+            if on:
+                size = pygame.display.get_desktop_sizes()[0]
+                self.window = pygame.display.set_mode(size, pygame.NOFRAME)
+            else:
+                self.window = pygame.display.set_mode(self._initial_window_size(), pygame.RESIZABLE)
+            self.borderless = on
+        except pygame.error:     # e.g. the headless driver: the window stays as it is
+            pass
 
     @staticmethod
     def _initial_window_size() -> Tuple[int, int]:

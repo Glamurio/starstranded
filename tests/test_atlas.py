@@ -5,11 +5,20 @@ import pytest
 import atlas
 
 
+def _plain_atlas():
+    """The sheet without the black outline the game adds (these tests are about the artwork itself)."""
+    atlas.OUTLINE = False
+    try:
+        return atlas.SpriteAtlas.load("urizen_white.png")
+    finally:
+        atlas.OUTLINE = True
+
+
 @pytest.fixture
 def sheet_atlas():
     pygame.display.init()
     pygame.display.set_mode((64, 64))
-    return atlas.SpriteAtlas.load("urizen_white.png")
+    return _plain_atlas()
 
 
 def test_sheet_geometry(sheet_atlas):
@@ -73,3 +82,16 @@ def test_cache_is_bounded(sheet_atlas, monkeypatch):
     for i in range(100):
         sheet_atlas.get(atlas.sprite_id(i % 50, 0), False, (i, i, i))
     assert sheet_atlas.cached_variants <= 21
+
+
+def test_the_game_atlas_outlines_sprites_in_black_inside_their_cell():
+    pygame.display.init()
+    pygame.display.set_mode((64, 64))
+    plain = _plain_atlas()
+    outlined = atlas.SpriteAtlas.load("urizen_white.png")
+    sprite = atlas.sprite_id(3, 15)
+    a = pygame.surfarray.array_alpha(plain.get(sprite)) > 0
+    b = pygame.surfarray.array_alpha(outlined.get(sprite, False, (200, 100, 0))) > 0
+    assert (b & ~a).any() and (b >= a).all()
+    rgb = pygame.surfarray.array3d(outlined.get(sprite, False, (200, 100, 0)))
+    assert (rgb[b & ~a] == 0).all() and (rgb[a] == (200, 100, 0)).all()

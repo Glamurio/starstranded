@@ -158,11 +158,13 @@ def test_lava_lakes_are_unwalkable_deep_and_only_in_lava_country():
     import biomes
     import liquids
     found = 0
-    for seed in (1, 5, 99, 7, 21, 33):
+    for seed in (1, 5, 99, 7, 21, 33, 2, 4, 8, 12):          # (volcanic regions are big and rare now: look over a wider area)
         noise = worldgen.TerrainNoise(seed)
         system = hydrology.system_for(noise)
-        for i in range(-16, 16):
-            for j in range(-10, 10):
+        for i in range(-40, 40):
+            if found >= 3:
+                break
+            for j in range(-25, 25):
                 site = system.hot_site(i, j)
                 if site is None or not site[3]:
                     continue

@@ -117,6 +117,8 @@ class _LoadedView:
 
 LOOK_DOWN = 3  # how many layers deep an open tile shows
 NIGHT_TINT = (6, 8, 30, 255)
+EXPLORED_DIM = 0.45
+"""Brightness of remembered terrain (explored, not in sight) relative to its already dim `dark` look."""
 NIGHT_ALPHA = 150  # opacity of the night shade at midnight (0-255)
 
 
@@ -565,6 +567,9 @@ class World(SpatialContainer):
             self._clear_dots_under_objects(gfx, rect)
             fg = gfx["fg"].astype(np.int64)
             bg = gfx["bg"].astype(np.int64)
+            remembered = (~visible)[..., None]
+            fg = np.where(remembered, (fg * EXPLORED_DIM).astype(np.int64), fg)       # (seen before but not in sight: well below anything in sight, even at night)
+            bg = np.where(remembered, (bg * EXPLORED_DIM).astype(np.int64), bg)
             if BLEND_BORDERS:
                 bg, fg = self._soften_borders(bg, fg, visible | explored, rect)
             keys = (
@@ -651,7 +656,7 @@ class World(SpatialContainer):
         if self._soft_stamp == stamp:                    # nothing moved or changed since the last frame
             return self._soft_result
         wide = (x0 - m, y0 - m, width + 2 * m, height + 2 * m)
-        ground = self.region("walkable", wide) & (self.region("liquid", wide) == 0)
+        ground = self.region("walkable", wide) & (self.region("liquid", wide) == 0) & ~self.region("built", wide)       # (paths, bridges and paving keep their own colour)
         light = self.region("light", wide)
         wide_bg, wide_fg = light["bg"].astype(np.int64), light["fg"].astype(np.int64)
         wide_bg[m:m + width, m:m + height] = bg

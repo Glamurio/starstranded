@@ -107,7 +107,10 @@ def test_a_city_chunk_is_walled_wrecked_and_empty_of_people(new_engine):
     walls = [e for e in world.entities if isinstance(e, Wall)]
     assert len(walls) > 20
     assert any(getattr(e, "scenery_key", "") in ("lamp_post", "signpost", "wreck_car", "wreck_truck", "rubble") for e in world.entities)
-    assert not [e for e in world.entities if isinstance(e, Unit) and e is not engine.player and e.kind.faction == "federation"]
+    from components.unit import Selenite
+    # (nobody lives in a city: no settlers or townsfolk; a lone Selenite exile may wander in from the wild spawns, as anywhere)
+    assert not [e for e in world.entities if isinstance(e, Unit) and e is not engine.player and not isinstance(e, Selenite)
+                and e.kind.faction == "federation"]
     debug._enabled = False
 
 

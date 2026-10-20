@@ -864,3 +864,10 @@ giving them climate bands, which would make them cover every matching tile (no m
 - **Why:** Large coherent regions with blended borders read as places, and they are a pure function of seed and coordinates, so loading order cannot change them. One catalogue entry carries ground, plants, scenery, fauna adaptation, music, underground biome and sites, so nothing competes.
 - **Alternatives:** per-tile climate lookup (fragmented, no identity); per-chunk assignment (visible chunk seams); automatic variant combinations (rejected by the brief; a suggestion list is in `docs/BIOMES.md`).
 - **Also decided:** no settlers or NPCs anywhere (class, species and sprite removed; farms and hamlets are abandoned); cities and volcanic/crystal regions hold no farms; ground stays a dim backdrop (readability) so a biome's colour is carried by dots, cover and scenery; old saves are incompatible; 6 biomes are marked basic and said so.
+
+
+## Bigger regions, caves on surface regions, smooth variants (20 Oct 2026)
+- **What:** `regions.CELL` is 300 with `PROVINCE` = 3 cells per province (a province favours one family, `FAMILY_BIAS` 40), `BORDER` 34. Caves take the biome of the surface region above (`SURFACE_INFLUENCE` falls with depth) and blend by the same edge field. Variants have a smooth 0..1 amount (`biomes.variant_amounts`); the flags remain for names. Tiles carry a `built` flag so softening never recolours bridges, roads or floors. Remembered tiles are drawn at `world.EXPLORED_DIM` (0.45). Every sprite gets a black outline (`atlas.OUTLINE`).
+- **Why:** 120-tile regions read as strips and made caves a patchwork; binary variant flags and per-tile colour steps made visible grids.
+- **Alternatives:** raising only the noise scale (still produces fragmented patches); a second noise field for caves (what we had, and it ignored the surface); outlining at draw time (slower, and per-tint) rather than once in the sheet.
+- **Limits:** about a quarter of region neighbours are the same family; basic biomes unchanged; a lone Selenite exile can still wander near a city.

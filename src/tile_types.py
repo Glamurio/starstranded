@@ -32,6 +32,7 @@ tile_dt = np.dtype(
         ("stairs", np.int8),  # +1: stairs up, -1: stairs down, 0: none.
         ("liquid", np.int8),  # 0: none, else the kind of liquid (see liquids.LiquidKind).
         ("depth", np.int8),  # liquid depth: 0 none, 1 shallow (can be waded), 2 and 3 deeper (cannot).
+        ("built", bool),  # type: ignore # True for what someone made (path, bridge, paving, floor): its colour is its own, never eased into the ground's.
     ]
 )
 
@@ -60,6 +61,7 @@ class Tile(object):
         stairs: int = 0,
         liquid: int = 0,
         depth: int = 0,
+        built: bool = False,
         dtype: np.dtype = tile_dt,
     ):
         
@@ -84,6 +86,7 @@ class Tile(object):
         self.stairs = stairs
         self.liquid = liquid
         self.depth = depth
+        self.built = built
         self.dtype = dtype
 
     def set_sprite(self, pos: Tuple[int, int], variation: Optional[str] = None) -> None:
@@ -100,13 +103,13 @@ class Tile(object):
     def get_array(self) -> np.ndarray:
         """Helper function for returning individual tile types"""
         return np.array((self.walkable, self.transparent, self.dark, self.light, self.open, self.stairs,
-                         self.liquid, self.depth), dtype=self.dtype)
+                         self.liquid, self.depth, self.built), dtype=self.dtype)
 
 # SHROUD represents unexplored, unseen tiles
 SHROUD = np.array((NO_SPRITE, False, (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 # VOID is what lies outside a bounded map (and fills the unused part of its chunk): nothing to walk on or see through.
-VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist(), False, 0, 0, 0), dtype=tile_dt)
+VOID = np.array((False, False, SHROUD.tolist(), SHROUD.tolist(), False, 0, 0, 0, False), dtype=tile_dt)
 
 floor = Tile(
     object_type="Floor",
@@ -211,7 +214,7 @@ open_air = Tile(  # no floor: you look down on the layer below (drawn by the wor
     dtype=tile_dt
 )
 built_floor = Tile(  # a floor the player laid
-    object_type="Wooden floor",
+    built=True, object_type="Wooden floor",
     walkable=True,
     transparent=True,
     sprite=(3, 5),
@@ -222,7 +225,7 @@ built_floor = Tile(  # a floor the player laid
     dtype=tile_dt
 )
 bridge = Tile(  # planks over water: walkable, nothing grows or flows on it
-    object_type="Bridge",
+    built=True, object_type="Bridge",
     walkable=True,
     transparent=True,
     sprite=(2, 4),
@@ -233,7 +236,7 @@ bridge = Tile(  # planks over water: walkable, nothing grows or flows on it
     dtype=tile_dt
 )
 path = Tile(  # trodden earth: the way between places, and the banks of a bridge
-    object_type="Path",
+    built=True, object_type="Path",
     walkable=True,
     transparent=True,
     sprite=(2, 5),
@@ -246,21 +249,21 @@ path = Tile(  # trodden earth: the way between places, and the banks of a bridge
 
 
 farmland = Tile(  # tilled soil of a farm: walkable
-    object_type="Farmland", walkable=True, transparent=True, sprite=(8, 6), dark_fg=(45, 33, 22), light_fg=(110, 80, 52),
+    built=True, object_type="Farmland", walkable=True, transparent=True, sprite=(8, 6), dark_fg=(45, 33, 22), light_fg=(110, 80, 52),
     dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
 crops = Tile(  # a row of crops: walkable (you trample them), see through
-    object_type="Crops", walkable=True, transparent=True, sprite=(10, 9), dark_fg=(40, 70, 35), light_fg=(110, 160, 75),
+    built=True, object_type="Crops", walkable=True, transparent=True, sprite=(10, 9), dark_fg=(40, 70, 35), light_fg=(110, 160, 75),
     dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
 fence = Tile(  # a field fence: blocks movement, not sight
     object_type="Fence", walkable=False, transparent=True, sprite=(6, 40), dark_fg=(60, 42, 26), light_fg=(150, 110, 70),
     dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
 street = Tile(  # paving between the houses of a town: walkable
-    object_type="Street", walkable=True, transparent=True, sprite=(5, 5), dark_fg=(55, 55, 60), light_fg=(135, 135, 145),
+    built=True, object_type="Street", walkable=True, transparent=True, sprite=(5, 5), dark_fg=(55, 55, 60), light_fg=(135, 135, 145),
     dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
 
 
 def _bridge_piece(name: str, sprite, follows: str) -> Tile:
-    piece = Tile(object_type="Bridge", walkable=True, transparent=True, sprite=sprite, dark_fg=bridge.dark_fg,
+    piece = Tile(built=True, object_type="Bridge", walkable=True, transparent=True, sprite=sprite, dark_fg=bridge.dark_fg,
                  light_fg=bridge.light_fg, dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
     piece.follows = follows      # until it is given a sprite of its own it is drawn like this tile (see _apply_sprite_config)
     return piece
@@ -269,7 +272,7 @@ def _bridge_piece(name: str, sprite, follows: str) -> Tile:
 # A bridge is drawn by its direction and by where the tile sits in it. `bridge` is the single horizontal tile (a span one
 # tile long, running east-west); `bridge_vertical` is the single tile running north-south; longer spans use a start, a
 # middle and an end piece. Pieces without a sprite of their own use the single tile of their direction.
-bridge_vertical = Tile(object_type="Bridge", walkable=True, transparent=True, sprite=(12, 40), dark_fg=bridge.dark_fg,
+bridge_vertical = Tile(built=True, object_type="Bridge", walkable=True, transparent=True, sprite=(12, 40), dark_fg=bridge.dark_fg,
                        light_fg=bridge.light_fg, dark_bg=color.black, light_bg=color.nigh_black, dtype=tile_dt)
 bridge_h_start = _bridge_piece("bridge_h_start", bridge.sprite_pos, "bridge")      # west end
 bridge_h_mid = _bridge_piece("bridge_h_mid", bridge.sprite_pos, "bridge")

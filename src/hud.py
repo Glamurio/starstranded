@@ -73,6 +73,12 @@ def draw(canvas, engine) -> None:
     import music
     song = music.now_playing()
     log_bottom = canvas.height - 2
+    import resources
+    place = resources.biome_label(world, engine.game_map.z, player.x, player.y)
+    if place:                                                  # (the biome you stand in, under the music)
+        log_bottom -= 2
+        canvas.print(ix, log_bottom, "Biome:", fg=Theme.DIM)
+        canvas.print(ix, log_bottom + 1, place[: canvas.chars(iw)], fg=Theme.TEXT)
     if song:
         log_bottom -= 2
         canvas.print(ix, log_bottom, "Now Playing:", fg=Theme.DIM)

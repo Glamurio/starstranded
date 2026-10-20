@@ -4,12 +4,12 @@ The old climate table decided a biome tile by tile from a smooth temperature and
 the climate bands (a fungal forest, a crystal field) had to be a separate overlay, and anything noise-driven came out as small
 patches. Here the world is cut into **regions** instead:
 
-1. every cell of a coarse grid (`CELL` tiles, about two chunks wide each way...) owns one jittered *site*, a pure function of
+1. every cell of a coarse grid (`CELL` tiles, a few chunks wide each way) owns one jittered *site*, a pure function of
    the seed and the cell's coordinates;
 2. the site's biome is drawn from the biomes whose climate (temperature, moisture, smooth elevation) suits the climate *at the
    site*, weighted by each biome's `rarity`; near the landing site only mild biomes are allowed;
 3. a tile belongs to the region of the nearest site after its position has been bent by two slow noise fields (`WARP`), so
-   regions are organic blobs of 100-200 tiles, not squares;
+   regions are organic blobs of 200 tiles and more, not squares;
 4. the second-nearest site gives the neighbouring region and how far the tile is from the border: the ground colours blend over
    `BORDER` tiles and the plants of both regions mix there. The tile's identity stays that of its own region.
 
@@ -29,15 +29,19 @@ import relief
 from ecology import membership
 from seeds import mix_seed
 
-CELL = 150
+CELL = 300
 """Edge of a region cell, in tiles: regions are about this wide (a chunk is 70 by 40)."""
-JITTER = 0.7
-"""A site lies in the middle `JITTER` of its cell, so regions are never tiny slivers."""
-WARP, WARP_SCALE = 55.0, 0.011
+JITTER = 0.55
+"""A site lies in the middle `JITTER` of its cell, so regions are never thin slivers."""
+PROVINCE = 3
+"""A province is `PROVINCE` cells wide each way. It has a favourite family of biomes (`FAMILY_BIAS`), so neighbouring regions are usually kin
+(woodland beside forest, not beside a crystal field) and the world has large areas of one character with variety inside."""
+FAMILY_BIAS = 40.0
+WARP, WARP_SCALE = 40.0, 0.009
 """How far (tiles) the noise bends a tile's position before the nearest site is found, and the noise frequency: borders wander."""
-BORDER = 14.0
+BORDER = 34.0
 """Tiles over which the ground blends across a border and the two regions' plants mix."""
-SPAWN_SAFE = 300.0
+SPAWN_SAFE = 520.0
 """Within this many tiles of the landing site only the mild biomes (`mild`) may be a region's biome."""
 NOISE_WARP_X, NOISE_WARP_Y = 16, 17
 """`TerrainNoise` generators used here."""
@@ -59,18 +63,54 @@ def mild(biome: "biomes.Biome") -> bool:
     return -8 < biome.ambient < 34 and biome.family not in ("volcanic", "decay", "alien", "urban", "fungal", "crystal")
 
 
+def _climate(noise, px: float, py: float) -> Tuple[float, float, float]:
+    """(temperature, moisture, smooth elevation) at a point."""
+    return (float(noise.temperature(int(px), int(py), 1, 1)[0, 0]), float(noise.moisture(int(px), int(py), 1, 1)[0, 0]),
+            float(relief.smooth_elevation(noise, int(px), int(py), 1, 1)[0, 0]))
+
+
+def _suit(climate: Tuple[float, float, float], key: str) -> float:
+    """How well a biome suits a climate, times its rarity."""
+    t, m, e = climate
+    b = biomes.BIOMES[key]
+    return float(membership(t, b.temperature) * membership(m, b.moisture) * membership(e, b.elevation)) * b.rarity
+
+
+_PROVINCES: Dict[Tuple[int, int, int], str] = {}
+
+
+def province_family(noise, px: float, py: float) -> str:
+    """The family a province favours: drawn once per province, by how well its families suit the climate at its middle."""
+    size = CELL * PROVINCE
+    pcx, pcy = int(np.floor(px / size)), int(np.floor(py / size))
+    k = (noise.floor_seed, pcx, pcy)
+    found = _PROVINCES.get(k)
+    if found is None:
+        middle = ((pcx + 0.5) * size, (pcy + 0.5) * size)
+        totals: Dict[str, float] = {}
+        climate = _climate(noise, *middle)
+        for key in biomes.REGION_BIOMES:
+            b = biomes.BIOMES[key]
+            if b.family != "urban":
+                totals[b.family] = totals.get(b.family, 0.0) + _suit(climate, key)
+        rng = random.Random(mix_seed(noise.floor_seed, pcx, pcy, 7102))
+        families = [f for f, w in totals.items() if w > 0] or list(totals)
+        found = _PROVINCES[k] = rng.choices(families, weights=[max(totals[f], 1e-6) for f in families])[0]
+    return found
+
+
 def _choose(noise, cx: int, cy: int, px: float, py: float) -> int:
     seed = noise.floor_seed
     rng = random.Random(mix_seed(seed, cx, cy, 7101))
-    t = float(noise.temperature(int(px), int(py), 1, 1)[0, 0])
-    m = float(noise.moisture(int(px), int(py), 1, 1)[0, 0])
-    e = float(relief.smooth_elevation(noise, int(px), int(py), 1, 1)[0, 0])
+    climate = _climate(noise, px, py)
+    t, m, _ = climate
     near_spawn = np.hypot(px - relief.SPAWN[0], py - relief.SPAWN[1]) < SPAWN_SAFE
     keys = [k for k in biomes.REGION_BIOMES if not near_spawn or mild(biomes.BIOMES[k])]
+    favourite = province_family(noise, px, py)
     weights = []
     for key in keys:
         b = biomes.BIOMES[key]
-        weights.append(float(membership(t, b.temperature) * membership(m, b.moisture) * membership(e, b.elevation)) * b.rarity)
+        weights.append(_suit(climate, key) * (FAMILY_BIAS if b.family == favourite else 1.0))
     if sum(weights) <= 0:           # a climate no biome claims: the nearest one in the (temperature, moisture) plane
         def gap(key: str) -> float:
             b = biomes.BIOMES[key]
@@ -93,6 +133,7 @@ def site(noise, cx: int, cy: int) -> Site:
 
 def clear_caches() -> None:
     _SITES.clear()
+    _PROVINCES.clear()
 
 
 @dataclass
@@ -101,6 +142,7 @@ class Field:
     other: np.ndarray       # (w, h) int16, the biome of the neighbouring region
     edge: np.ndarray        # (w, h) float, 0 deep inside a region .. 0.5 on a border: the neighbour's share
     region: np.ndarray      # (w, h) int64, the number of the tile's region (see `Site.key`)
+    other_region: np.ndarray = None    # (w, h) int64, the number of the neighbouring region
 
 
 def smooth(x: np.ndarray) -> np.ndarray:
@@ -131,7 +173,7 @@ def field(noise, x0: int, y0: int, width: int, height: int) -> Field:
     biome, other = index[first], index[second]
     edge = 0.5 * (1.0 - smooth(border / BORDER))
     edge = np.where(biome == other, 0.0, edge)
-    return Field(biome, other, edge, key[first])
+    return Field(biome, other, edge, key[first], key[second])
 
 
 def biome_at(noise, x: int, y: int) -> str:

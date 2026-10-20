@@ -30,7 +30,9 @@ from typing import Dict, List, Optional, Tuple
 
 from functools import lru_cache
 
-import numpy as np  # type: ignore
+import numpy as np
+
+import spriteconfig  # type: ignore
 
 RGB = Tuple[int, int, int]
 Cell = Tuple[int, int]
@@ -212,6 +214,9 @@ _TEX_CROSS = ((0, 6), (11, 6))
 
 def _biome(key: str, name: str, family: str, temperature: Range, moisture: Range, description: str, features: str, **kwargs) -> Biome:
     biome = Biome(key, name, family, description, features, temperature, moisture, **kwargs)
+    for part in ("cover", "texture"):        # (the ground sprites can be changed in the sprite editor: data/sprites.json, "ground.<biome>.<part>.<n>")
+        cells = tuple(spriteconfig.get(f"ground.{key}.{part}.{i}", cell) for i, cell in enumerate(getattr(biome, part)))
+        object.__setattr__(biome, part, cells)
     assert biome.key not in BIOMES, key
     assert biome.family in FAMILIES, key
     BIOMES[biome.key] = biome
@@ -578,6 +583,8 @@ VARIANTS: Dict[str, VariantSpec] = {
 }
 VARIANT_BITS = {"hot": 1, "cold": 2, "wet": 4, "dry": 8}
 VARIANT_EDGE = 0.7
+VARIANT_SOFT = 0.8
+"""Width of the ramp (in the same units) over which a variant fades in."""
 """A tile counts as hot (wet ...) for its biome when it lies in the hottest (wettest...) third beyond the middle of the biome's climate range
 (or, for a biome with an open range, beyond +- 0.35 of the climate's middle)."""
 
@@ -595,6 +602,22 @@ def variant_bits(temperature: np.ndarray, moisture: np.ndarray, biome: np.ndarra
     out |= np.where(dm > VARIANT_EDGE, VARIANT_BITS["wet"], 0).astype(np.int8)
     out |= np.where(dm < -VARIANT_EDGE, VARIANT_BITS["dry"], 0).astype(np.int8)
     return out
+
+
+def variant_amounts(temperature: np.ndarray, moisture: np.ndarray, biome: np.ndarray) -> Dict[str, np.ndarray]:
+    """How much each variant applies to every tile, 0..1 and smooth (a ramp over the climate's distance from the middle of the biome's,
+    half way at `VARIANT_EDGE`), so the colour and lushness shift gradually instead of in patches with hard edges."""
+    mid_t, mid_m = table("mid_temperature"), table("mid_moisture")
+    half_t = np.array([min((BIOMES[k].temperature[1] - BIOMES[k].temperature[0]) / 2.0, 0.5) for k in BIOME_IDS])
+    half_m = np.array([min((BIOMES[k].moisture[1] - BIOMES[k].moisture[0]) / 2.0, 0.5) for k in BIOME_IDS])
+    dt = (np.asarray(temperature) - mid_t[biome]) / np.maximum(half_t[biome], 0.15)
+    dm = (np.asarray(moisture) - mid_m[biome]) / np.maximum(half_m[biome], 0.15)
+
+    def ramp(d):
+        x = np.clip((d - (VARIANT_EDGE - VARIANT_SOFT / 2.0)) / VARIANT_SOFT, 0.0, 1.0)
+        return x * x * (3.0 - 2.0 * x)
+
+    return {"hot": ramp(dt), "cold": ramp(-dt), "wet": ramp(dm), "dry": ramp(-dm)}
 
 
 def variant_name(biome_key: str, bits: int) -> str:
