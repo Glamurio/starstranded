@@ -325,11 +325,11 @@ class Panel(AskUserEventHandler):
 
     TITLE = ""
     WIDTH = 58      # (the map view's width: the side panel with the log stays visible)
-    HEIGHT = 36
+    HEIGHT = 45     # (the whole left side of the screen)
     TABBED = False
     HINTS: list = [("Esc", "close")]
     X = 0
-    Y = 2
+    Y = 0
 
     def frame(self, canvas: Canvas, hints=None, title: Optional[str] = None):
         import widgets
@@ -689,7 +689,7 @@ class InventoryEventHandler(AskUserEventHandler):
         self.canvas = canvas
 
     WIDTH = 58      # (the map view's width: the side panel with the log stays visible)
-    HEIGHT = 36
+    HEIGHT = 45     # (the whole left side of the screen)
     DETAIL = 24
     RESERVED = ""        # hotkey letters an inventory screen keeps for itself
     TABBED = False       # the main inventory shares the tab row with the other screens
@@ -727,7 +727,7 @@ class InventoryEventHandler(AskUserEventHandler):
         if not self.inventory and self.entries_amount:
             self.TITLE = f"Objects at {(self.inventory_entries[0].x, self.inventory_entries[0].y)}"
 
-        x0, y0 = 3 * self.offset, 2 + self.offset
+        x0, y0 = 3 * self.offset, self.offset
         self.console_x, self.console_y = x0, y0
         self.menu_width, self.menu_height = self.WIDTH, self.HEIGHT
         hints = [("a-z", "choose"), ("Enter", "select"), ("s", "scan")]
@@ -739,7 +739,7 @@ class InventoryEventHandler(AskUserEventHandler):
             hints.append(("g", "grab all"))
         hints.append(("Esc", "close"))
         tabs = widgets.tab_titles() if self.TABBED and is_player else None
-        ix, iy, iw, ih = canvas.window(x0, y0, self.WIDTH, self.HEIGHT, title=f"{self.TITLE} ({self.COUNT})" if getattr(self, "COUNT", None) and self.inventory else self.TITLE, hints=hints, tabs=tabs, active=0)
+        ix, iy, iw, ih = canvas.window(x0, y0, self.WIDTH, self.HEIGHT - self.offset, title=f"{self.TITLE} ({self.COUNT})" if getattr(self, "COUNT", None) and self.inventory else self.TITLE, hints=hints, tabs=tabs, active=0)
 
         list_w = iw - self.DETAIL - 1
         if not self.entries_amount:
@@ -904,7 +904,7 @@ class CraftingMenuHandler(AskUserEventHandler):
         return crafting.check(recipe, self.engine.player, self.choices.get(recipe.key))
 
     WIDTH = 58      # (the map view's width: the side panel with the log stays visible)
-    HEIGHT = 36
+    HEIGHT = 45     # (the whole left side of the screen)
     LIST_W = 28
 
     def on_render(self, canvas: Canvas) -> None:
@@ -915,7 +915,7 @@ class CraftingMenuHandler(AskUserEventHandler):
         (parent or super()).on_render(canvas)
         hints = [("a-z", "choose"), ("Enter", "make"), ("Space", "all known" if not self.show_all else "only doable"),
                  ("Left/Right", "material"), (",/.", "part"), ("Tab", "next screen"), ("Esc", "close")]
-        ix, iy, iw, ih = canvas.window(0, 2, self.WIDTH, self.HEIGHT, title="Recipes", hints=hints, tabs=widgets.tab_titles(), active=widgets.tab_index(self))
+        ix, iy, iw, ih = canvas.window(0, 0, self.WIDTH, self.HEIGHT, title="Recipes", hints=hints, tabs=widgets.tab_titles(), active=widgets.tab_index(self))
         if not self.recipes:
             canvas.print(ix, iy + 1, "Nothing you can make here and now.", fg=Theme.TITLE)
             widgets.text_block(canvas, ix, iy + 3, iw, 6, [

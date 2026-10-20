@@ -21,10 +21,10 @@ def test_inventory_renders_meat_icon_and_title(small_world):
     meat = Meat("rabbit", e.player.inventory)
     e.player.inventory.add(meat)
     canvas = render_inventory(e)
-    # window at (0, 2): tab row, then dagger / armour under their headings, then "Food and drink" and the meat (row 5 of the list)
+    # window at (0, 0): tab row, then dagger / armour under their headings, then "Food and drink" and the meat (row 5 of the list)
     expected = expected_sprite_cell(meat.sprite_id, meat.color, meat.flipped, bg=ui.Theme.BG)
-    assert np.array_equal(cell(canvas, 3, 10), expected)
-    assert cell(canvas, 5, 10).any()  # the title text next to the icon
+    assert np.array_equal(cell(canvas, 3, 8), expected)
+    assert cell(canvas, 5, 8).any()  # the title text next to the icon
 
 
 def test_empty_inventory_says_so(small_world):
@@ -32,4 +32,4 @@ def test_empty_inventory_says_so(small_world):
     for item in list(e.player.inventory.items):
         e.player.inventory.remove(item)
     canvas = render_inventory(e)
-    assert cell(canvas, 2, 6).any()  # "(nothing here)" starts at the window's inner corner
+    assert cell(canvas, 2, 4).any()  # "(nothing here)" starts at the window's inner corner
