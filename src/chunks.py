@@ -63,6 +63,7 @@ class Chunk:
         self.terrain_version = 0
         self.wild_capacity = 0                  # how many wild animals the ground carries (see wildlife.py); 0: not tracked
         self.wild_stamp = None                  # game time the wildlife was last settled
+        self.flower_capacity = None             # how many flowers this ground carries: what it grew with (see worldgen.regrow_flowers); None: not counted yet
         self.decay_stamp = None                 # game time the corpses were last aged (see decay.py)
         self.entities: Dict[Entity, None] = {}
         self.by_category: Dict[EntityCategory, Dict[Entity, None]] = {c: {} for c in EntityCategory}

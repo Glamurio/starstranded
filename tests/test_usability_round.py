@@ -210,3 +210,29 @@ def test_every_property_of_a_material_is_listed_on_a_scan():
         pytest.skip("no stone catalogue")
     keys = {f.key for f in lore.facts_for_material(rock, planet)}
     assert set(materials.PROPERTY_KEYS) <= keys
+
+
+def test_flowers_only_grow_back_up_to_what_the_chunk_carried():
+    import random
+    import setup_game
+    import components.plant as plants
+    from engine import Engine
+    from world import GameWorld, World
+    from worldgen import NoiseWorldSource, regrow_flowers
+    engine = Engine(player=setup_game.create_player())
+    engine.game_world = GameWorld(engine=engine, seed=5)
+    world = World(engine, NoiseWorldSource(3), floor=1, seed=3)
+    engine.game_map = world
+    chunk = world.load_chunk((6, 5))
+    count = lambda: sum(isinstance(e, plants.Flower) for e in chunk.entities)
+    start = count()
+    assert chunk.flower_capacity == start > 0
+    random.seed(2)
+    for now in range(0, 6000, 20):
+        regrow_flowers(world, [chunk], now)
+    assert count() == start                      # nothing was picked: nothing may sprout
+    for flower in [e for e in chunk.entities if isinstance(e, plants.Flower)][:5]:
+        world.remove_entity(flower)
+    for now in range(0, 20000, 20):
+        regrow_flowers(world, [chunk], now)
+    assert count() == start                      # picked ones come back, no more
