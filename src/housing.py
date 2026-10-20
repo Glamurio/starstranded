@@ -33,6 +33,9 @@ def raise_walls(world, chunk, tiles: Iterable[Tuple[int, int]], material) -> Non
     """Stand a wall of `material` on each chunk-local tile."""
     from crafting import Wall
     for lx, ly in tiles:
+        for entity in list(world.get_entities_at_location(chunk.x0 + lx, chunk.y0 + ly)):
+            if not getattr(entity, "decal", False):
+                world.remove_entity(entity)        # (a creature or plant that spawned on the line of the wall is cleared away)
         world.add_entity(Wall({"wall": material}, 1.0, {}), chunk.x0 + lx, chunk.y0 + ly)
 
 
