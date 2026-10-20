@@ -100,3 +100,25 @@ def test_landmark_plants_grow_in_their_landmark_and_nowhere_else(new_engine, mon
     debug.teleport(engine, 35, 20)
     near = [e for e in engine.game_map.entities if isinstance(e, (Tree, Shrub)) and e.kind.habitat is not None and 0 <= e.x < CHUNK_W and 0 <= e.y < CHUNK_H]
     assert near and all(not e.kind.habitat.landmarks for e in near)
+
+
+def test_landmarks_are_exclusive_where_strong(p):
+    """Inside a landmark with plants of its own only those grow; ordinary species thin out towards the edge."""
+    ordinary = [s for s in p.flora if s.habitat is not None and not s.habitat.landmarks]
+    for key in landmarks.LANDMARK_IDS:
+        for strength, expect_none in ((1.0, True), (0.6, True), (0.2, False)):
+            env = env_of(key, strength)
+            pool, weights = p.species_weights(env)
+            shown = [s for s, w in zip(pool, weights) if float(np.max(w)) > 0 and not s.habitat.landmarks]
+            if expect_none:
+                assert not shown, (key, strength, [s.key for s in shown])
+        pool, weights = p.species_weights(env_of(key, 1.0))
+        assert any(s.habitat.landmarks and float(np.max(w)) > 0 for s, w in zip(pool, weights)) or key == "flowering_meadow", key
+    outside = p.species_weights(env_of(""))
+    assert any(float(np.max(w)) > 0 for s, w in zip(*outside) if not s.habitat.landmarks)
+
+
+def test_the_frost_grove_is_cold_and_has_its_own_life(p):
+    assert "frost_grove" in landmarks.LANDMARKS
+    assert landmarks.LANDMARKS["frost_grove"].ambient < 0
+    assert {s.category.name for s in own(p, "frost_grove") if s in p.flora} == {"TREE", "SHRUB", "FLOWER"}

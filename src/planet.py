@@ -105,6 +105,7 @@ FORMS: Dict[str, Tuple[str, ...]] = {
     "meadow_flower": ("flower", "bell", "star", "aster", "daisy"), "meadow_bloom": ("bell", "aster", "star", "lily"),
     "marsh_flower": ("marsh bell", "water star", "bog aster"), "dry_flower": ("sun star", "dust aster", "desert bell"),
     "crystal_bloom": ("frost bell", "glass flower", "shard bloom"),
+    "frost_tree": ("rime fir", "ice pine", "frost spruce"), "rime_shrub": ("rime bush", "frost shrub"), "frost_bloom": ("ice bell", "rime star"),
 }
 # What each form bears: (fruit sprite, fruit name). An oak bears acorns, an apple tree apples; unlisted forms fall back to the
 # template's list. The sprites are the item sheet's row 21 (see components.names.fruit_pos_names).
@@ -177,6 +178,13 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
                   color_range=((70, 130, 50), (140, 190, 90))),
     FloraTemplate("beach_grass", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("beach",)), variants=2, rarity=5.0, fruit_chance=0.2, max_hp=6, growth_cycle=5,
                   name_family="grass", color_range=((170, 180, 90), (225, 220, 140))),
+    FloraTemplate("frost_tree", PlantCategory.TREE, ((3, 8),), Habitat(landmarks=("frost_grove",)), variants=2, rarity=4.0, fruit_chance=0.3, max_hp=16,
+                  growth_cycle=12, color_range=((150, 180, 205), (225, 240, 250)),
+                  wood_bias=(("insulation", 1.5), ("hardness", 1.0), ("elasticity", -1.5), ("flammability", -1.0))),
+    FloraTemplate("rime_shrub", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("frost_grove",)), variants=2, rarity=4.0, fruit_chance=0.4, max_hp=8,
+                  growth_cycle=7, name_family="shrub", color_range=((140, 170, 200), (215, 235, 250))),
+    FloraTemplate("frost_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(landmarks=("frost_grove",)),
+                  variants=2, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=10, name_family="flower", color_range=((170, 200, 240), (240, 248, 255))),
     FloraTemplate("meadow_bloom", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat(landmarks=("flowering_meadow",)),
                   variants=4, rarity=9.0, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower", color_range=((200, 90, 140), (255, 250, 210))),
     FloraTemplate("crystal_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(landmarks=("crystal_badlands",)),
@@ -266,6 +274,7 @@ LANDMARK_FAUNA: Dict[str, LandmarkFauna] = {
     "decayed_land": LandmarkFauna(("rooter", "strider", "hunter"), (110, 100, 110), hp=0.9, power=1),
     "beach": LandmarkFauna(("scuttler", "flitter", "rooter"), (230, 215, 170), defense=1),
     "flowering_meadow": LandmarkFauna(("grazer", "flitter", "hopper"), (240, 170, 200)),
+    "frost_grove": LandmarkFauna(("grazer", "hopper", "hunter"), (205, 225, 245), covering="fur", hp=1.1),
 }
 LANDMARK_FAUNA_RARITY = 4.0
 """A variant is this many times as common as its baseline inside its landmark (it lives nowhere else)."""
@@ -287,6 +296,9 @@ def landmark_variants(templates: Tuple[FaunaTemplate, ...] = FAUNA_TEMPLATES) ->
                 defense=base.defense + traits.defense, rarity=base.rarity * LANDMARK_FAUNA_RARITY))
     return tuple(out)
 
+
+LANDMARK_EXCLUSIVE_AT = 0.5
+"""Landmark strength from which only the landmark's own plants grow (below it the ordinary ones thin out linearly)."""
 
 COVERING_RANGES = {   # property ranges of each body covering's material
     "fur": dict(insulation=(5, 8), tenacity=(3, 5), toughness=(2, 4), hardness=(0.5, 1.5), flammability=(5, 8),
@@ -346,12 +358,25 @@ class Planet:
         """Flora of the given category with their spawn weight for each tile of `env` (arrays): shape (n_species, *tile_shape)."""
         pool = [s for s in self.flora if s.habitat is not None and ((category is None and s.category is not PlantCategory.FLOWER) or s.category is category)]
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
+        if pool and "landmark" in env:
+            weights = weights * self._landmark_exclusivity(pool, env)
         if category is None and pool and "biome" in env:
             share = np.array([biomes.TREE_SHARE[k] for k in biomes.BIOME_IDS])[np.asarray(env["biome"])]
             for i, species in enumerate(pool):
                 if species.category is PlantCategory.TREE:
                     weights[i] = weights[i] * share
         return pool, weights
+
+    def _landmark_exclusivity(self, pool: List[PlantSpecies], env: Mapping[str, object]) -> np.ndarray:
+        """Factor (n_species, *tile_shape): inside a landmark that has plants of its own, the ordinary species thin out with its
+        strength (to nothing in the core), so a mushroom forest holds only fungi. Landmark species are untouched."""
+        import landmarks
+        owned = {k for s in self.flora if s.habitat is not None for k in s.habitat.landmarks}
+        number = np.asarray(env["landmark"])
+        strength = np.asarray(env.get("landmark_strength", 1.0))
+        inside = np.isin(number, [landmarks.LANDMARK_INDEX[k] for k in owned if k in landmarks.LANDMARK_INDEX])
+        crowd = np.where(inside, np.clip(1.0 - strength / LANDMARK_EXCLUSIVE_AT, 0.0, 1.0), 1.0)
+        return np.stack([np.ones_like(crowd) if s.habitat.landmarks else crowd for s in pool])
 
     @property
     def crop(self) -> PlantSpecies:
@@ -468,7 +493,7 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         color = tuple(int(lo[i] + (hi[i] - lo[i]) * t) for i in range(3))
     else:
         color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
-    if template.key not in ("fungal_tree", "dead_tree", "ash_shrub", "crop"):   # (fungus, dead wood and ash keep their own colours)
+    if template.key not in ("fungal_tree", "dead_tree", "ash_shrub", "crop", "frost_tree", "rime_shrub"):   # (fungus, dead wood and ash keep their own colours)
         color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04) + 0.1 * index)    # (a template's variants differ in colour)
     slot = index % len(template.sprites)
     sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])

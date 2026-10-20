@@ -96,6 +96,10 @@ _landmark("flowering_meadow", "Flowering meadow", "Open, airy grass in pale colo
           Habitat(temperature=(-0.2, 0.6), moisture=(0.0, 0.8), elevation=(-0.4, 0.3)),
           threshold=0.26, ground=(150, 190, 120), ground_mix=0.55, cover=_TUFTS, vegetation=0.55, density_floor=0.35, stones=("pale",),
           music="flowering_meadow")
+_landmark("frost_grove", "Frost grove", "Pale, brittle trees furred with rime on blue-white ground, silent and bitterly cold.",
+          Habitat(temperature=(-1.2, -0.3), moisture=(-0.3, 1.0)),
+          threshold=0.22, ground=(176, 200, 226), ground_mix=0.75, cover=_DRY, vegetation=1.0, density_floor=0.5, ambient=-8,
+          stones=("pale", "grey"), music="frost_grove")
 
 LANDMARK_INDEX: Dict[str, int] = {key: i + 1 for i, key in enumerate(LANDMARK_IDS)}
 """Landmark key -> its number in landmark arrays (0 means no landmark)."""

@@ -154,7 +154,7 @@ PROVISIONAL_FORMS = {      # what an unidentified plant looks like, by template 
     "cactus": "spined succulent", "barrel_cactus": "spined succulent", "reeds": "reed-like plant", "bush": "bush", "thorns": "thorny shrub",
     "spore_bush": "puffy fungus", "shard_bush": "glassy shrub", "ash_shrub": "scorched shrub", "dead_tree": "dead tree",
     "beach_grass": "tufted grass", "meadow_flower": "flower", "meadow_bloom": "flower", "marsh_flower": "flower",
-    "dry_flower": "flower", "crystal_bloom": "frosted flower",
+    "dry_flower": "flower", "crystal_bloom": "frosted flower", "frost_tree": "rimed tree", "rime_shrub": "frosted shrub", "frost_bloom": "frosted flower",
 }
 
 
