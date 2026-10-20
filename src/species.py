@@ -94,6 +94,7 @@ class ItemKind(_Definition):
     lit_color: Optional[RGB] = None
     toxicity: int = 0  # turns of poison when eaten (hidden until identified or suffered)
     tool_tags: Tuple[str, ...] = ()  # capabilities held while this tool is carried (see capabilities.py)
+    nights: int = 0                  # a bed that wears out: how many nights it lasts (0: it lasts)
     station: Optional[str] = None    # capability a placed copy provides to crafters nearby (workbench, furnace)
     base_power: int = 0              # property-made weapons: power at a delivery rating of 5 (see items.Gear.power_bonus)
     parent_key: Optional[str] = None  # fruit and blooms: the key of the PlantSpecies that bears it
@@ -288,6 +289,7 @@ PISTOL = register(ItemKind("pistol", "Pistol", sprite=(50, 22), color=(190, 190,
                            damage_type=DamageType.PIERCE, base_power=6))
 # ── Things made of parts that are not worn or wielded ──
 BED = register(ItemKind("bed", "Bed", sprite=(0, 36), color=_WOOD, station="bed"))
+BEDROLL = register(ItemKind("bedroll", "Bedroll", sprite=(0, 37), color=(190, 160, 110), station="bed", nights=3))
 WORKBENCH = register(ItemKind("workbench", "Workbench", sprite=(54, 20), color=_WOOD, station="workbench"))
 FURNACE = register(ItemKind("furnace", "Furnace", sprite=(28, 38), color=(140, 140, 150), station="furnace"))
 TORCH = register(ItemKind("torch", "Torch", sprite=(4, 42), color=color.orange, lit_color=color.orange, light_radius=5))

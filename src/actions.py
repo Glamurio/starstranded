@@ -882,11 +882,17 @@ class SleepAction(Action):
 
     MAX_TURNS = 80
     MIN_NEED = 12
+    NIGHT_TURNS = 20
+    """Turns (an hour) of sleep that count as a night on a bed that wears out."""
 
-    def __init__(self, entity: Unit):
+    def __init__(self, entity: Unit, turns: Optional[int] = None, max_turns: Optional[int] = None):
+        """`turns`: sleep exactly this long (unless woken); without it you sleep until daylight, at most `max_turns`."""
         super().__init__(entity)
         self.slept = 0
         self.hp = None
+        self.turns = turns
+        self.max_turns = max_turns or self.MAX_TURNS
+        self.bed = None
 
     def _bed(self):
         world, e = self.engine.game_map, self.entity
@@ -914,8 +920,9 @@ class SleepAction(Action):
         user, engine = self.entity, self.engine
         log = engine.message_log
         if self.slept == 0:
-            if self._bed() is None:
-                raise exceptions.Impossible("You need a bed next to you to sleep. Build one ('R').")
+            self.bed = self._bed()
+            if self.bed is None:
+                raise exceptions.Impossible("You need a bed or a bedroll next to you to sleep. Make one ('R').")
             if self._enemy_in_view():
                 raise exceptions.Impossible("You cannot sleep with an enemy in sight.")
             if user.hunger < self.MIN_NEED or user.thirst < self.MIN_NEED:
@@ -942,10 +949,29 @@ class SleepAction(Action):
         if self.slept % 3 == 0:
             user.heal(1)
         daylight = __import__("lighting").daylight(engine.game_world.current_time, engine.config)
-        if self.slept >= self.MAX_TURNS or (self.slept >= 30 and daylight > 0.6):
+        if self.turns is not None:
+            done = self.slept >= self.turns
+        else:
+            done = self.slept >= self.max_turns or (self.slept >= 30 and daylight > 0.6)
+        if done:
             log.add_message("You wake up rested.", color.green)
+            self._wear_bed()
             return False
         return True
+
+    def _wear_bed(self) -> None:
+        """A bedroll lasts a few nights: a night's sleep on it uses one up, and the last one leaves it threadbare."""
+        bed = self.bed
+        if bed is None or getattr(getattr(bed, "kind", None), "nights", 0) <= 0 or self.slept < self.NIGHT_TURNS:
+            return
+        left = getattr(bed, "nights_left", bed.kind.nights) - 1
+        bed.nights_left = left
+        if left <= 0:
+            self.engine.message_log.add_message("Your bedroll is worn through; you leave it behind.", color.orange)
+            if bed.parent is not None:
+                bed.parent.remove_entity(bed)
+        elif left == 1:
+            self.engine.message_log.add_message("Your bedroll is getting threadbare: one more night.", color.orange)
 
 
 class PlaceConstructableAction(Action):

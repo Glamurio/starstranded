@@ -192,3 +192,37 @@ def test_engine_render_with_status_panel(small_world):
     from ui_helpers import SESSION
     engine = new_game()
     engine.render(SESSION.canvas)
+
+
+def test_a_bedroll_is_made_of_fibre_and_wears_out_after_three_nights(monkeypatch):
+    import recipes
+    assert any(r.key == "bedroll" for r in recipes.RECIPES)
+    e = new_game()
+    p = e.player
+    freeze(monkeypatch, 15.0)
+    monkeypatch.setattr(actions.SleepAction, "_enemy_in_view", lambda self: False)
+    calm(e)
+    roll = Placed(defs.BEDROLL, {"padding": characters.ISSUE_STEEL}, 1.0, "bedroll", {}, {}, "padding")
+    roll.place_on_map(p.x + 1, p.y, e.game_map)
+    assert roll.station == "bed"
+    for night in range(3):
+        p.hunger = p.thirst = 100
+        p.hp = p.max_hp
+        action = actions.SleepAction(p, turns=20)
+        while action.perform() is not False:
+            pass
+        assert action.slept == 20
+    assert roll.parent is None                  # worn through after the third night
+
+
+def test_the_sleep_chooser_gives_a_timed_sleep():
+    import input_handlers as ih
+    e = new_game()
+    place_bed(e)
+    e.session.reset(ih.MainGameEventHandler(e))
+    handler = ih.SleepDurationHandler(e)
+    e.session.push(handler)
+    action = handler.action_for(1)
+    assert action.turns == 4 * handler.TURNS_PER_HOUR
+    e.session.push(handler)
+    assert handler.action_for(3).turns is None

@@ -603,6 +603,53 @@ def ui_right() -> int:
     return ui.RIGHT
 
 
+class SleepDurationHandler(Panel):
+    """How long to sleep (Z next to a bed or bedroll)."""
+
+    TITLE = "Sleep"
+    WIDTH = 34
+    HEIGHT = 12
+    X = 12
+    Y = 14
+    HINTS = [("Up/Down", "choose"), ("Enter", "sleep"), ("Esc", "cancel")]
+    OPTIONS = (("2 hours", 2), ("4 hours", 4), ("8 hours", 8), ("Until morning", None))
+    TURNS_PER_HOUR = 20      # (a 480-turn day is 24 hours)
+
+    def __init__(self, engine):
+        super().__init__(engine)
+        import widgets
+        self.choices = widgets.Choices([label for label, _ in self.OPTIONS], gap=0)
+
+    def on_render(self, canvas: Canvas) -> None:
+        from ui import Theme
+        ix, iy, iw, ih = self.frame(canvas)
+        canvas.print(ix, iy, "How long will you sleep?", fg=Theme.TITLE)
+        self.choices.draw(canvas, ix, iy + 2, iw)
+
+    def action_for(self, index: int):
+        hours = self.OPTIONS[index][1]
+        player = self.engine.player
+        self.resolve_handler()                    # this question is answered; the sleep runs on the map
+        if hours is None:
+            return actions.SleepAction(player, max_turns=self.TURNS_PER_HOUR * 12)
+        return actions.SleepAction(player, turns=hours * self.TURNS_PER_HOUR)
+
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
+        if event.sym == Key.ESCAPE:
+            return self.on_exit()
+        chosen = self.choices.handle(event)
+        return self.action_for(chosen) if chosen is not None else None
+
+    def ev_mousemotion(self, event) -> None:
+        self.choices.handle(event)
+
+    def ev_mousebuttondown(self, event) -> Optional[ActionOrHandler]:
+        if event.button == MouseButton.RIGHT:
+            return self.on_exit()
+        chosen = self.choices.handle(event)
+        return self.action_for(chosen) if chosen is not None else None
+
+
 class LevelUpEventHandler(Panel):
     TITLE = "Level up"
     WIDTH = 44
@@ -1347,7 +1394,9 @@ class MainGameEventHandler(EventHandler):
         elif key == Key.T:
             return actions.SharpenAction(player)  # put an edge on the wielded tool
         elif key == Key.Z:
-            return actions.SleepAction(player)    # sleep on a bed
+            if actions.SleepAction(player)._bed() is None:
+                return actions.SleepAction(player)          # (it says what is missing)
+            return SleepDurationHandler(self.engine)         # sleep on a bed: for how long?
         elif key == Key.P:
             return SingleRangedAttackHandler(self.engine, lambda xy: actions.FireAction(player, *xy))  # fire the pistol
         elif key == Key.K:
