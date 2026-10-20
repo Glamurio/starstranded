@@ -608,6 +608,9 @@ class World(SpatialContainer):
                         continue
                     if getattr(entity, "decal", False):
                         picture = atlas.get_decal(entity.pattern, entity.variant, entity.shade)
+                    elif getattr(entity, "skeleton", None):
+                        import decay
+                        picture = get(entity.sprite_id, False, decay.BONE_COLOR)
                     elif entity.is_corpse and entity.category is EntityCategory.UNIT:
                         picture = atlas.get_remains(entity.sprite_id, entity.mirrored and getattr(entity.kind, "mirror", False), entity.shade)
                     elif getattr(entity, "scenery", False):

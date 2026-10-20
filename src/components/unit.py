@@ -27,6 +27,8 @@ class Unit(Entity):
     object_type = "Unit"
     has_inventory = True
     kind: UnitSpecies
+    died_at: Optional[int] = None       # game time of death (decay.py ages the corpse from then)
+    skeleton: Optional[str] = None      # "animal" or "human" once the corpse has rotted to bones
 
     def __init__(self, species: UnitSpecies, name: Optional[str] = None):
         Entity.__init__(self, species)
@@ -130,6 +132,14 @@ class Unit(Entity):
         return not self.is_alive
 
     @property
+    def sprite_id(self) -> int:
+        if self.skeleton:
+            import decay
+            from tile_types import sprite_id
+            return sprite_id(*decay.SKELETON_SPRITES[self.skeleton])
+        return Entity.sprite_id.fget(self)
+
+    @property
     def has_ai(self) -> bool:
         """Returns True as long as this unit can perform actions."""
         return bool(self.ai)
@@ -199,6 +209,8 @@ class Unit(Entity):
         self.blocks_sight = False
         self.ai = None
         self.is_alive = False
+        game_world = getattr(self.engine, "game_world", None)
+        self.died_at = int(game_world.current_time) if game_world is not None else None
         self.render_order = RenderOrder.CORPSE
 
         self.inventory.add(Meat(self.species, self.inventory, self.kind), force=True)
@@ -306,6 +318,8 @@ class Unit(Entity):
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
         description = f'{" ".join(attributes)} {self.species}' if attributes else self.species
+        if self.skeleton:
+            return f'skeleton of {self.name}' if self.name else naming.lower_first(f'{self.species} skeleton')
         if not self.is_alive:
             return f'remains of {self.name}' if self.name else naming.lower_first(f'{self.species} remains')
         return f'{self.name}, the {description}' if self.name else (description if self.kind.key.startswith("planet:") else naming.lower_first(description))

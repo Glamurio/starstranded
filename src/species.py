@@ -254,8 +254,9 @@ PIECE_BRICK = _piece("piece_brick", "Brick", (31, 33))
 PIECE_GLASS = _piece("piece_glass", "Glass", (2, 24))
 PIECE_CORD = _piece("piece_cord", "Cord", (100, 1))
 PIECE_WIRE = _piece("piece_wire", "Wire", (55, 9))
+PIECE_BONE = _piece("piece_bone", "Bone", (0, 27))
 PIECE_FORMS = (PIECE_STONE, PIECE_ORE, PIECE_FIBER, PIECE_HIDE, PIECE_FEATHER, PIECE_CHITIN, PIECE_SCALE, PIECE_SAND, PIECE_CLAY, PIECE_COAL, PIECE_INGOT,
-               PIECE_BRICK, PIECE_GLASS, PIECE_CORD, PIECE_WIRE)
+               PIECE_BRICK, PIECE_GLASS, PIECE_CORD, PIECE_WIRE, PIECE_BONE)
 
 # What covers an animal's body -> (the piece it leaves, the noun in the material's name). Fur and skin are hides (they make
 # leather things); feathers pad, chitin and scales armour and edge. Every covering is good for something (see recipes.py).

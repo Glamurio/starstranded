@@ -824,3 +824,7 @@ Appearance, species identity and behaviour are already separate fields of `Fauna
 - **Scenery colours vary like everything else.** Stones take 65% of the colour of the planet's rock for the biome and every piece turns +-4% in hue and +-12% in brightness (`scenery.vary`); bones vary around bone white.
 - **No dot under objects.** On bare ground (the plain dotted floor tile) an entity other than a stain draws no dot under it (`World._clear_dots_under_objects`). House interiors use the same tile, so they lose the dot under objects too.
 - **Codex pictures.** Each entry has a small picture in the list and a large one beside its name (`lore.codex_pictures`): the creature or plant itself, a piece (ore, coal, sand, stone ...) tinted in the material's colour, water for liquids, a wall for ruins.
+
+## Decay (corpse, skeleton, gone)
+**What.** `decay.py`. A dead creature is a corpse (meat, hide, blood) for 3 days, then a skeleton for up to 12 days after death, then removed. Skeletonising empties the corpse's loot and the blood on its tile and leaves 1-3 bones (animals) or 2-4 (people), each a `PIECE_BONE` of its own rolled bone material (`bone:<n>`, properties unrelated to the creature's). Animals show a ribcage, people a standing skeleton. Meat now rolls its hunger value per piece (7-14). Chunks are aged about eight times a day while loaded, and caught up on restore, like wildlife.
+**Why.** Corpses piled up forever and blood never cleared. **Alternative.** A timer entity per corpse; rejected, as a pass over loaded chunks is simpler and also covers days away.

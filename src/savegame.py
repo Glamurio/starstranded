@@ -165,6 +165,8 @@ def restore_chunk(world: World, blob: bytes) -> Chunk:
                 upkeep(entity, now)
         import wildlife
         wildlife.settle(world, chunk, now)            # the days spent away: births, and ground that fills up again
+        import decay
+        decay.settle(world, chunk, now)               # ... and the corpses that rotted meanwhile
     return chunk
 
 

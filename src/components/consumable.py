@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import Optional, TYPE_CHECKING, Union
 
 import actions
@@ -63,6 +64,10 @@ class FoodConsumable(Consumable):
         return message
 
 
+MEAT_HUNGER = (7, 8, 9, 10, 11, 12, 14)
+"""How much hunger a piece of meat restores: rolled per piece."""
+
+
 class Meat(FoodConsumable):
     nutrition = "meat"
 
@@ -71,6 +76,11 @@ class Meat(FoodConsumable):
         self._material = material  # which creature it came from
         self.source = source       # that creature's kind: the name is looked up live, so it updates once the species is learned
         self.parent = parent
+        self.nourishment = random.choice(MEAT_HUNGER)       # every carcass is a little different
+
+    @property
+    def hunger_amount(self) -> int:
+        return getattr(self, "nourishment", None) or self.kind.hunger_amount
 
     @property
     def material(self) -> str:

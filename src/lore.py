@@ -15,7 +15,7 @@ from liquids import LiquidKind
 from materials import PROPERTY_KEYS, PROPERTY_READING, Material
 from skills import Skill
 
-ALWAYS_KNOWN = ("issue:", "wood:generic", "hide:generic")
+ALWAYS_KNOWN = ("issue:", "wood:generic", "hide:generic", "bone:")
 
 
 # ── subjects ────────────────────────────────────────────────────────────────────────────────────────────────
