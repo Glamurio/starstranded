@@ -1,4 +1,20 @@
 {
+ "cave.bone_vault.cover.0": [
+  0,
+  38
+ ],
+ "cave.bone_vault.cover.1": [
+  4,
+  38
+ ],
+ "cave.mycelial.cover.0": [
+  16,
+  6
+ ],
+ "cave.mycelial.cover.2": [
+  3,
+  10
+ ],
  "fauna.cave_bat": [
   8,
   18
@@ -10,6 +26,26 @@
  "fauna.cave_worm": [
   124,
   0
+ ],
+ "flora.barrel_cactus.0": [
+  103,
+  0
+ ],
+ "flora.beach_grass.0": [
+  15,
+  5
+ ],
+ "flora.fern.0": [
+  18,
+  9
+ ],
+ "flora.flesh_pod.0": [
+  7,
+  26
+ ],
+ "flora.fungal_tree.0": [
+  2,
+  10
  ],
  "item.ammo": [
   68,
@@ -70,6 +106,10 @@
  "item.omnitool": [
   68,
   23
+ ],
+ "item.piece_bone": [
+  9,
+  38
  ],
  "item.piece_brick": [
   31,
@@ -198,6 +238,70 @@
  "item.wreckage": [
   19,
   6
+ ],
+ "scenery.bones.0": [
+  2,
+  38
+ ],
+ "scenery.crystal_cluster.0": [
+  123,
+  0
+ ],
+ "scenery.crystal_cluster.1": [
+  0,
+  24
+ ],
+ "scenery.crystal_cluster.2": [
+  123,
+  0
+ ],
+ "scenery.driftwood.0": [
+  17,
+  31
+ ],
+ "scenery.glass_shards.1": [
+  17,
+  5
+ ],
+ "scenery.gravestone.0": [
+  7,
+  39
+ ],
+ "scenery.mushroom_ring.0": [
+  3,
+  10
+ ],
+ "scenery.pebbles.0": [
+  9,
+  5
+ ],
+ "scenery.pebbles.1": [
+  17,
+  5
+ ],
+ "scenery.pipe.0": [
+  52,
+  31
+ ],
+ "scenery.shell.0": [
+  7,
+  23
+ ],
+ "scenery.skull.0": [
+  1,
+  38
+ ],
+ "scenery.small_rocks.0": [
+  17,
+  5
+ ],
+ "scenery.small_rocks.1": [
+  5,
+  13
+ ],
+ "scenery.wreck_truck.0": [
+  56,
+  7
  ],
  "tile.bridge": [
   11,
