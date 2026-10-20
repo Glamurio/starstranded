@@ -3,6 +3,14 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Biome regions round, 20 Oct 2026
+- New: the world is divided into large regions (about 120 x 120 tiles) of 72 biomes in 12 families, blended at their borders; landmarks are removed. Ground, plants, scenery, animals, music and caves follow the region.
+- New: hot, cold, wet and dry variants of a biome (tint, vegetation, temperature, name).
+- New: abandoned cities (street grids, buildings, towers, wrecks, lamp posts) in urban biomes. Removed: settlers and every populated settlement; farms and hamlets are abandoned and never stand in cities.
+- New: points of interest in every biome (standing stones, bone piles, graveyards, wreck fields, ruined cabins, research outposts, abandoned farm plots) built from the region's own stone and timber.
+- Changed: cave biomes follow the surface biome above them (less so with depth); Selenites stay rare.
+- Changed: old saves no longer load.
+
 ## World readability round, 19 Oct 2026
 - Farms: fences are breakable wooden fence entities, farmhouses have timber walls, and the field rows are real harvestable, regrowing crop plants (never found wild).
 - Changed: lakes, rivers and seas come in a wide range of vivid colours again (blue, teal, green, yellow, violet, magenta); a lake keeps its colour and different places differ.
