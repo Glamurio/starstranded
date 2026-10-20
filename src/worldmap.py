@@ -19,12 +19,12 @@ FLAG = "map"
 @dataclass(frozen=True)
 class Known:
     """What is known of one chunk: how many of its tiles were seen, their average colour, how much of what was seen is
-    water and rock, and the landmark it lies in (`""` for none)."""
+    water and rock, and the biome it lies in (`""` for none)."""
     seen: int
     color: Tuple[int, int, int]
     water: float
     rock: float
-    landmark: str = ""
+    biome: str = ""
 
     @property
     def share(self) -> float:
@@ -39,7 +39,7 @@ def records(run) -> Dict[ChunkKey, Known]:
 
 def summarise(chunk, master_seed: Optional[int] = None) -> Optional[Known]:
     """A record from the explored tiles of a loaded chunk (None when none are explored). `master_seed` also names the
-    landmark; without it (tests of a fixed landscape) there is none."""
+    biome; without it (tests of a fixed landscape) there is none."""
     explored = chunk.explored
     seen = int(explored.sum())
     if not seen:
@@ -49,23 +49,23 @@ def summarise(chunk, master_seed: Optional[int] = None) -> Optional[Known]:
     rock = explored & ~water & ~tiles["walkable"] & ~tiles["open"]
     colors = tiles["light"]["fg"][explored].astype(float)
     color = tuple(int(c) for c in colors.mean(axis=0))
-    return Known(seen, color, float(water.sum()) / seen, float(rock.sum()) / seen, _landmark(chunk, master_seed))
+    return Known(seen, color, float(water.sum()) / seen, float(rock.sum()) / seen, _biome(chunk, master_seed))
 
 
-def _landmark(chunk, master_seed: Optional[int]) -> str:
+def _biome(chunk, master_seed: Optional[int]) -> str:
+    """The biome that most of the explored tiles of a chunk belong to ("" when unknown)."""
     if master_seed is None:
         return ""
-    import landmarks
+    import biomes
     import shafts
     try:
         env = shafts.environment(master_seed, chunk.key)
     except Exception:       # a fixed test landscape has no climate behind it
         return ""
-    found = env["landmark"][chunk.explored]
-    found = found[found > 0]
-    if found.size < 0.2 * max(int(chunk.explored.sum()), 1):
+    found = env["biome"][chunk.explored]
+    if not found.size:
         return ""
-    return landmarks.key_of(int(np.bincount(found).argmax()))
+    return biomes.BIOME_IDS[int(np.bincount(found).argmax())]
 
 
 def record(engine) -> None:

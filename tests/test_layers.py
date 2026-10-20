@@ -119,8 +119,10 @@ def test_caves_are_dark_and_hold_selenites(new_engine):
     assert cave.has_sky is False and cave.z == -1
     import lighting
     assert lighting.ambient_radius(cave, 72, e.config) == e.config.night_view_radius  # noon, still dark
+    import underground
     species = {u.species for u in cave.units if u is not e.player}
-    assert species and "Selenite" in species
+    assert species                                        # (which creatures turn up is a matter of chance: Selenites are rare visitors)
+    assert underground.VISITORS["default"][0] > 0 and underground.VISITORS["ruins"][0] > underground.VISITORS["default"][0]
 
 
 def test_open_tiles_show_the_layer_below(new_engine):

@@ -104,6 +104,7 @@ def test_gas_pockets_are_deterministic_and_only_deep():
 def test_breath_lasts_by_race_and_then_you_suffocate(monkeypatch, race, expected):
     e = new_game(race)
     p = e.player
+    freeze(monkeypatch, 15.0)          # (the weather is not what is tested)
     monkeypatch.setattr(survival, "gas_at", lambda *a: True)
     hp = p.hp
     for _ in range(expected - 1):

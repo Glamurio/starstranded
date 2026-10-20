@@ -8,11 +8,11 @@ What plays is decided by three things, in this order of priority (the *priority 
    and a higher-priority category may take over from a lower one mid-fight. Combat starts at once (short fade) and ends
    `combat_cooldown` seconds after the last hostile left view; then the exploration track that was playing is resumed from where it was
    cut off (or a new one starts if little of it was left).
-2. **Landmark** - inside a landmark (a landmark names its pool with its `music` key), with hysteresis: the pool is entered at
+2. **Region** - inside a biome that has music of its own (`Biome.music`, else its family's), with hysteresis: the pool is entered at
    strength `landmark_enter` and left below `landmark_leave`, so walking along an edge does not flap. A track that belongs to the
    wanted pool is never interrupted or restarted; a track from another pool is replaced (fade out, fade in) only once the wanted
    pool has been steady for `switch_delay` seconds, and a track that ends is followed by one of the wanted pool.
-3. **Biome** - the pool the manifest's `biomes` table gives the biome the player stands in (forest, plains, cold, wet, dry), if it has tracks.
+3. **Generic** - the biome family's general pool (forest, plains, cold, wet, dry), if it has tracks. The manifest's `biomes` table overrides the pool of single biomes.
 4. **Ambient** - everywhere else: the `ambient` pool, which is the fallback of everything above it.
 
 Tracks are picked by weight and never repeat the one just played (when the pool has another). Everything is data: `data/music.json`
@@ -370,7 +370,7 @@ class MusicDirector:
         """Look at the game and decide; call a few times a second."""
         now = self.clock()
         self._hysteresis(context)
-        self.biome = self.manifest.get("biomes", {}).get(context.biome, "")
+        self.biome = context.biome
         if context.threat:
             self.threat_until = now + self.timing["combat_cooldown"]
         fighting = now < self.threat_until
@@ -540,13 +540,15 @@ def context_for(engine, manifest: dict) -> Context:
     game_world = getattr(engine, "game_world", None)
     if game_world is not None:
         try:
-            landmark, strength = resources.landmark_at(game_world, world.z, player.x, player.y)
-            biome = resources.biome_key_at(game_world, world.z, player.x, player.y) if world.z == 0 else ""
+            import biomes
+            key, strength = resources.biome_and_share(game_world, world.z, player.x, player.y)
+            if key:
+                info = biomes.BIOMES[key]
+                overrides = manifest.get("biomes", {})
+                landmark = overrides.get(key) or info.music_pool
+                biome = info.generic_pool
         except Exception:
             landmark, strength, biome = "", 0.0, ""
-        import landmarks
-        if landmark in landmarks.LANDMARKS:
-            landmark = landmarks.LANDMARKS[landmark].music or ""
     rank = {c: i for i, c in enumerate(manifest["combat"]["priority"])}
     best: Optional[str] = None
     import debug

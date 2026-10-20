@@ -103,18 +103,24 @@ def test_nothing_wild_grows_or_lies_on_built_ground():
                 assert not (isinstance(entity, Unit) and entity.kind.faction == "wildlife"), (kind, local)
 
 
-def test_houses_hold_supplies_and_settlers_live_there():
+def test_houses_hold_supplies_and_nobody_lives_there():
     from components.consumable import Ration
-    from components.unit import Settler
-    for kind, low in (("farm", 1), ("town", 2)):
+    from components.unit import Unit
+    for kind in ("farm", "town"):
         key, world, chunk = _load(kind)
         layout = settlements.layout(SEED, key)
-        people = [e for e in chunk.entities if isinstance(e, Settler)]
-        assert low <= len(people) <= 4 and all(p.faction == "federation" and not p.ai.is_hostile for p in people)
+        assert not [e for e in chunk.entities if isinstance(e, Unit) and e.kind.faction == "federation"], "an abandoned place has no inhabitants"
         rations = [e for e in chunk.entities if isinstance(e, Ration)]
         assert len(rations) >= len(layout.houses)
         for ration in rations:
             assert any(h.x < ration.x - chunk.x0 < h.x + h.w - 1 and h.y < ration.y - chunk.y0 < h.y + h.h - 1 for h in layout.houses)
+
+
+def test_there_are_no_settlers_or_settlement_npcs_in_the_game():
+    import components.unit as units
+    import species
+    assert not hasattr(units, "Settler") and not hasattr(species, "SETTLER")
+    assert "settler" not in species.UNIT_SPECIES if hasattr(species, "UNIT_SPECIES") else True
 
 
 def test_a_farm_is_built_of_fence_timber_and_crop_entities():

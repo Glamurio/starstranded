@@ -28,7 +28,7 @@ def test_every_planet_name_is_made_of_lexicon_words():
     ns, (starts, middles, ends) = _pools()
     for kind in list(planet.fauna) + list(planet.flora):
         for word in kind.name.replace("-", " ").lower().split():
-            if word.isalpha() and word not in {"ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"}:
+            if word.isalpha() and word not in {"ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv"}:
                 assert _fits(word, starts, middles, ends), (kind.name, word)
 
 

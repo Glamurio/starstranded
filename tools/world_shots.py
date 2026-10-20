@@ -1,6 +1,6 @@
 """Render the real game view at a chosen kind of place (python tools/world_shots.py [seed] spec ...), into ./shots/w_<spec>.png.
 
-A spec is `biome:<key>`, `landmark:<key>` or `water` (the nearest such open ground to the start is found from the terrain
+A spec is `biome:<key>`, `family:<key>`, `at:X,Y` or `water` (the nearest such open ground to the start is found from the terrain
 noise, the player is teleported there in God Mode and the viewport is drawn exactly as in play). Used for before/after pictures
 and blind reviews."""
 import os
@@ -19,7 +19,6 @@ import biomes  # noqa: E402
 import characters  # noqa: E402
 import debug  # noqa: E402
 import input_handlers as ih  # noqa: E402
-import landmarks  # noqa: E402
 import setup_game  # noqa: E402
 import worldgen  # noqa: E402
 from session import Session  # noqa: E402
@@ -28,35 +27,47 @@ OUT = os.path.join(ROOT, "shots")
 os.makedirs(OUT, exist_ok=True)
 
 
-def find_spot(noise, spec, radius=700):
-    """The open-ground tile nearest the origin that satisfies `spec` (searching a coarse grid, then refining)."""
+def find_spot(noise, spec, radius=3000):
+    """An open-ground tile of a place that satisfies `spec` (`biome:KEY`, `family:KEY`, `water`, `at:X,Y`), the nearest region to the start:
+    the regions are looked up on a coarse grid, the nearest hit is then refined to a tile in the middle of its open ground."""
+    import regions
     kind, _, key = spec.partition(":")
     if kind == "at":                    # at:X,Y
         x, y = key.split(",")
         return int(x), int(y)
-    best = None
-    for y0 in range(-radius, radius, 100):
-        for x0 in range(-radius, radius, 100):
-            kinds = worldgen.base_terrain(noise, x0, y0, 100, 100)
-            env = worldgen.environment_for(noise, x0, y0, 100, 100, kinds)
-            if kind == "biome":
-                ok = (env["biome"] == biomes.BIOME_IDS.index(key)) & (kinds == 1)
-            elif kind == "landmark":
-                ok = (env["landmark"] == landmarks.LANDMARK_INDEX[key]) & (env["landmark_strength"] > 0.7) & (kinds == 1)
-            else:   # water: open ground that touches a lake
-                wet = kinds == 0
-                near = np.zeros_like(wet)
-                near[1:-1, 1:-1] = wet[2:, 1:-1] | wet[:-2, 1:-1] | wet[1:-1, 2:] | wet[1:-1, :-2]
-                ok = near & (kinds == 1)
-            xs, ys = np.nonzero(ok[10:-10, 10:-10])
-            if len(xs) < 40:
-                continue
-            k = len(xs) // 2
-            cx, cy = x0 + 10 + int(xs[k]), y0 + 10 + int(ys[k])
-            d = abs(cx) + abs(cy)
-            if best is None or d < best[0]:
-                best = (d, cx, cy)
-    return None if best is None else best[1:]
+    wanted = None
+    if kind == "biome":
+        wanted = {biomes.BIOME_IDS.index(key)}
+    elif kind == "family":
+        wanted = {i for i, k in enumerate(biomes.BIOME_IDS) if biomes.BIOMES[k].family == key}
+    candidates = []
+    step = 60
+    for y0 in range(-radius, radius, step):
+        for x0 in range(-radius, radius, step):
+            if wanted is not None:
+                index = biomes.BIOME_IDS.index(regions.biome_at(noise, x0, y0))
+                if index not in wanted:
+                    continue
+            candidates.append((abs(x0) + abs(y0), x0, y0))
+    if wanted is None:
+        candidates = [(abs(x0) + abs(y0), x0, y0) for y0 in range(-1200, 1200, 100) for x0 in range(-1200, 1200, 100)]
+    for _, x0, y0 in sorted(candidates):
+        x0, y0 = x0 - 50, y0 - 50
+        kinds = worldgen.base_terrain(noise, x0, y0, 100, 100)
+        env = worldgen.environment_for(noise, x0, y0, 100, 100, kinds)
+        if wanted is not None:
+            ok = np.isin(env["biome"], list(wanted)) & (env["edge"] < 0.05) & (kinds == 1)
+        else:   # water: open ground that touches a lake
+            wet = kinds == 0
+            near = np.zeros_like(wet)
+            near[1:-1, 1:-1] = wet[2:, 1:-1] | wet[:-2, 1:-1] | wet[1:-1, 2:] | wet[1:-1, :-2]
+            ok = near & (kinds == 1)
+        xs, ys = np.nonzero(ok[10:-10, 10:-10])
+        if len(xs) < 200:
+            continue
+        k = len(xs) // 2
+        return x0 + 10 + int(xs[k]), y0 + 10 + int(ys[k])
+    return None
 
 
 def find_settlement(engine, kind):

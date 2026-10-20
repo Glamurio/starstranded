@@ -57,8 +57,9 @@ def test_nothing_you_can_pick_up_is_hidden_under_foliage_or_scenery(world_entiti
 
 def test_scenery_follows_the_environment():
     shape = (4, 3)
-    desert = {"biome": np.full(shape, 10), "landmark": np.full(shape, -1), "landmark_strength": np.zeros(shape)}
-    forest = {"biome": np.full(shape, 4), "landmark": np.full(shape, -1), "landmark_strength": np.zeros(shape)}
+    import biomes
+    desert = {"biome": np.full(shape, biomes.BIOME_INDEX["desert"])}
+    forest = {"biome": np.full(shape, biomes.BIOME_INDEX["temperate_woodland"])}
     bones = scenery.BY_KEY["bones"]
     assert scenery.weights(bones, desert).mean() > 4 * scenery.weights(bones, forest).mean()
     rubble = scenery.BY_KEY["rubble"]

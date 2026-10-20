@@ -857,3 +857,10 @@ tiers: "region" for the large exotic ones (mushroom forest, frost grove, cactus 
 local features (beach, meadow, crystal badlands, volcanic field, and later hot springs, oases, ruins). Code-wise both stay in
 `landmarks.py`; a `scale`/`kind` field would drive the codex wording and the map legend. Merging them into `biomes.py` would mean
 giving them climate bands, which would make them cover every matching tile (no more rarity), so we keep them noise-placed.
+
+
+## World-scale biome regions replace climate biomes and landmarks (20 Oct 2026)
+- **What:** The surface is divided into jittered-Voronoi regions (`regions.py`), each with one biome from a 72-biome catalogue (`biomes.py`, 12 families). Landmarks are gone; cities (`urban.py`) and points of interest (`pois.py`, called from `_place_sites`) are the only site systems. Variants (hot, cold, wet, dry) are flags that modify tint, vegetation, ambient temperature and name.
+- **Why:** Large coherent regions with blended borders read as places, and they are a pure function of seed and coordinates, so loading order cannot change them. One catalogue entry carries ground, plants, scenery, fauna adaptation, music, underground biome and sites, so nothing competes.
+- **Alternatives:** per-tile climate lookup (fragmented, no identity); per-chunk assignment (visible chunk seams); automatic variant combinations (rejected by the brief; a suggestion list is in `docs/BIOMES.md`).
+- **Also decided:** no settlers or NPCs anywhere (class, species and sprite removed; farms and hamlets are abandoned); cities and volcanic/crystal regions hold no farms; ground stays a dim backdrop (readability) so a biome's colour is carried by dots, cover and scenery; old saves are incompatible; 6 biomes are marked basic and said so.

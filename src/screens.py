@@ -336,11 +336,11 @@ class WorldMapHandler(AskUserEventHandler):
         if info is None:
             lines.append(("Undiscovered", Theme.DIM))
         else:
-            from landmarks import LANDMARKS
+            import biomes
             state = "in view" if self.cursor in visible else "explored"
             lines.append((f"{state}, {round(info.share * 100)}% seen", Theme.TEXT))
-            if info.landmark in LANDMARKS:
-                lines.append((LANDMARKS[info.landmark].name, Theme.KEY))
+            if info.biome in biomes.BIOMES:
+                lines.append((biomes.BIOMES[info.biome].name, Theme.KEY))
             terrain = [f"{round(info.water * 100)}% water"] if info.water >= 0.05 else []
             if info.rock >= 0.05:
                 terrain.append(f"{round(info.rock * 100)}% rock")

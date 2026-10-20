@@ -12,20 +12,51 @@ from chunks import CHUNK_H, CHUNK_W
 MASTER = 1234
 
 
-def _share():
+def _share(z=-1, seeds=(MASTER, 5, 77, 900, 31337, 4)):
     counts = np.zeros(len(ug.UBIOME_IDS))
-    for kx in range(-6, 7):
-        for ky in range(-6, 7):
-            counts += np.bincount(ug.field(MASTER, -1, (kx, ky)).ravel(), minlength=len(ug.UBIOME_IDS))
+    for seed in seeds:
+        for kx in range(-14, 15, 2):
+            for ky in range(-10, 11, 2):
+                counts += np.bincount(ug.field(seed, z, (kx, ky)).ravel(), minlength=len(ug.UBIOME_IDS))
     return dict(zip(ug.UBIOME_IDS, counts / counts.sum()))
 
 
-def test_every_biome_is_common_enough_and_none_is_everything():
-    share = _share()
-    for key in ug.UBIOME_IDS:
-        if key != "ruins":
-            assert 0.05 < share[key] < 0.5, share
-    assert share["ruins"] > 0
+def test_every_biome_occurs_and_none_is_everything():
+    for z in (-1, -3):
+        share = _share(z)
+        for key in ug.UBIOME_IDS:
+            if key != "ruins":
+                assert 0.004 < share[key] < 0.45, (z, share)
+        assert share["ruins"] > 0
+
+
+def test_the_caves_follow_the_surface_above_them_but_less_with_depth():
+    import biomes
+    import regions
+    import shafts as sh
+    follow = {}
+    for z in (-1, -2, -5):
+        hit = total = 0
+        for seed in (1, 2, 3, 4):
+            for kx in range(-8, 9, 4):
+                for ky in range(-6, 7, 4):
+                    above = ug._surface_to_under()[regions.field(sh.terrain_noise(seed), kx * CHUNK_W, ky * CHUNK_H, CHUNK_W, CHUNK_H).biome]
+                    below = ug.field(seed, z, (kx, ky))
+                    ok = below != ug.RUINS
+                    hit += int((above == below)[ok].sum())
+                    total += int(ok.sum())
+        follow[z] = hit / total
+    assert follow[-1] > 0.45 and follow[-1] > follow[-2] > follow[-5] - 0.02, follow
+    assert follow[-5] < follow[-1] - 0.15, follow
+
+
+def test_every_underground_biome_has_cover_or_creatures_and_creatures_exist():
+    import planet as plmod
+    keys = {t.key for t in plmod.CAVE_FAUNA}
+    for b in ug.UBIOMES.values():
+        assert b.fauna, b.key
+        assert all(k in keys for k, _ in b.fauna), b.key
+        assert b.cover or b.key in ("ice", "ruins"), b.key
 
 
 def test_the_biome_under_a_chunk_border_is_the_same_from_both_sides():

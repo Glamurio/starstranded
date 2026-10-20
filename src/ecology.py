@@ -1,8 +1,8 @@
 """Environmental suitability: where a species can live.
 
 A `Habitat` states what an organism needs: temperature, moisture, elevation, soil fertility, light and nearness to water
-(each an inclusive range on the environment scales below) and, optionally, which special substrates (biome keys) it is
-restricted to. `suitability` turns that and an environment into a weight between 0 (cannot live here) and 1 (ideal): a
+(each an inclusive range on the environment scales below) and, optionally, which biomes it is restricted to (`substrate`: biome
+or biome-family keys, see `biomes.members`; on a border between regions the share of the neighbouring region counts). `suitability` turns that and an environment into a weight between 0 (cannot live here) and 1 (ideal): a
 trapezoid per requirement (full inside the range, falling to 0 over `SOFT` outside it) multiplied together, so every
 requirement is binding. Species templates in `planet.py` use it to decide where they spawn.
 
@@ -31,8 +31,7 @@ class Habitat:
     fertility: Range = (0.0, 1.0)
     light: Range = (0.0, 1.0)
     water: Range = (0.0, 1.0)
-    substrate: Tuple[str, ...] = ()   # biome keys the species is restricted to; () = any
-    landmarks: Tuple[str, ...] = ()   # landmark keys the species is restricted to (see `landmarks`); () = any
+    substrate: Tuple[str, ...] = ()   # biome or biome-family keys the species is restricted to; () = any
 
     def __post_init__(self):
         for name in ("temperature", "moisture", "elevation", "fertility", "light", "water"):
@@ -53,24 +52,19 @@ def membership(value, rng: Range, soft: float = SOFT):
     return np.minimum(below, above)
 
 
-LEGACY_BIOMES = {"fungal": "mushroom_forest", "volcanic": "volcanic_mountains", "crystalline": "crystal_badlands"}
-"""Biomes of earlier versions that are landmarks now (so an old save's species still find a home)."""
-
-
 def suitability(habitat: Habitat, env: Env):
     """Weight 0..1 of living in `env` (scalars or arrays). Product of all requirement memberships."""
     weight = 1.0
     for name in ("temperature", "moisture", "elevation", "fertility", "light", "water"):
         weight = weight * membership(env[name], getattr(habitat, name))
-    from biomes import BIOME_INDEX
-    from landmarks import LANDMARK_INDEX
-    substrate = [k for k in habitat.substrate if k in BIOME_INDEX]
-    # (a save made before landmarks existed names biomes that became landmarks: they now mean the landmark)
-    landmark_keys = tuple(habitat.landmarks) + tuple(LEGACY_BIOMES[k] for k in habitat.substrate if k in LEGACY_BIOMES)
-    if substrate:
-        allowed = np.array([BIOME_INDEX[k] for k in substrate])
-        weight = weight * np.isin(np.asarray(env["biome"]), allowed)
-    if landmark_keys:
-        allowed = np.array([LANDMARK_INDEX[k] for k in landmark_keys])
-        weight = weight * np.isin(np.asarray(env.get("landmark", 0)), allowed) * np.asarray(env.get("landmark_strength", 1.0))
+    allowed = None
+    if habitat.substrate:
+        import biomes
+        allowed = biomes.indexes(habitat.substrate)
+    if allowed is not None and allowed.size:        # (names that mean no biome at all restrict nothing)
+        inside = np.isin(np.asarray(env["biome"]), allowed).astype(float)
+        if "other" in env:        # on a border between two regions the neighbour's share counts too
+            edge = np.asarray(env.get("edge", 0.0))
+            inside = inside * (1.0 - edge) + np.isin(np.asarray(env["other"]), allowed) * edge
+        weight = weight * inside
     return weight

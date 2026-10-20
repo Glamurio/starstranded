@@ -13,7 +13,8 @@ stones and ores are found (`stone_for`, `ore_for`) and what the planet is called
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import lru_cache
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 import spriteconfig
@@ -89,6 +90,8 @@ class FloraTemplate:
     color_range: Tuple[RGB, RGB] = ((40, 90, 40), (140, 190, 90))
     wood_bias: Tuple[Tuple[str, float], ...] = ()
     name_family: str = "tree"
+    native: bool = False             # grows only in the biomes whose `plants` list it (see `plant_factors`); its habitat is the biome, not a climate
+    fixed_hue: bool = False          # keeps its own colours when the planet's foliage hue shifts (fungi, crystals, ash...)
 
 
 # What each kind of plant looks like, in everyday words (the sprite decides the shape; see components/names.tree_pos_names):
@@ -106,6 +109,23 @@ FORMS: Dict[str, Tuple[str, ...]] = {
     "marsh_flower": ("marsh bell", "water star", "bog aster"), "dry_flower": ("sun star", "dust aster", "desert bell"),
     "crystal_bloom": ("frost bell", "glass flower", "shard bloom"),
     "frost_tree": ("rime fir", "ice pine", "frost spruce"), "rime_shrub": ("rime bush", "frost shrub"), "frost_bloom": ("ice bell", "rime star"),
+    # the plants of the biome catalogue (see `biomes`)
+    "tallgrass": ("bluestem", "fescue", "ryegrass", "switchgrass"), "golden_grass": ("wheatgrass", "oat grass", "needlegrass", "timothy"),
+    "crop_wild": ("wild beet", "wild turnip", "wild radish", "wild carrot"),
+    "ancient_oak": ("old oak", "elder beech", "great elm"), "ancient_giant": ("redwood", "elder oak", "giant fig"),
+    "jungle_giant": ("kapok", "ceiba", "strangler fig"), "amber_tree": ("amber oak", "honey beech", "gold maple"),
+    "thorn_tree": ("mesquite", "kiaat", "thorn tree"), "petrified_tree": ("stone tree", "fossil trunk", "flint tree"),
+    "giant_cap": ("great cap", "umbrella cap", "giant puffcap"), "crystal_tree": ("crystal tree", "glass spire", "quartz tree"),
+    "cinder_tree": ("cinder tree", "char pine", "ember pine"), "tendril_tree": ("tendril tree", "sinew tree", "coil tree"),
+    "mangrove": ("mangrove", "stilt tree", "buttonwood"), "fern": ("fern", "bracken", "shield fern"),
+    "vine_creeper": ("vine", "liana", "creeper"), "creeper": ("sinew vine", "coil", "bindweed"), "flesh_pod": ("pod", "gut bulb", "flesh bulb"),
+    "weed": ("weed", "dock", "nettle", "fireweed"), "ivy": ("ivy", "bindvine"), "saltbush": ("saltbush", "samphire", "glasswort"),
+    "agave": ("agave", "yucca", "aloe"), "glass_cactus": ("glass cactus", "crystal spine", "glass pillar"),
+    "bone_thorn": ("bone thorn", "rib bush", "white briar"), "glowcap": ("glowcap", "lantern cap", "lumen cap"),
+    "rot_cap": ("rot cap", "blight cap", "mould cap"), "algae_mat": ("algal mat", "slime weed", "scum"),
+    "glow_reed": ("glow reed", "lantern rush"), "lumen_frond": ("lumen frond", "glow fern"),
+    "toxic_bloom": ("bane bell", "gall flower", "venom star"), "spore_flower": ("spore bell", "puff flower"),
+    "ember_bloom": ("ember bell", "cinder flower", "fire star"), "iris_bloom": ("prism bell", "iris star", "sheen flower"),
 }
 # What each form bears: (fruit sprite, fruit name). An oak bears acorns, an apple tree apples; unlisted forms fall back to the
 # template's list. The sprites are the item sheet's row 21 (see components.names.fruit_pos_names).
@@ -128,6 +148,24 @@ FORM_FRUITS: Dict[str, Tuple[Tuple[Tuple[int, int], str], ...]] = {
     "thornbush": (((18, 21), "sloe"),), "bramble": (((18, 21), "blackberry"),), "briar": (((6, 21), "hip"),), "thistle": (((22, 21), "seed head"),),
     "glass thorn": (((24, 21), "glass berry"),), "shard bush": (((24, 21), "glass berry"),), "ash shrub": (((18, 21), "ash berry"),),
     "cinder bush": (((18, 21), "ember berry"),),
+    "bluestem": (((22, 21), "seed head"),), "fescue": (((22, 21), "seed head"),), "ryegrass": (((22, 21), "grain"),), "switchgrass": (((22, 21), "seed head"),),
+    "wheatgrass": (((22, 21), "grain"),), "oat grass": (((22, 21), "oats"),), "needlegrass": (((22, 21), "seed head"),), "timothy": (((22, 21), "grain"),),
+    "wild beet": (((2, 21), "root"),), "wild turnip": (((2, 21), "root"),), "wild radish": (((2, 21), "root"),), "wild carrot": (((2, 21), "root"),),
+    "old oak": (((13, 21), "acorn"),), "elder beech": (((14, 21), "beechnut"),), "great elm": (((8, 21), "seed"),),
+    "redwood": (((14, 21), "cone"),), "elder oak": (((13, 21), "acorn"),), "giant fig": (((19, 21), "fig"),),
+    "kapok": (((15, 21), "seed pod"),), "ceiba": (((15, 21), "seed pod"),), "strangler fig": (((19, 21), "fig"),),
+    "amber oak": (((13, 21), "amber acorn"),), "honey beech": (((14, 21), "beechnut"),), "gold maple": (((8, 21), "seed"),),
+    "mesquite": (((122, 0), "bean pod"),), "kiaat": (((122, 0), "bean pod"),),
+    "giant fig": (((19, 21), "fig"),), "mangrove": (((15, 21), "propagule"),), "stilt tree": (((15, 21), "propagule"),), "buttonwood": (((6, 21), "button"),),
+    "agave": (((17, 21), "agave heart"),), "yucca": (((17, 21), "yucca fruit"),), "aloe": (((17, 21), "aloe pulp"),),
+    "saltbush": (((18, 21), "salt berry"),), "samphire": (((18, 21), "sea bean"),), "glasswort": (((18, 21), "sea bean"),),
+    "glowcap": (((0, 21), "glow cap"),), "lantern cap": (((0, 21), "glow cap"),), "lumen cap": (((0, 21), "glow cap"),),
+    "rot cap": (((0, 21), "rot spore"),), "blight cap": (((0, 21), "rot spore"),), "mould cap": (((0, 21), "rot spore"),),
+    "great cap": (((0, 21), "spore cap"),), "umbrella cap": (((0, 21), "spore cap"),), "giant puffcap": (((0, 21), "puffball"),),
+    "flesh bulb": (((6, 21), "bulb"),), "gut bulb": (((6, 21), "bulb"),), "pod": (((6, 21), "seed pod"),),
+    "fern": (((19, 21), "frond tip"),), "bracken": (((19, 21), "frond tip"),), "shield fern": (((19, 21), "frond tip"),),
+    "vine": (((16, 21), "grape"),), "liana": (((16, 21), "grape"),), "creeper": (((16, 21), "berry"),),
+    "glow reed": (((22, 21), "seed head"),), "lantern rush": (((22, 21), "seed head"),), "algal mat": (((12, 21), "algal nub"),),
 }
 BLOOM_SPRITE = (107, 0)
 BLOOM_NOUNS = ("blossom", "bud")
@@ -141,9 +179,6 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
                   wood_bias=(("flammability", 1.5), ("combustibility", 1.0), ("insulation", 1.0))),
     FloraTemplate("cypress", PlantCategory.TREE, ((4, 8),), Habitat((0.1, 0.9), (0.2, 1.0), water=(0.2, 1.0)), rarity=1.0, wood_bias=(("toughness", 1.0),)),
     FloraTemplate("palm", PlantCategory.TREE, ((5, 8),), Habitat((0.3, 1.0), (-0.6, 0.6), water=(0.3, 1.0)), rarity=0.8, wood_bias=(("elasticity", 2.0), ("hardness", -1.5))),
-    FloraTemplate("fungal_tree", PlantCategory.TREE, ((101, 0),), Habitat((-0.6, 0.9), (0.0, 1.0), light=(0.0, 1.0), landmarks=("mushroom_forest",)), rarity=3.0,
-                  color_range=((120, 70, 120), (220, 160, 200)), fruit_chance=0.4, max_hp=14, growth_cycle=8,
-                  wood_bias=(("insulation", 2.5), ("toughness", -2.5), ("hardness", -2.0), ("density", -2.0)), name_family="fungus"),
     FloraTemplate("cactus", PlantCategory.TREE, ((102, 0), (103, 0)), Habitat((0.3, 1.0), (-1.0, -0.1)), rarity=1.2, color_range=((40, 120, 60), (100, 170, 90)),
                   fruit_chance=0.5, max_hp=18, wood_bias=(("toughness", -2.0), ("hardness", -2.0), ("tenacity", 1.0)), name_family="shrub"),
     FloraTemplate("reeds", PlantCategory.SHRUB, ((6, 9),), Habitat((-0.3, 1.0), (0.0, 1.0), water=(0.6, 1.0)), variants=1, rarity=2.0, fruit_chance=0.3, max_hp=6, growth_cycle=5, name_family="grass",
@@ -163,32 +198,109 @@ FLORA_TEMPLATES: Tuple[FloraTemplate, ...] = (
                   variants=2, rarity=2.0, fruit_chance=1.0, max_hp=2, growth_cycle=8, name_family="flower",
                   color_range=((200, 90, 40), (255, 220, 110))),
     FloraTemplate("thorns", PlantCategory.SHRUB, ((106, 0),), Habitat((-1.0, 1.0), (-1.0, 0.3), fertility=(0.0, 0.8)), variants=1, rarity=1.5, fruit_chance=0.5, max_hp=8, growth_cycle=5, name_family="shrub"),
-    # landmark flora: these live only inside their landmark (`Habitat.landmarks`); the climate habitat is just a sanity bound
-    FloraTemplate("spore_bush", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("mushroom_forest",)), variants=2, rarity=4.0, max_hp=8, growth_cycle=5,
+    # native flora: grows only in the biomes that list it in `Biome.plants`, and takes on the traits those biomes share (see `plant_traits`)
+    FloraTemplate("fungal_tree", PlantCategory.TREE, ((101, 0),), Habitat(), native=True, fixed_hue=True, rarity=3.0,
+                  color_range=((120, 70, 120), (220, 160, 200)), fruit_chance=0.4, max_hp=14, growth_cycle=8,
+                  wood_bias=(("insulation", 2.5), ("toughness", -2.5), ("hardness", -2.0), ("density", -2.0)), name_family="fungus"),
+    FloraTemplate("spore_bush", PlantCategory.SHRUB, ((105, 0),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=4.0, max_hp=8, growth_cycle=5,
                   name_family="fungus", color_range=((130, 70, 150), (230, 150, 210))),
-    FloraTemplate("barrel_cactus", PlantCategory.SHRUB, ((106, 0),), Habitat(landmarks=("cactus_desert",)), variants=2, rarity=4.0, fruit_chance=0.6, max_hp=10,
+    FloraTemplate("barrel_cactus", PlantCategory.SHRUB, ((106, 0),), Habitat(), native=True, variants=2, rarity=4.0, fruit_chance=0.6, max_hp=10,
                   growth_cycle=6, name_family="shrub", color_range=((60, 130, 70), (150, 180, 90))),
-    FloraTemplate("shard_bush", PlantCategory.SHRUB, ((106, 0),), Habitat(landmarks=("crystal_badlands",)), variants=2, rarity=4.0, fruit_chance=0.2, max_hp=12,
+    FloraTemplate("shard_bush", PlantCategory.SHRUB, ((106, 0),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=4.0, fruit_chance=0.2, max_hp=12,
                   growth_cycle=8, name_family="shrub", color_range=((110, 140, 190), (190, 220, 245))),
-    FloraTemplate("ash_shrub", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("volcanic_mountains",)), variants=1, rarity=4.0, fruit_chance=0.1, max_hp=10,
+    FloraTemplate("ash_shrub", PlantCategory.SHRUB, ((105, 0),), Habitat(), native=True, fixed_hue=True, variants=1, rarity=4.0, fruit_chance=0.1, max_hp=10,
                   growth_cycle=9, name_family="shrub", color_range=((60, 55, 55), (120, 85, 70))),
-    FloraTemplate("dead_tree", PlantCategory.TREE, ((2, 8),), Habitat(landmarks=("decayed_land",)), variants=1, rarity=5.0, fruit_chance=0.0, max_hp=16, growth_cycle=14,
+    FloraTemplate("dead_tree", PlantCategory.TREE, ((2, 8),), Habitat(), native=True, fixed_hue=True, variants=1, rarity=5.0, fruit_chance=0.0, max_hp=16, growth_cycle=14,
                   name_family="tree", color_range=((70, 62, 58), (115, 105, 98)), wood_bias=(("hardness", -1.5), ("toughness", -1.5), ("flammability", 1.5))),
-    FloraTemplate("coast_palm", PlantCategory.TREE, ((5, 8),), Habitat(landmarks=("beach",)), rarity=5.0, wood_bias=(("elasticity", 2.0), ("hardness", -1.5)),
+    FloraTemplate("coast_palm", PlantCategory.TREE, ((5, 8),), Habitat(), native=True, rarity=5.0, wood_bias=(("elasticity", 2.0), ("hardness", -1.5)),
                   color_range=((70, 130, 50), (140, 190, 90))),
-    FloraTemplate("beach_grass", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("beach",)), variants=2, rarity=5.0, fruit_chance=0.2, max_hp=6, growth_cycle=5,
+    FloraTemplate("beach_grass", PlantCategory.SHRUB, ((105, 0),), Habitat(), native=True, variants=2, rarity=5.0, fruit_chance=0.2, max_hp=6, growth_cycle=5,
                   name_family="grass", color_range=((170, 180, 90), (225, 220, 140))),
-    FloraTemplate("frost_tree", PlantCategory.TREE, ((3, 8),), Habitat(landmarks=("frost_grove",)), variants=2, rarity=4.0, fruit_chance=0.3, max_hp=16,
+    FloraTemplate("frost_tree", PlantCategory.TREE, ((3, 8),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=4.0, fruit_chance=0.3, max_hp=16,
                   growth_cycle=12, color_range=((150, 180, 205), (225, 240, 250)),
                   wood_bias=(("insulation", 1.5), ("hardness", 1.0), ("elasticity", -1.5), ("flammability", -1.0))),
-    FloraTemplate("rime_shrub", PlantCategory.SHRUB, ((105, 0),), Habitat(landmarks=("frost_grove",)), variants=2, rarity=4.0, fruit_chance=0.4, max_hp=8,
+    FloraTemplate("rime_shrub", PlantCategory.SHRUB, ((105, 0),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=4.0, fruit_chance=0.4, max_hp=8,
                   growth_cycle=7, name_family="shrub", color_range=((140, 170, 200), (215, 235, 250))),
-    FloraTemplate("frost_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(landmarks=("frost_grove",)),
+    FloraTemplate("frost_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(), native=True, fixed_hue=True,
                   variants=2, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=10, name_family="flower", color_range=((170, 200, 240), (240, 248, 255))),
-    FloraTemplate("meadow_bloom", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat(landmarks=("flowering_meadow",)),
+    FloraTemplate("meadow_bloom", PlantCategory.FLOWER, ((13, 9), (14, 9), (15, 9), (16, 9)), Habitat(), native=True,
                   variants=4, rarity=9.0, fruit_chance=1.0, max_hp=2, growth_cycle=6, name_family="flower", color_range=((200, 90, 140), (255, 250, 210))),
-    FloraTemplate("crystal_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(landmarks=("crystal_badlands",)),
+    FloraTemplate("crystal_bloom", PlantCategory.FLOWER, ((16, 9), (0, 10)), Habitat(), native=True, fixed_hue=True,
                   variants=2, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=9, name_family="flower", color_range=((120, 150, 230), (220, 235, 255))),
+    # grassland and farmland
+    FloraTemplate("tallgrass", PlantCategory.SHRUB, ((6, 9), (7, 9)), Habitat(), native=True, variants=2, rarity=3.0, fruit_chance=0.3, max_hp=4, growth_cycle=4,
+                  name_family="grass", color_range=((90, 140, 50), (150, 190, 80))),
+    FloraTemplate("golden_grass", PlantCategory.SHRUB, ((7, 9), (5, 9)), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=0.3, max_hp=4,
+                  growth_cycle=4, name_family="grass", color_range=((190, 160, 60), (230, 200, 100))),
+    FloraTemplate("crop_wild", PlantCategory.SHRUB, ((8, 9),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=1.0, max_hp=4, growth_cycle=5,
+                  name_family="grass", color_range=((150, 140, 40), (210, 190, 80))),
+    # forest
+    FloraTemplate("ancient_oak", PlantCategory.TREE, ((1, 8),), Habitat(), native=True, rarity=2.0, max_hp=45, growth_cycle=24, color_range=((40, 100, 40), (90, 150, 60)),
+                  wood_bias=(("hardness", 1.0), ("toughness", 1.5))),
+    FloraTemplate("ancient_giant", PlantCategory.TREE, ((0, 8),), Habitat(), native=True, rarity=2.0, max_hp=70, growth_cycle=36, color_range=((40, 85, 40), (95, 135, 55)),
+                  wood_bias=(("hardness", 1.5), ("toughness", 2.0), ("density", 1.0))),
+    FloraTemplate("jungle_giant", PlantCategory.TREE, ((1, 8),), Habitat(), native=True, variants=2, rarity=2.0, max_hp=40, growth_cycle=18, color_range=((20, 110, 50), (70, 170, 90)),
+                  wood_bias=(("hardness", -1.0), ("elasticity", 1.0), ("flammability", -1.0))),
+    FloraTemplate("amber_tree", PlantCategory.TREE, ((2, 8),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=2.0, max_hp=22, growth_cycle=14,
+                  color_range=((200, 130, 30), (240, 180, 70)), wood_bias=(("flammability", 1.0), ("elasticity", 1.0))),
+    FloraTemplate("thorn_tree", PlantCategory.TREE, ((2, 8),), Habitat(), native=True, rarity=2.0, max_hp=16, growth_cycle=12, color_range=((90, 110, 50), (150, 150, 80)),
+                  wood_bias=(("hardness", 1.5), ("toughness", 1.0))),
+    FloraTemplate("petrified_tree", PlantCategory.TREE, ((5, 10),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.0, max_hp=40, growth_cycle=40,
+                  color_range=((130, 125, 115), (190, 180, 165))),
+    FloraTemplate("fern", PlantCategory.SHRUB, ((10, 9), (11, 9), (12, 9)), Habitat(), native=True, variants=2, rarity=3.0, fruit_chance=0.2, max_hp=3, growth_cycle=5,
+                  name_family="grass", color_range=((40, 110, 50), (110, 180, 90))),
+    FloraTemplate("vine_creeper", PlantCategory.SHRUB, ((23, 9), (24, 9)), Habitat(), native=True, variants=2, rarity=3.0, fruit_chance=0.6, max_hp=5, growth_cycle=5,
+                  name_family="shrub", color_range=((30, 120, 50), (100, 180, 80))),
+    FloraTemplate("ivy", PlantCategory.SHRUB, ((23, 10), (24, 10)), Habitat(), native=True, rarity=3.0, fruit_chance=0.3, max_hp=5, growth_cycle=5,
+                  name_family="shrub", color_range=((50, 110, 50), (100, 160, 80))),
+    FloraTemplate("weed", PlantCategory.SHRUB, ((5, 9), (19, 9)), Habitat(), native=True, variants=2, rarity=3.0, fruit_chance=0.2, max_hp=3, growth_cycle=4,
+                  name_family="grass", color_range=((90, 130, 50), (150, 170, 80))),
+    # arid
+    FloraTemplate("agave", PlantCategory.SHRUB, ((102, 0),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.4, max_hp=10, growth_cycle=8,
+                  name_family="shrub", color_range=((70, 130, 110), (130, 180, 150))),
+    FloraTemplate("saltbush", PlantCategory.SHRUB, ((105, 0),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.4, max_hp=6, growth_cycle=6,
+                  name_family="shrub", color_range=((150, 170, 150), (210, 220, 200))),
+    FloraTemplate("glass_cactus", PlantCategory.SHRUB, ((103, 0),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.2, max_hp=12, growth_cycle=9,
+                  name_family="shrub", color_range=((150, 210, 220), (210, 245, 250))),
+    FloraTemplate("bone_thorn", PlantCategory.SHRUB, ((106, 0),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.0, max_hp=8, growth_cycle=9,
+                  name_family="shrub", color_range=((200, 195, 175), (235, 230, 215))),
+    # fungal
+    FloraTemplate("giant_cap", PlantCategory.TREE, ((101, 0),), Habitat(), native=True, fixed_hue=True, rarity=3.0, color_range=((150, 70, 90), (230, 150, 140)),
+                  fruit_chance=0.4, max_hp=24, growth_cycle=10, name_family="fungus",
+                  wood_bias=(("insulation", 2.5), ("toughness", -2.5), ("hardness", -2.0), ("density", -2.0))),
+    FloraTemplate("glowcap", PlantCategory.SHRUB, ((3, 10),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=0.4, max_hp=6, growth_cycle=5,
+                  name_family="fungus", color_range=((60, 200, 220), (150, 250, 230))),
+    FloraTemplate("spore_flower", PlantCategory.FLOWER, ((0, 10),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=1.0, max_hp=2,
+                  growth_cycle=7, name_family="flower", color_range=((190, 120, 220), (240, 180, 250))),
+    # volcanic and dead
+    FloraTemplate("crystal_tree", PlantCategory.TREE, ((4, 8),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.2, max_hp=24, growth_cycle=16,
+                  color_range=((120, 150, 230), (220, 240, 255)), wood_bias=(("hardness", 1.5), ("toughness", -1.0))),
+    FloraTemplate("cinder_tree", PlantCategory.TREE, ((5, 10),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.1, max_hp=20, growth_cycle=16,
+                  color_range=((70, 50, 50), (130, 70, 50))),
+    FloraTemplate("ember_bloom", PlantCategory.FLOWER, ((16, 9),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=8,
+                  name_family="flower", color_range=((240, 110, 40), (255, 200, 80))),
+    FloraTemplate("rot_cap", PlantCategory.SHRUB, ((3, 10),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=0.3, max_hp=6, growth_cycle=5,
+                  name_family="fungus", color_range=((120, 100, 60), (170, 140, 90))),
+    # alien
+    FloraTemplate("tendril_tree", PlantCategory.TREE, ((6, 8),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.3, max_hp=24, growth_cycle=12,
+                  color_range=((160, 80, 90), (210, 120, 130)), wood_bias=(("elasticity", 2.0), ("hardness", -2.0), ("insulation", 1.0))),
+    FloraTemplate("flesh_pod", PlantCategory.SHRUB, ((2, 9),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=0.6, max_hp=8, growth_cycle=6,
+                  name_family="shrub", color_range=((190, 90, 110), (235, 150, 150))),
+    FloraTemplate("creeper", PlantCategory.SHRUB, ((24, 9), (24, 10)), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.4, max_hp=5, growth_cycle=5,
+                  name_family="shrub", color_range=((150, 70, 90), (210, 110, 120))),
+    FloraTemplate("lumen_frond", PlantCategory.SHRUB, ((11, 9),), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=0.3, max_hp=4, growth_cycle=5,
+                  name_family="grass", color_range=((60, 200, 170), (130, 240, 200))),
+    FloraTemplate("iris_bloom", PlantCategory.FLOWER, ((14, 9), (18, 9)), Habitat(), native=True, fixed_hue=True, variants=2, rarity=3.0, fruit_chance=1.0, max_hp=2,
+                  growth_cycle=7, name_family="flower", color_range=((90, 130, 200), (220, 200, 230))),
+    # wetland
+    FloraTemplate("mangrove", PlantCategory.TREE, ((6, 8),), Habitat(), native=True, rarity=3.0, max_hp=20, growth_cycle=14, color_range=((50, 110, 70), (100, 160, 90)),
+                  wood_bias=(("elasticity", 1.5), ("flammability", -1.0))),
+    FloraTemplate("glow_reed", PlantCategory.SHRUB, ((6, 9),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.3, max_hp=5, growth_cycle=5,
+                  name_family="grass", color_range=((90, 230, 200), (150, 255, 230))),
+    FloraTemplate("toxic_bloom", PlantCategory.FLOWER, ((15, 9), (0, 10)), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=1.0, max_hp=2, growth_cycle=7,
+                  name_family="flower", color_range=((160, 220, 60), (220, 255, 120))),
+    FloraTemplate("algae_mat", PlantCategory.SHRUB, ((4, 9),), Habitat(), native=True, fixed_hue=True, rarity=3.0, fruit_chance=0.2, max_hp=3, growth_cycle=4,
+                  name_family="grass", color_range=((60, 150, 90), (130, 200, 110))),
 )
 
 TREE_RESIST = ()  # damage to plants now comes from their material (see damage.py / materials.attack_factor)
@@ -213,8 +325,9 @@ class FaunaTemplate:
     xp: int = 20
     damage_type: DamageType = DamageType.BLUNT
     radius: int = 8
-    base: str = ""                   # for a landmark variant: the key of the baseline template it was generated from
-    tint: Optional[Tuple[int, int, int]] = None   # pulls the rolled colour towards this one (a variant takes on its landmark)
+    base: str = ""                   # for a regional variant: the key of the baseline template it was generated from
+    tint: Optional[Tuple[int, int, int]] = None   # pulls the rolled colour towards this one (a variant takes on its region)
+    traits: Tuple[str, ...] = ()     # `biomes.TRAITS` of the region it is adapted to
     underground: bool = False        # lives in the caves only (placed by `underground`, never by the surface spawner; no habitat)
 
 
@@ -229,7 +342,6 @@ FAUNA_TEMPLATES: Tuple[FaunaTemplate, ...] = (
     FaunaTemplate("webspinner", (2, 19), Habitat((0.0, 1.0), (-0.5, 1.0), fertility=(0.0, 0.8)), Diet.CARNIVORE, AIKind.PASSIVE, 5, 3, rarity=0.8, name_family="crawler", damage_type=DamageType.PIERCE, xp=25, hide_kind="chitin"),
     FaunaTemplate("serpent", (2, 18), Habitat((0.2, 1.0), (-0.8, 0.5)), Diet.CARNIVORE, AIKind.HOSTILE, 10, 5, rarity=0.5, name_family="serpent", damage_type=DamageType.PIERCE, xp=30, hide_kind="scale"),
     FaunaTemplate("flitter", (5, 20), Habitat((-0.4, 1.0), (-0.6, 1.0)), Diet.HERBIVORE, AIKind.PASSIVE, 2, 1, rarity=1.0, name_family="bird", xp=10, hide_kind="feather"),
-    # landmark fauna: found only inside their landmark
 )
 
 FAUNA_FORMS: Dict[str, Tuple[str, ...]] = {
@@ -254,11 +366,11 @@ CAVE_FAUNA: Tuple[FaunaTemplate, ...] = (
 FAUNA_FORMS.update({"cave_beetle": ("beetle",), "cave_moth": ("moth",), "cave_slug": ("slug",), "cave_bat": ("bat",), "cave_worm": ("worm",),
                     "cave_crab": ("crab", "rock crab")})
 
-# A landmark's own animals are not hand-written: they are the baseline creatures above, generated again for the landmark through the
-# same pipeline (`_make_fauna`) with the landmark's traits applied, so a "meadow grazer" is a grazer that grew up in a meadow.
+# A region's own animals are not hand-written: they are the baseline creatures above, generated again for a biome *family* through the
+# same pipeline (`_make_fauna`) with the family's traits applied, so a "volcanic strider" is a strider that grew up on hot rock.
 @dataclass(frozen=True)
-class LandmarkFauna:
-    bases: Tuple[str, ...]            # baseline templates that get a variant here
+class FamilyFauna:
+    bases: Tuple[str, ...]            # baseline templates that get a variant in the family
     tint: Tuple[int, int, int]        # colour the variants are pulled towards
     covering: str = ""                # replaces a fur or skin covering ("" = keep the baseline's)
     hp: float = 1.0                   # multiplies hit points
@@ -266,39 +378,69 @@ class LandmarkFauna:
     defense: int = 0                  # added to everyone's defence
 
 
-LANDMARK_FAUNA: Dict[str, LandmarkFauna] = {
-    "mushroom_forest": LandmarkFauna(("hopper", "scuttler", "stalker"), (150, 100, 200), covering="skin", hp=0.9),
-    "cactus_desert": LandmarkFauna(("strider", "scuttler", "serpent"), (220, 160, 90), covering="scale", defense=1),
-    "crystal_badlands": LandmarkFauna(("grazer", "scuttler", "hunter"), (120, 150, 230), covering="scale", hp=1.2, defense=2),
-    "volcanic_mountains": LandmarkFauna(("strider", "scuttler", "hunter"), (170, 60, 40), covering="scale", power=1, defense=1),
-    "decayed_land": LandmarkFauna(("rooter", "strider", "hunter"), (110, 100, 110), hp=0.9, power=1),
-    "beach": LandmarkFauna(("scuttler", "flitter", "rooter"), (230, 215, 170), defense=1),
-    "flowering_meadow": LandmarkFauna(("grazer", "flitter", "hopper"), (240, 170, 200)),
-    "frost_grove": LandmarkFauna(("grazer", "hopper", "hunter"), (205, 225, 245), covering="fur", hp=1.1),
+FAMILY_FAUNA: Dict[str, FamilyFauna] = {
+    "arid": FamilyFauna(("strider", "scuttler", "serpent"), (220, 160, 90), covering="scale", defense=1),
+    "forest": FamilyFauna(("grazer", "rooter", "stalker"), (110, 105, 70)),
+    "fungal": FamilyFauna(("hopper", "scuttler", "stalker"), (150, 100, 200), covering="skin", hp=0.9),
+    "crystal": FamilyFauna(("grazer", "scuttler", "hunter"), (120, 150, 230), covering="scale", hp=1.2, defense=2),
+    "volcanic": FamilyFauna(("strider", "scuttler", "hunter"), (170, 60, 40), covering="scale", power=1, defense=1),
+    "decay": FamilyFauna(("rooter", "strider", "hunter"), (110, 100, 110), hp=0.9, power=1),
+    "alien": FamilyFauna(("scuttler", "stalker", "flitter"), (90, 200, 170), covering="skin", hp=0.9, power=1),
+    "wet": FamilyFauna(("scuttler", "flitter", "rooter"), (80, 140, 150), covering="skin"),
+    "cold": FamilyFauna(("grazer", "hopper", "hunter"), (205, 225, 245), covering="fur", hp=1.1),
+    "coast": FamilyFauna(("scuttler", "flitter", "rooter"), (230, 215, 170), defense=1),
+    "urban": FamilyFauna(("hopper", "rooter", "flitter"), (150, 140, 130)),
 }
-LANDMARK_FAUNA_RARITY = 4.0
-"""A variant is this many times as common as its baseline inside its landmark (it lives nowhere else)."""
+FAMILY_FAUNA_RARITY = 4.0
+"""A variant is this many times as common as its baseline inside its family (it lives nowhere else)."""
 
 
-def landmark_variants(templates: Tuple[FaunaTemplate, ...] = FAUNA_TEMPLATES) -> Tuple[FaunaTemplate, ...]:
-    """The templates of the landmark animals: each baseline named in `LANDMARK_FAUNA`, re-made for its landmark."""
-    from dataclasses import replace
+def family_variants(templates: Tuple[FaunaTemplate, ...] = FAUNA_TEMPLATES) -> Tuple[FaunaTemplate, ...]:
+    """The templates of the regional animals: each baseline named in `FAMILY_FAUNA`, re-made for its biome family."""
     by_key = {t.key: t for t in templates}
     out = []
-    for landmark, traits in LANDMARK_FAUNA.items():
-        for key in traits.bases:
+    for family, spec in FAMILY_FAUNA.items():
+        for key in spec.bases:
             base = by_key[key]
             hostile = base.ai is AIKind.HOSTILE
-            covering = traits.covering if traits.covering and base.hide_kind in ("fur", "skin") else base.hide_kind
+            covering = spec.covering if spec.covering and base.hide_kind in ("fur", "skin") else base.hide_kind
             out.append(replace(
-                base, key=f"{key}.{landmark}", base=key, habitat=Habitat(landmarks=(landmark,)), hide_kind=covering, tint=traits.tint,
-                max_hp=max(1, round(base.max_hp * traits.hp)), power=base.power + (traits.power if hostile else 0),
-                defense=base.defense + traits.defense, rarity=base.rarity * LANDMARK_FAUNA_RARITY))
+                base, key=f"{key}.{family}", base=key, habitat=Habitat(substrate=(family,)), hide_kind=covering, tint=spec.tint,
+                max_hp=max(1, round(base.max_hp * spec.hp)), power=base.power + (spec.power if hostile else 0),
+                defense=base.defense + spec.defense, rarity=base.rarity * FAMILY_FAUNA_RARITY,
+                traits=biomes.FAMILIES[family].traits))
     return tuple(out)
 
 
-LANDMARK_EXCLUSIVE_AT = 0.5
-"""Landmark strength from which only the landmark's own plants grow (below it the ordinary ones thin out linearly)."""
+UNLISTED_PLANT = 0.2
+"""Weight of a plant that a biome does not list, in a biome that lists some (what the biome names is what it is known for)."""
+
+
+@lru_cache(maxsize=None)
+def plant_factors(template_key: str) -> np.ndarray:
+    """One number per biome index: how much of the biome's ground a plant template gets (see `Biome.plants`)."""
+    native = {t.key for t in FLORA_TEMPLATES if t.native}
+    out = []
+    for key in biomes.BIOME_IDS:
+        biome = biomes.BIOMES[key]
+        if template_key in biome.plants:
+            out.append(biome.plants[template_key])
+        elif biome.plants_only or template_key in native:
+            out.append(0.0)
+        else:
+            out.append(UNLISTED_PLANT if biome.plants else 1.0)
+    return np.array(out, dtype=float)
+
+
+def validate_plants() -> None:
+    """Every plant a biome lists exists, and every native plant is listed by some biome."""
+    keys = {t.key for t in FLORA_TEMPLATES}
+    for biome in biomes.BIOMES.values():
+        for plant in biome.plants:
+            assert plant in keys, f"{biome.key} lists the unknown plant {plant}"
+    for template in FLORA_TEMPLATES:
+        assert not template.native or biomes.listing(template.key), f"native plant {template.key} grows in no biome"
+
 
 COVERING_RANGES = {   # property ranges of each body covering's material
     "fur": dict(insulation=(5, 8), tenacity=(3, 5), toughness=(2, 4), hardness=(0.5, 1.5), flammability=(5, 8),
@@ -345,38 +487,33 @@ class Planet:
         found += [s.fruit for s in self.flora if s.fruit is not None]
         return found
 
-    def stones_for_biome(self, biome_key: str, landmark_key: str = "") -> List[Material]:
-        """Stones of a biome (plus those of the landmark standing on it, if any) and the everywhere ones."""
-        import landmarks
+    def stones_for_biome(self, biome_key: str) -> List[Material]:
+        """Stones of a biome and the everywhere ones."""
         by_arch = dict(self.stone_ids)
         mats = dict(self.materials)
-        extra = landmarks.LANDMARKS[landmark_key].stones if landmark_key else ()
-        keys = list(dict.fromkeys(list(biomes.BIOMES[biome_key].stones) + list(extra) + list(SURFACE_EXTRAS)))
+        keys = list(dict.fromkeys(list(biomes.BIOMES[biome_key].stones) + list(SURFACE_EXTRAS)))
         return [mats[i] for k in keys for i in by_arch.get(k, ())]
 
     def species_weights(self, env: Mapping[str, object], category: Optional[PlantCategory] = None) -> Tuple[List[PlantSpecies], np.ndarray]:
         """Flora of the given category with their spawn weight for each tile of `env` (arrays): shape (n_species, *tile_shape)."""
         pool = [s for s in self.flora if s.habitat is not None and ((category is None and s.category is not PlantCategory.FLOWER) or s.category is category)]
         weights = np.stack([suitability(s.habitat, env) * s.rarity for s in pool]) if pool else np.zeros((0,))
-        if pool and "landmark" in env:
-            weights = weights * self._landmark_exclusivity(pool, env)
-        if category is None and pool and "biome" in env:
-            share = np.array([biomes.TREE_SHARE[k] for k in biomes.BIOME_IDS])[np.asarray(env["biome"])]
-            for i, species in enumerate(pool):
-                if species.category is PlantCategory.TREE:
-                    weights[i] = weights[i] * share
-        return pool, weights
+        if pool and "biome" in env:
+            here = np.asarray(env["biome"])
+            other = np.asarray(env["other"]) if "other" in env else None
+            edge = np.asarray(env.get("edge", 0.0))
 
-    def _landmark_exclusivity(self, pool: List[PlantSpecies], env: Mapping[str, object]) -> np.ndarray:
-        """Factor (n_species, *tile_shape): inside a landmark that has plants of its own, the ordinary species thin out with its
-        strength (to nothing in the core), so a mushroom forest holds only fungi. Landmark species are untouched."""
-        import landmarks
-        owned = {k for s in self.flora if s.habitat is not None for k in s.habitat.landmarks}
-        number = np.asarray(env["landmark"])
-        strength = np.asarray(env.get("landmark_strength", 1.0))
-        inside = np.isin(number, [landmarks.LANDMARK_INDEX[k] for k in owned if k in landmarks.LANDMARK_INDEX])
-        crowd = np.where(inside, np.clip(1.0 - strength / LANDMARK_EXCLUSIVE_AT, 0.0, 1.0), 1.0)
-        return np.stack([np.ones_like(crowd) if s.habitat.landmarks else crowd for s in pool])
+            def blend(table: np.ndarray) -> np.ndarray:        # a region's plants thin out and the neighbour's come in over a border
+                value = table[here]
+                return value if other is None else value * (1.0 - edge) + table[other] * edge
+
+            weights = np.stack([weights[i] * blend(plant_factors(s.key.split(":")[2])) for i, s in enumerate(pool)])
+            if category is None:
+                share = blend(biomes.table("tree_share"))
+                for i, species in enumerate(pool):
+                    if species.category is PlantCategory.TREE:
+                        weights[i] = weights[i] * share
+        return pool, weights
 
     @property
     def crop(self) -> PlantSpecies:
@@ -467,7 +604,7 @@ def generate_planet(seed: int, culture: str = "human") -> Planet:
 
     # fauna
     fauna: List[UnitSpecies] = []
-    for template in FAUNA_TEMPLATES + landmark_variants() + CAVE_FAUNA:
+    for template in FAUNA_TEMPLATES + family_variants() + CAVE_FAUNA:
         fauna.append(_make_fauna(rng, namer, add, template))
 
     return Planet(
@@ -493,7 +630,7 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         color = tuple(int(lo[i] + (hi[i] - lo[i]) * t) for i in range(3))
     else:
         color = tuple(rng.randint(lo[i], hi[i]) for i in range(3))
-    if template.key not in ("fungal_tree", "dead_tree", "ash_shrub", "crop", "frost_tree", "rime_shrub"):   # (fungus, dead wood and ash keep their own colours)
+    if not template.fixed_hue and template.key != "crop":   # (fungus, crystal, dead wood and ash keep their own colours)
         color = _shift_hue(color, hue_shift + rng.uniform(-0.04, 0.04) + 0.1 * index)    # (a template's variants differ in colour)
     slot = index % len(template.sprites)
     sprite = spriteconfig.get(f"flora.{template.key}.{slot}", template.sprites[slot])
@@ -505,16 +642,18 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         props = _roll(rng, ranges)
         for prop, delta in template.wood_bias:
             props[prop] = max(0.0, min(10.0, props[prop] + delta))
+        _adapt(props, template)
         family, key = "wood", f"wood:{template.key}:{index}"
         fam_enum = Family.WOOD
-        fuel = dict(burn_yield=round(20 + props["combustibility"] * 5, 1), burn_duration=max(2, int(props["combustibility"] * 1.4)))
+        fuel = dict(burn_yield=round(20 + props["combustibility"] * 5, 1), burn_duration=max(2, int(props["combustibility"] * 1.4))) if props["combustibility"] >= 0.5 else {}
     else:
         ranges = dict(hardness=(1, 3), toughness=(2, 4), tenacity=(5, 8), density=(1, 3), elasticity=(2, 6), insulation=(2, 4),
                       flammability=(6, 8), combustibility=(2, 4.5))
         props = _roll(rng, ranges)
+        _adapt(props, template)
         family, key = "fiber", f"fiber:{template.key}:{index}"
         fam_enum = Family.FIBER
-        fuel = dict(burn_yield=round(4 + props["combustibility"] * 2, 1), burn_duration=2)
+        fuel = dict(burn_yield=round(4 + props["combustibility"] * 2, 1), burn_duration=2) if props["combustibility"] >= 0.5 else {}
     forms = FORMS.get(template.key) or (("bush",) if template.category is PlantCategory.SHRUB else ("tree",))
     form = rng.choice(forms)     # (drawn here, not by the namer, so the world does not depend on the naming culture)
     name = namer.organism(f"flora:{template.key}:{index}", (form,), color, props, template.name_family if template.name_family in ("fungus", "grass", "shrub") else family)
@@ -532,6 +671,13 @@ def _make_flora(rng: random.Random, namer: Namer, add, template: FloraTemplate, 
         render_order=RenderOrder.TREE if template.category is PlantCategory.TREE else RenderOrder.SHRUB,
         habitat=template.habitat, material=stem, fiber=fiber, rarity=template.rarity,
     )
+
+
+def _adapt(props: Dict[str, float], template: FloraTemplate) -> None:
+    """Shift a native plant's properties by the traits all the biomes it grows in share (a plant of hot country is heat-proof)."""
+    if template.native:
+        for prop, delta in biomes.trait_bias(biomes.plant_traits(template.key)).items():
+            props[prop] = max(0.0, min(10.0, props.get(prop, 0.0) + delta))
 
 
 def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, index: int, color: RGB, sprite) -> PlantSpecies:
@@ -584,6 +730,8 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     if template.hide_kind == "fur" and rng.random() < 0.3:
         _, notable = rng.choice(FUR_NOTABLE)
         props.update(_roll(rng, notable))
+    for prop, delta in biomes.trait_bias(template.traits).items():
+        props[prop] = max(0.0, min(10.0, props.get(prop, 0.0) + delta))
     forms = FAUNA_FORMS.get(template.base or template.key)
     if forms:       # named for what the picture shows ("sage cat"), not for a family word that may not fit the sprite
         name = namer.organism(f"fauna:{template.key}", forms, color, props, template.name_family)

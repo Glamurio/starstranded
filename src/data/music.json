@@ -64,6 +64,14 @@
     ],
     "dry": [
       "Don't Eff With Me.mp3"
+    ],
+    "alien": [
+      "spacecultinst.mp3",
+      "System99.ogg"
+    ],
+    "urban": [
+      "City Lights.mp3",
+      "6ft.mp3"
     ]
   },
   "combat": {
@@ -93,19 +101,5 @@
       ]
     }
   },
-  "biomes": {
-    "temperate_forest": "forest",
-    "taiga": "forest",
-    "jungle": "forest",
-    "grassland": "plains",
-    "savanna": "plains",
-    "steppe": "plains",
-    "shrubland": "plains",
-    "tundra": "cold",
-    "glacial": "cold",
-    "swamp": "wet",
-    "bog": "wet",
-    "badlands": "dry",
-    "desert": "dry"
-  }
+  "biomes": {}
 }

@@ -26,7 +26,7 @@ def test_scatter_is_a_pure_function_of_the_tile():
 
 def test_ground_cover_density_follows_vegetation_and_never_hides_walls_or_water():
     tiles = _terrain(5)
-    cover = {worldgen.sprite_id(*c) for cells in worldgen.GROUND_COVER.values() for c in cells}
+    cover = worldgen.cover_sprites()
     covered = np.isin(tiles["light"]["sprite"], list(cover))
     assert covered.any() and covered.mean() < worldgen.COVER_MAX + 0.05
     assert not (covered & ~tiles["walkable"]).any()
@@ -38,7 +38,7 @@ def test_ground_cover_is_the_same_whichever_chunk_makes_the_tile():
     a = _terrain(5, 0, 0, 70, 40)
     b = _terrain(5, 35, 0, 70, 40)
     assert np.array_equal(a["light"]["sprite"][36:66, 6:34], b["light"]["sprite"][1:31, 6:34]) or True   # random_cells aside, see chunk test
-    cover = {worldgen.sprite_id(*c) for cells in worldgen.GROUND_COVER.values() for c in cells}
+    cover = worldgen.cover_sprites()
     mask_a = np.isin(a["light"]["sprite"][40:66, 8:32], list(cover))
     mask_b = np.isin(b["light"]["sprite"][5:31, 8:32], list(cover))
     assert np.array_equal(mask_a, mask_b)
@@ -51,19 +51,27 @@ def test_shore_distance_bands():
     assert d[4, 4] == 0 and d[4, 5] == 1 and d[4, 6] == 2 and d[4, 7] == 3 and d[0, 0] == 4
 
 
-def test_damp_ground_is_bluer_next_to_water_than_far_from_it():
-    tiles = _terrain(3, 0, 0, 140, 80)
-    noise = worldgen.TerrainNoise(3)
-    from procgen import neighbour_masks
-    water = tiles["liquid"] > 0
-    dist = worldgen.shore_distance(water)
-    cover = {worldgen.sprite_id(*c) for cells in worldgen.GROUND_COVER.values() for c in cells}
-    ground = tiles["walkable"] & ~water & ~np.isin(tiles["light"]["sprite"], list(cover))
-    near, far = ground & (dist == 1), ground & (dist > 3)
-    if near.sum() < 30:
-        pytest.skip("no shore in this sample")
-    blue_share = lambda m: (tiles["light"]["fg"][m][:, 2].astype(float) / (tiles["light"]["fg"][m].sum(axis=1) + 1)).mean()
-    assert blue_share(near) > blue_share(far)
+def test_damp_ground_takes_the_water_colour_next_to_water():
+    cover = worldgen.cover_sprites()
+    for seed in (3, 5, 7, 9, 11, 13):
+        tiles = _terrain(seed, 0, 0, 140, 80)
+        noise = worldgen.TerrainNoise(seed)
+        water = tiles["liquid"] > 0
+        dist = worldgen.shore_distance(water)
+        ground = tiles["walkable"] & ~water & ~np.isin(tiles["light"]["sprite"], list(cover))
+        kinds = worldgen.base_terrain(noise, 0, 0, 140, 80)
+        env = worldgen.environment_for(noise, 0, 0, 140, 80, kinds)
+        if not (ground & (dist == 1)).any():
+            continue
+        same = env["biome"] == np.bincount(env["biome"][ground & (dist == 1)]).argmax()    # (the same biome: wetland ground has its own colours)
+        near, far = ground & same & (dist == 1), ground & same & (dist > 3)
+        if near.sum() < 30 or far.sum() < 30:
+            continue
+        colour = tiles["light"]["fg"][water].astype(float).mean(axis=0)          # (the planet's water is any colour)
+        gap = lambda m: np.abs(tiles["light"]["fg"][m].astype(float) - colour).sum(axis=1).mean()
+        assert gap(near) < gap(far)
+        return
+    pytest.skip("no shore in these samples")
 
 
 def test_flowers_are_flora_with_names_and_a_pickable_bloom():
