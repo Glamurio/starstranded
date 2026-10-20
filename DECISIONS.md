@@ -871,3 +871,10 @@ giving them climate bands, which would make them cover every matching tile (no m
 - **Why:** 120-tile regions read as strips and made caves a patchwork; binary variant flags and per-tile colour steps made visible grids.
 - **Alternatives:** raising only the noise scale (still produces fragmented patches); a second noise field for caves (what we had, and it ignored the surface); outlining at draw time (slower, and per-tint) rather than once in the sheet.
 - **Limits:** about a quarter of region neighbours are the same family; basic biomes unchanged; a lone Selenite exile can still wander near a city.
+
+
+## Usability round (20 Oct 2026)
+- **What:** `Namer.creature` replaces `organism` for creatures: nouns that fit the sprite (`CREATURE_NOUNS`), colour adjectives (`COLOUR_ADJECTIVES`), moods (`MOODS`), traits and coined words; "<colour> <everyday animal>" is rejected. A material scan lists every property. Right click opens `screens.ContextMenu`. `input_handlers.walk_cancelled` stops repeating walks. A `Flower` vanishes when its bloom is taken; `worldgen.regrow_flowers` sprouts new ones out of sight. `biomes.NAME_VARIANTS` is off.
+- **Why:** the readability round fixed the nouns but flattened the names; hiding zero properties made rocks look inconsistent; the scan range was measured from the item's stale position inside a plant.
+- **Alternatives:** keep `organism` and add more colour words (still colour + animal); a new key for the context menu (the brief asked for a mouse-only addition; the keys stay).
+- **Not reproduced:** an empty "grab all" (tests with stacks on the ground, in plants and after DropStack pass); the code now reports only what went into the pack and picks a whole stack from its row.
