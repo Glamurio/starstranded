@@ -695,16 +695,23 @@ LILY_PADS_PER_100_WATER_TILES = 1.2
 
 def _scatter_flowers(self, world: "World", chunk: Chunk, env: dict, reserved) -> None:
     """Flowers on free open ground, each a species whose habitat suits the tile."""
+    self._plant_flowers(world, chunk, env, reserved, random.randint(*FLOWERS_PER_CHUNK))
+
+
+def _plant_flowers(self, world: "World", chunk: Chunk, env: dict, reserved, count: int, hidden: bool = False) -> int:
+    """Try `count` random tiles of the chunk for a new flower (a species the tile suits, on free unbuilt ground; `hidden`: only out of the
+    player's sight); returns how many were planted."""
     import components.plant
     pool, weights = self.planet.species_weights(env, PlantCategory.FLOWER)   # one pass over the whole chunk
     if not pool:
-        return
-    for _ in range(random.randint(*FLOWERS_PER_CHUNK)):
+        return 0
+    planted = 0
+    for _ in range(count):
         lx, ly = random.randrange(CHUNK_W), random.randrange(CHUNK_H)
         x, y = chunk.x0 + lx, chunk.y0 + ly
-        if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"]:
+        if (x, y) in reserved or not world.is_walkable(x, y) or world.is_blocked(x, y) or world.tile_at(x, y)["liquid"] or world.tile_at(x, y)["built"]:
             continue
-        if world.get_entities_at_location(x, y):
+        if world.get_entities_at_location(x, y) or (hidden and world.is_visible(x, y)):
             continue
         column = weights[:, lx, ly]
         if column.sum() <= 0:
@@ -712,6 +719,32 @@ def _scatter_flowers(self, world: "World", chunk: Chunk, env: dict, reserved) ->
         plant = components.plant.Flower(random.choices(pool, weights=column.tolist())[0])
         plant.growth = random.randrange(int(plant.avg_cycle) + 1)
         world.add_entity(plant, x, y)
+        planted += 1
+    return planted
+
+
+REGROW_EVERY = 20
+"""Turns between the times new flowers may sprout in the loaded chunks."""
+REGROW_CHANCE = 0.08
+"""Chance, per loaded chunk each time, that a flower sprouts there (when the chunk holds fewer than `FLOWERS_PER_CHUNK`'s top)."""
+
+
+def regrow_flowers(world: "World", chunks, now: int) -> int:
+    """New flowers now and then, in the places their species like (the surface only); never in the player's sight. Returns how many sprouted."""
+    source = getattr(world, "source", None)
+    if now % REGROW_EVERY or source is None or getattr(source, "legacy", True) or getattr(source, "floor", 0) != 1 or source.planet is None:
+        return 0
+    import shafts
+    import components.plant
+    sprouted = 0
+    for chunk in chunks:
+        if random.random() >= REGROW_CHANCE:
+            continue
+        if sum(isinstance(e, components.plant.Flower) for e in chunk.by_category[EntityCategory.PLANT]) >= FLOWERS_PER_CHUNK[1]:
+            continue
+        env = shafts.environment(source.floor_seed, chunk.key)
+        sprouted += source._plant_flowers(world, chunk, env, (), 6, hidden=True) and 1
+    return sprouted
 
 
 def _scatter_lily_pads(self, world: "World", chunk: Chunk) -> None:
@@ -815,6 +848,7 @@ NoiseWorldSource._place_sites = _place_sites
 NoiseWorldSource._scatter_stones = _scatter_stones
 NoiseWorldSource._grow_flora = _grow_flora
 NoiseWorldSource._scatter_flowers = _scatter_flowers
+NoiseWorldSource._plant_flowers = _plant_flowers
 NoiseWorldSource._scatter_lily_pads = _scatter_lily_pads
 NoiseWorldSource._spawn_fauna = _spawn_fauna
 
