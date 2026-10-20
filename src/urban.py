@@ -29,8 +29,10 @@ ASPHALT = (74, 76, 86)
 LANE = (190, 180, 120)
 CONCRETE = (126, 124, 120)
 TOWER_COLOURS = ((112, 116, 124), (126, 118, 108), (100, 108, 118), (132, 128, 120), (96, 100, 96))
-TOWER_SPRITES = tuple((c, 8) for c in range(50, 62))
-LANE_H, LANE_V = (51, 3), (50, 3)
+import spriteconfig
+
+TOWER_SPRITES = tuple(spriteconfig.get(f"city.tower.{i}", (c, 8)) for i, c in enumerate(range(50, 62)))
+LANE_H, LANE_V = spriteconfig.get("city.lane_h", (51, 3)), spriteconfig.get("city.lane_v", (50, 3))
 WRECKS = (("wreck_car", 0.7), ("wreck_truck", 0.3))
 COVERED = 0.6
 """Share of an overgrown city's open ground (not street, not building) that keeps its trees at `overgrown` = 1."""
@@ -155,6 +157,7 @@ def paint(noise, area: Tuple[int, int, int, int], landscape: np.ndarray, env: di
         tower = open_ground & lay.tower & ~lay.road
         floor = open_ground & (lay.inside | lay.ring)
         yard = open_ground & ~road & ~tower & ~floor
+        landscape["built"][road | floor] = True            # (streets and floors keep their own colour: they are never eased into the ground's)
         for layer, scale in (("light", 1.0), ("dark", 0.42)):
             fg, bg = landscape[layer]["fg"], landscape[layer]["bg"]
             fg[road] = (np.array(ASPHALT) * scale * 0.8).astype(np.uint8)

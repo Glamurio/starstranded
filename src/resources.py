@@ -39,6 +39,20 @@ def biome_key_at(game_world, z: int, x: int, y: int) -> str:
     return biomes.BIOME_IDS[int(env["biome"][lx, ly])]
 
 
+def biome_label(game_world, z: int, x: int, y: int) -> str:
+    """The name of the biome the tile lies in ("Hot, dry crystal fields" on the surface, "Ice cave" below; "" on upper floors)."""
+    if z > 0:
+        return ""
+    if z < 0:
+        import underground
+        return underground.UBIOMES[underground.biome_at(game_world.master_seed, z, x, y)].name
+    import shafts
+    env = shafts.environment(game_world.master_seed, chunk_key(x, y))
+    lx, ly = local(x, y)
+    bits = int(env["variant"][lx, ly]) if "variant" in env else 0
+    return biomes.variant_name(biomes.BIOME_IDS[int(env["biome"][lx, ly])], bits)
+
+
 def biome_and_share(game_world, z: int, x: int, y: int) -> Tuple[str, float]:
     """`(biome key, strength 0..1)` of surface tile (x, y): the strength is how far inside its region the tile is (1 deep inside,
     about 0.5 on a border). ("", 0.0) underground and on other floors."""
@@ -62,8 +76,7 @@ def ambient_temperature(game_world, z: int, x: int, y: int, now: int) -> float:
     env = shafts.environment(game_world.master_seed, chunk_key(x, y))
     lx, ly = local(x, y)
     biome = biomes.BIOMES[biomes.BIOME_IDS[int(env["biome"][lx, ly])]]
-    bits = int(env["variant"][lx, ly]) if "variant" in env else 0
-    local_heat = sum(spec.ambient for k, spec in biomes.VARIANTS.items() if bits & biomes.VARIANT_BITS[k])
+    local_heat = sum(spec.ambient * float(env[f"amount_{k}"][lx, ly]) for k, spec in biomes.VARIANTS.items() if f"amount_{k}" in env)
     light = lighting.daylight(now, game_world.engine.config) if z == 0 else 1.0
     return biome.ambient + local_heat + offset - biome.night_drop * (1.0 - light)
 
