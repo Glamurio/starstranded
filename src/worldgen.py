@@ -16,6 +16,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np  # type: ignore
 import tcod
 
+import biomes
 import hydrology
 import regions
 import relief
@@ -227,23 +228,60 @@ def chunk_environment(noise: TerrainNoise, x0: int, y0: int, width: int = CHUNK_
     return {k: np.ascontiguousarray(v[interior]) for k, v in env.items()}
 
 
-def liquid_palette(noise: TerrainNoise, kind: np.ndarray, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
-    """`(shallow, deep)` RGB (float, shape (width, height, 3)) for every tile of the rectangle: a pure function of the lake-colour
-    noise and the liquid kind, so a lake keeps its colour across chunk borders and neighbouring lakes differ."""
-    import colorsys
-    field = noise.liquid_hue_field(x0, y0, width, height)
-    u = np.clip(0.5 + field / 1.1, 0.0, 1.0)
-    stops = np.array(HUE_STOPS)
-    # plateaus: most of a body of water keeps one colour and the change to the next is a short band, so an ocean is not a rainbow
-    cells = u * (len(stops) - 1)
-    base = np.floor(cells)
-    blend = np.clip((cells - base - 0.5) / PLATEAU_EDGE + 0.5, 0.0, 1.0)
-    hue = stops[np.minimum(base.astype(int), len(stops) - 1), 1] * (1 - blend) + stops[np.minimum(base.astype(int) + 1, len(stops) - 1), 1] * blend
-    kv = noise.liquid_kind_field(x0, y0, width, height)
-    soft = lambda x: np.clip(x, 0.0, 1.0) ** 2 * (3.0 - 2.0 * np.clip(x, 0.0, 1.0))      # noqa: E731 (a smooth step: the tint never jumps at a kind's border)
-    weights = {2: soft((kv - IMPURE_BELOW) / KIND_FADE + 0.5) * (1.0 - soft((kv - TOXIC_BELOW) / KIND_FADE + 0.5)), 3: soft((kv - TOXIC_BELOW) / KIND_FADE + 0.5)}
-    for number, target in KIND_HUE.items():
-        pull = KIND_PULL * weights[number]
+WATER_CELL = 700
+"""Lakes and seas that no river feeds take the colour of the biome at the centre of their `WATER_CELL`-sized cell of the world (the cell
+borders wander, so a sea that crosses one shows no straight seam): a body of water is one liquid with one colour, however many biomes its
+shore passes through."""
+WATER_WARP = 160
+SHORE_GRADIENT = 7
+"""Water changes from its shallow to its deep colour over this many tiles from the shore."""
+
+
+def water_anchors(noise: TerrainNoise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
+    """For every tile of the rectangle, the coordinates of the place its water comes from: the spring of the river that fills it,
+    or the middle of the cell of the world it lies in (tiles beside a river take that river's)."""
+    ax, ay = hydrology.water_sources(noise, x0, y0, width, height)
+    xs = (np.arange(width) + x0)[:, None] + np.zeros((1, height), dtype=int)
+    ys = (np.arange(height) + y0)[None, :] + np.zeros((width, 1), dtype=int)
+    ox, oy = int(noise.shift[0]) % WATER_CELL, int(noise.shift[1]) % WATER_CELL
+    warp_x = np.rint(noise.sample(12, 0.004, x0, y0, width, height) * WATER_WARP).astype(int)
+    warp_y = np.rint(noise.sample(12, 0.004, x0 + 5000, y0 + 5000, width, height) * WATER_WARP).astype(int)
+    cell_x = (xs + warp_x - ox) // WATER_CELL * WATER_CELL + ox + WATER_CELL // 2
+    cell_y = (ys + warp_y - oy) // WATER_CELL * WATER_CELL + oy + WATER_CELL // 2
+    have = ax != hydrology.NO_SOURCE
+    for _ in range(SHORE_GRADIENT + 2):                    # (the shore takes its river's colour a few tiles in)
+        for axis, step in ((0, 1), (0, -1), (1, 1), (1, -1)):
+            src_have, src_x, src_y = (np.roll(a, step, axis) for a in (have, ax, ay))
+            take = ~have & src_have
+            ax, ay, have = np.where(take, src_x, ax), np.where(take, src_y, ay), have | take
+    return np.where(have, ax, cell_x), np.where(have, ay, cell_y)
+
+
+def _water_traits(noise: TerrainNoise, ax: int, ay: int) -> Tuple[float, int]:
+    """`(hue, kind)` of the water that rises at one place: the hue of its biome (with a little of its own), and clean, impure or toxic."""
+    cache = noise.__dict__.setdefault("_water_traits", {})
+    found = cache.get((ax, ay))
+    if found is None:
+        key = regions.biome_at(noise, ax, ay)
+        jitter = (mix_seed(noise.floor_seed, ax, ay, 7117) % 25) - 12
+        kv = float(noise.liquid_kind_field(ax, ay, 1, 1)[0, 0])
+        kind = 1 if kv < IMPURE_BELOW else 2 if kv < TOXIC_BELOW else 3
+        found = cache[(ax, ay)] = ((biomes.water_hue(key) + jitter) % 360.0, kind)
+    return found
+
+
+def liquid_palette(noise: TerrainNoise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """`(shallow, deep, kind)` for every tile of the rectangle: RGB (float, shape (width, height, 3)) and the liquid kind. Both come
+    from where the water rises (`water_anchors`), so a body of water keeps one colour and one nature along its whole length, and
+    a long river can be followed back to the biome its colour is from."""
+    ax, ay = water_anchors(noise, x0, y0, width, height)
+    pairs = np.stack([ax.ravel(), ay.ravel()], axis=1)
+    unique, inverse = np.unique(pairs, axis=0, return_inverse=True)
+    traits = [_water_traits(noise, int(x), int(y)) for x, y in unique]
+    hue = np.array([t[0] for t in traits])[inverse.ravel()].reshape(width, height)
+    kind = np.array([t[1] for t in traits], dtype=np.int8)[inverse.ravel()].reshape(width, height)
+    for number, target in KIND_HUE.items():         # what it is made of tints it a little (toxic towards violet, acid towards yellow-green)
+        pull = np.where(kind == number, KIND_PULL, 0.0)
         delta = (target - hue + 180.0) % 360.0 - 180.0         # the short way round the colour wheel
         hue = (hue + delta * pull) % 360.0
     out = []
@@ -260,7 +298,13 @@ def liquid_palette(noise: TerrainNoise, kind: np.ndarray, x0: int, y0: int, widt
         g = np.choose(sector, (x, c, c, x, z, z))
         b = np.choose(sector, (z, z, x, c, c, x))
         out.append(np.stack([r + m, g + m, b + m], axis=-1) * 255.0)
-    return out[0], out[1]
+    return out[0], out[1], kind
+
+
+def _water_depth_mix(liquid: np.ndarray) -> np.ndarray:
+    """0 (shallow colour) on the shore to 1 (deep colour) `SHORE_GRADIENT` tiles out, smoothly: a gradient, not bands."""
+    from_land = shore_distance(~liquid, SHORE_GRADIENT).astype(float)
+    return _smooth((from_land - 1.0) / (SHORE_GRADIENT - 1.0))
 
 
 def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray, x0: int, y0: int, width: int, height: int):
@@ -274,10 +318,8 @@ def _shape_liquid(noise: TerrainNoise, landscape: np.ndarray, liquid: np.ndarray
         left, right, up, down = neighbour_masks(inner)
         inner = inner & left & right & up & down
         depth += inner
-    kind_value = noise.liquid_kind_field(x0, y0, width, height)
-    kind = np.where(kind_value < IMPURE_BELOW, 1, np.where(kind_value < TOXIC_BELOW, 2, 3)).astype(np.int8)
-    shallow, deep = liquid_palette(noise, kind, x0, y0, width, height)
-    mix = (np.clip(depth - 1, 0, 2) / 2.0)[..., None]                       # shallow on the shore, deep two tiles in: a gradient, not a step
+    shallow, deep, kind = liquid_palette(noise, x0, y0, width, height)
+    mix = _water_depth_mix(liquid)[..., None]
     light = (shallow * (1.0 - mix) + deep * mix).astype(np.uint8)
     landscape["liquid"][liquid] = kind[liquid]
     landscape["depth"][liquid] = depth[liquid]
@@ -339,12 +381,12 @@ def _blend_shores(noise: TerrainNoise, area, landscape: np.ndarray, water: np.nd
             landscape[layer]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
         damp_bg = shallow[band] * 0.10
         landscape["light"]["bg"][band] = np.clip(_mix(landscape["light"]["bg"][band], damp_bg, share), 0, 255).astype(np.uint8)
-    depth = landscape["depth"]
-    for level, base, other, share in ((1, shallow, ground * 0.8, 0.22), (2, deep, shallow, 0.45)):
-        band = water & (depth == level)
-        if not band.any():
-            continue
-        colour = _mix(base[band], other[band], share) + jitter[band]
+    mix = _water_depth_mix(water)
+    band = water & (mix < 1.0)                      # the shore takes some of the ground's colour, less with every tile out
+    if band.any():
+        share = (0.25 * (1.0 - mix))[band][:, None]
+        current = landscape["light"]["fg"][band].astype(float)
+        colour = current * (1.0 - share) + (ground[band].astype(float) * 0.8) * share + jitter[band]
         landscape["light"]["fg"][band] = np.clip(colour, 0, 255).astype(np.uint8)
         landscape["dark"]["fg"][band] = np.clip(colour * 0.5, 0, 255).astype(np.uint8)
 
@@ -753,12 +795,15 @@ def _scatter_lily_pads(self, world: "World", chunk: Chunk) -> None:
     liquid = chunk.tiles["liquid"] > 0
     count = int(liquid.sum() * LILY_PADS_PER_100_WATER_TILES / 100 + random.random())
     spots = np.argwhere(liquid & (chunk.tiles["depth"] <= 2))
+    from entity import EntityCategory
+    local = [tuple(int(c) for c in plant.color) for plant in list(chunk.by_category[EntityCategory.PLANT])[:40]]     # the pads wear the colours of what grows here
     for _ in range(min(count, len(spots))):
         lx, ly = spots[random.randrange(len(spots))].tolist()
         x, y = chunk.x0 + lx, chunk.y0 + ly
         if world.get_entities_at_location(x, y):
             continue
-        pad = decals.LilyPad(tuple(max(0, min(255, c + random.randint(-18, 18))) for c in (70, 150, 70)))
+        base = random.choice(local) if local else (70, 150, 70)
+        pad = decals.LilyPad(tuple(max(0, min(255, c + random.randint(-18, 18))) for c in base))
         pad.variant = random.randrange(8)
         world.add_entity(pad, x, y)
 

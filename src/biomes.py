@@ -570,3 +570,20 @@ def validate_content() -> None:
         assert all(0 <= c <= 255 for c in biome.ground), biome.key
         assert biome.temperature[0] <= biome.temperature[1] and biome.moisture[0] <= biome.moisture[1], biome.key
         assert not biome.wet_twin or biome.wet_twin in BIOMES, biome.key
+
+
+
+WATER_HUE_BY_FAMILY = {"grass": 205.0, "arid": 178.0, "forest": 160.0, "cold": 195.0, "fungal": 285.0, "crystal": 250.0, "volcanic": 175.0,
+                       "decay": 95.0, "alien": 320.0, "wet": 130.0, "coast": 205.0, "urban": 215.0}
+WATER_HUE_BY_BIOME = {"jungle": 140.0, "amberwood": 42.0, "thornwood": 120.0, "petrified_forest": 200.0, "salt_flats": 165.0,
+                      "spore_marsh": 300.0, "bog": 40.0, "mineral_pools": 285.0, "toxic_wetlands": 85.0, "luminous_marsh": 170.0,
+                      "flooded_forest": 150.0, "algal_basin": 105.0, "thermal_wetlands": 175.0, "geothermal_basin": 170.0,
+                      "bioluminescent_expanse": 175.0, "industrial_ruins": 60.0, "abandoned_industrial_ground": 60.0, "red_dunes": 190.0}
+
+
+def water_hue(key: str) -> float:
+    """The hue (degrees) of the water that rises in a biome: set once when a lake or river is born, by where its source lies."""
+    if key in WATER_HUE_BY_BIOME:
+        return WATER_HUE_BY_BIOME[key]
+    biome = BIOMES.get(key)
+    return WATER_HUE_BY_FAMILY.get(biome.family if biome else "", 205.0)

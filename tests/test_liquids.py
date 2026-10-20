@@ -56,11 +56,12 @@ def test_only_shallow_liquid_can_be_waded_and_the_colours_grade_from_shore_to_de
 
 
 def test_lakes_are_vivid_and_not_all_one_colour():
-    """There is no fixed lake colour: the hue comes from a noise field, so different places get clearly different, saturated water."""
+    """There is no fixed lake colour: it comes from the biome the water rises in, so different places get clearly different, saturated water."""
     noise = worldgen.TerrainNoise(5)
-    kind = np.full((400, 400), 1)
-    shallow, deep = worldgen.liquid_palette(noise, kind, -4000, -4000, 400, 400)
-    hues = np.array([colorsys.rgb_to_hsv(*(c / 255.0))[0] for c in shallow.reshape(-1, 3)[::97]]) * 360
+    places = [worldgen.liquid_palette(noise, x, y, 1, 1) for x in range(-4000, 4000, 400) for y in range(-4000, 4000, 1600)]
+    shallow = np.concatenate([p[0].reshape(-1, 3) for p in places])
+    deep = np.concatenate([p[1].reshape(-1, 3) for p in places])
+    hues = np.array([colorsys.rgb_to_hsv(*(c / 255.0))[0] for c in shallow]) * 360
     assert np.ptp(hues) > 60
     spread = shallow.max(axis=-1) - shallow.min(axis=-1)
     assert spread.min() > 40                                               # always saturated, never grey
@@ -69,10 +70,40 @@ def test_lakes_are_vivid_and_not_all_one_colour():
 
 def test_the_lake_palette_depends_only_on_the_place():
     noise = worldgen.TerrainNoise(5)
-    kind = np.full((30, 30), 1)
-    whole, _ = worldgen.liquid_palette(noise, kind, 100, 100, 30, 30)
-    part, _ = worldgen.liquid_palette(noise, kind[:10, :10], 110, 115, 10, 10)
-    assert np.allclose(whole[10:20, 15:25], part)
+    whole, _, kinds = worldgen.liquid_palette(noise, 100, 100, 30, 30)
+    part, _, part_kinds = worldgen.liquid_palette(noise, 110, 115, 10, 10)
+    assert np.allclose(whole[10:20, 15:25], part) and (kinds[10:20, 15:25] == part_kinds).all()
+
+
+def test_one_body_of_water_keeps_one_colour_and_one_kind():
+    """Every tile fed by the same source has the same hue and nature, however far it runs: a river can be followed back to where
+    its colour is from."""
+    import hydrology
+    noise = worldgen.TerrainNoise(5)
+    checked = 0
+    for kx in range(-6, 6):
+        for ky in range(-6, 6):
+            x0, y0 = kx * 70, ky * 40
+            mask = hydrology.water_mask(noise, x0, y0, 70, 40)
+            if mask.sum() < 20:
+                continue
+            ax, ay = worldgen.water_anchors(noise, x0, y0, 70, 40)
+            shallow, _, kind = worldgen.liquid_palette(noise, x0, y0, 70, 40)
+            for source in {(int(a), int(b)) for a, b in zip(ax[mask], ay[mask])}:
+                same = mask & (ax == source[0]) & (ay == source[1])
+                assert np.allclose(shallow[same], shallow[same][0]) and (kind[same] == kind[same][0]).all()
+                checked += 1
+    assert checked
+
+
+def test_water_deepens_gradually_from_the_shore():
+    noise = worldgen.TerrainNoise(5)
+    liquid = np.zeros((40, 12), dtype=bool)
+    liquid[10:, :] = True                                  # a straight shore with open water behind it
+    mix = worldgen._water_depth_mix(liquid)
+    column = mix[10:20, 6]
+    assert column[0] == 0.0 and column[-1] == 1.0
+    assert (np.diff(column) >= 0).all() and (np.diff(column)[:6] > 0).all()       # a smooth slope over several tiles, not two steps
 
 
 def test_kinds_are_whole_numbers_between_impure_and_acidic():

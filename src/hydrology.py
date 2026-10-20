@@ -330,13 +330,29 @@ def river_width(flow: float) -> float:
     return min(MAX_WIDTH, BASE_WIDTH + WIDTH_PER_ROOT * math.sqrt(max(flow - 1, 0)))
 
 
+NO_SOURCE = -(10 ** 9)
+
+
 def water_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
     """Tiles of the rectangle covered by a river, its spring pool, its estuary or the lake it ends in."""
+    return _paint_rivers(noise, x0, y0, width, height)[0]
+
+
+def water_sources(noise, x0: int, y0: int, width: int, height: int) -> Tuple[np.ndarray, np.ndarray]:
+    """For every tile of river water (see `water_mask`) the coordinates of the spring its river rises from; `NO_SOURCE` elsewhere.
+    The longest river wins where two meet, so a stream joining a river takes the river's colour downstream."""
+    _, ax, ay = _paint_rivers(noise, x0, y0, width, height)
+    return ax, ay
+
+
+def _paint_rivers(noise, x0: int, y0: int, width: int, height: int):
     system = system_for(noise)
     mask = np.zeros((width, height), dtype=bool)
-    rivers = system.rivers_near(x0, y0, width, height)
+    ax = np.full((width, height), NO_SOURCE, dtype=np.int32)
+    ay = np.full((width, height), NO_SOURCE, dtype=np.int32)
+    rivers = sorted(system.rivers_near(x0, y0, width, height), key=lambda r: len(r.nodes))
     if not rivers:
-        return mask
+        return mask, ax, ay
     flow = Counter()
     run = {}
     for river in rivers:
@@ -345,6 +361,7 @@ def water_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
             run[node] = max(run.get(node, 0), k)       # how far the longest river reaching this node has come
     for river in rivers:
         nodes = river.nodes
+        part = np.zeros_like(mask)
         widths = []
         for k, node in enumerate(nodes):
             w = river_width(flow[node] + run[node] / CATCHMENT_NODES)
@@ -360,14 +377,16 @@ def water_mask(noise, x0: int, y0: int, width: int, height: int) -> np.ndarray:
         dense = _dense(_chaikin(pts))
         near = (dense[:, 0] > x0 - 8) & (dense[:, 0] < x0 + width + 8) & (dense[:, 1] > y0 - 8) & (dense[:, 1] < y0 + height + 8)
         if near.any():
-            _stamp(mask, x0, y0, dense[near][:, :2], dense[near][:, 2] / 2 + 0.3)
+            _stamp(part, x0, y0, dense[near][:, :2], dense[near][:, 2] / 2 + 0.3)
         # the ends: a pool at the spring, a lake or an estuary at the mouth
         h = mix_seed(system.seed, nodes[-1][0], nodes[-1][1], 5454)
         end_radius = 6 + (h % 4) if river.end == "lake" else 4
         for centre, radius in (((pts[0, 0], pts[0, 1]), 2.6), ((pts[-1, 0], pts[-1, 1]), end_radius)):
             if x0 - 12 < centre[0] < x0 + width + 12 and y0 - 12 < centre[1] < y0 + height + 12:
-                _stamp(mask, x0, y0, np.array([centre]), np.array([radius]))
-    return mask
+                _stamp(part, x0, y0, np.array([centre]), np.array([radius]))
+        mask |= part
+        ax[part], ay[part] = int(round(pts[0, 0])), int(round(pts[0, 1]))
+    return mask, ax, ay
 
 
 FALL_DROP = 0.2
