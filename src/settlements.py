@@ -65,6 +65,11 @@ def kind_of(master: int, key: ChunkKey) -> Optional[str]:
     rng = random.Random(_mix(master, key[0], key[1], 8))
     if rng.random() >= CHANCE:
         return None
+    import biomes
+    import regions
+    centre = regions.biome_at(shafts.terrain_noise(master), key[0] * CHUNK_W + CHUNK_W // 2, key[1] * CHUNK_H + CHUNK_H // 2)
+    if biomes.BIOMES[centre].urban is not None or biomes.BIOMES[centre].family in ("volcanic", "crystal"):      # (a city has its own buildings)
+        return None
     return "farm" if rng.random() < FARM_SHARE else "town"
 
 

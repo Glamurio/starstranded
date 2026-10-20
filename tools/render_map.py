@@ -1,5 +1,5 @@
 """Developer tool: paint the generated terrain of a seed as one PNG (1 pixel per tile) to look at continents, ranges, rivers
-and landmarks. Usage: python tools/render_map.py SEED OUT.png [X0 Y0 WIDTH HEIGHT]   (run from the repository root)."""
+and regions. Usage: python tools/render_map.py SEED OUT.png [X0 Y0 WIDTH HEIGHT]   (run from the repository root)."""
 import os
 import sys
 
@@ -9,7 +9,6 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import numpy as np
 
 import biomes
-import landmarks
 import worldgen
 
 
@@ -17,15 +16,15 @@ def paint(seed: int, x0: int, y0: int, width: int, height: int) -> np.ndarray:
     noise = worldgen.TerrainNoise(seed)
     kinds = worldgen.base_terrain(noise, x0, y0, width, height)
     env = worldgen.environment_for(noise, x0, y0, width, height, kinds)
-    ground = landmarks.blend_ground(biomes.ground_colors(env["biome"]), env["landmark"], env["landmark_strength"]).astype(float)
+    ground = worldgen.ground_colours(noise, (x0, y0, width, height), env).astype(float)
     shade = 0.75 + 0.25 * np.clip(env["elevation"], 0, 1.2)[..., None]
     image = ground * shade
-    image[kinds == 2] = np.array([95, 90, 95]) * (0.7 + 0.3 * np.clip(env["elevation"], 0, 1.5))[kinds == 2][:, None]
-    volcanic = (env["landmark"] == landmarks.LANDMARK_INDEX["volcanic_mountains"]) * env["landmark_strength"]
-    snow = (worldgen.relief.smooth((env["elevation"] - worldgen.SNOW_FROM) / worldgen.SNOW_SPAN) * (1.0 - np.clip(volcanic * 1.5, 0, 1)))[..., None]
-    ash = np.clip(volcanic * 1.2, 0, 0.85)[..., None]
     rock = kinds == 2
-    image = np.where(rock[..., None], image * (1 - ash) + np.array(worldgen.ASH_COLOR) * ash, image)
+    tint = np.array([biomes.BIOMES[k].rock_tint or (95, 90, 95) for k in biomes.BIOME_IDS], dtype=float)[env["biome"]]
+    mix = np.array([biomes.BIOMES[k].rock_mix for k in biomes.BIOME_IDS], dtype=float)[env["biome"]][..., None]
+    stone = np.array([95, 90, 95]) * (1 - mix) + tint * mix
+    image = np.where(rock[..., None], stone * (0.7 + 0.3 * np.clip(env["elevation"], 0, 1.5))[..., None], image)
+    snow = worldgen.relief.smooth((env["elevation"] - worldgen.SNOW_FROM) / worldgen.SNOW_SPAN)[..., None] * (mix < 0.5)
     image = np.where(rock[..., None], image * (1 - snow) + np.array(worldgen.SNOW_COLOR) * snow, image)
     shallow, deep = worldgen.liquid_palette(noise, np.full(kinds.shape, 1), x0, y0, width, height)   # (the kind tint is left out here)
     image[kinds == 0] = shallow[kinds == 0]

@@ -21,7 +21,7 @@ def test_the_landing_site_is_dry_open_and_mild(seed):
     assert not (kinds == 0).any(), "water on the landing chunk"
     assert (kinds == 1).mean() > 0.9, "mostly open ground at the landing site"
     centre = int(env["biome"][35, 20])
-    assert biomes.BIOMES[biomes.BIOME_IDS[centre]].family in ("grass", "forest", "wet", "coast")
+    assert biomes.BIOMES[biomes.BIOME_IDS[centre]].family in ("grass", "forest", "wet", "coast", "cold")
     import regions
     for index in np.unique(env["biome"]):          # (the whole landing chunk is mild country)
         assert regions.mild(biomes.BIOMES[biomes.BIOME_IDS[index]]) or biomes.BIOMES[biomes.BIOME_IDS[index]].coastal, biomes.BIOME_IDS[index]

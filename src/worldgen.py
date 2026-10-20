@@ -540,6 +540,8 @@ def generate_terrain(noise: TerrainNoise, x0: int, y0: int, width: int, height: 
     # (ground cover never goes under a tree: a tree and a tuft of grass would share a tile)
     covered = _cover_ground(noise, area, landscape, env, open_ground & ~tree_map, density)
     _texture_ground(noise, area, landscape, env, open_ground & ~tree_map & ~covered)
+    import urban
+    urban.paint(noise, area, landscape, env, kinds, tree_map)       # streets, yards and towers of the abandoned cities
     deck, banks = hydrology.bridge_tiles(noise, x0 - m, y0 - m, pw, ph)
     deck, banks = deck & (kinds == 0) & ~hot & ~fall & ~lava, banks & (kinds == 1) & ~landscape["open"]
     tile_types.lay_bridge(landscape, deck, (kinds == 1) & ~deck)     # the odd natural bridge over a narrow river
@@ -644,6 +646,9 @@ class NoiseWorldSource:
             else:
                 env = shafts.environment(self.floor_seed, chunk.key)
                 self._grow_flora(world, chunk, tree_map, env)
+                import urban
+                reserved |= urban.reserved_tiles(self.noise, env, chunk.x0, chunk.y0)
+                urban.populate(self, world, chunk, env)
                 self._scatter_stones(world, chunk, env, reserved)
                 import scenery
                 scenery.populate(self, world, chunk, env, reserved, ruin_chunk=chunk.key in structures.ruin_chunks(self.floor_seed))

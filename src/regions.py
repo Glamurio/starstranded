@@ -33,7 +33,7 @@ CELL = 150
 """Edge of a region cell, in tiles: regions are about this wide (a chunk is 70 by 40)."""
 JITTER = 0.7
 """A site lies in the middle `JITTER` of its cell, so regions are never tiny slivers."""
-WARP, WARP_SCALE = 30.0, 0.010
+WARP, WARP_SCALE = 55.0, 0.011
 """How far (tiles) the noise bends a tile's position before the nearest site is found, and the noise frequency: borders wander."""
 BORDER = 14.0
 """Tiles over which the ground blends across a border and the two regions' plants mix."""
