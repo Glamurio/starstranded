@@ -3,9 +3,8 @@
 Like the surface, a cave layer's biome is a pure function of the seed, the layer and the position (`field`), so a chunk draws
 the same regions as its neighbours. Each biome (`UBIOMES`) is data: floor and wall colours, the little things growing or lying on
 the floor (`cover`), the animals that live there (keys of `planet.CAVE_FAUNA`, with weights), and the soundtrack pool. The `ruins`
-biome is the one under a precursor ruin of the surface (an oval of it); every other region comes from two low-frequency noise fields (warm/cold and
-dry/wet) matched to the nearest biome in that plane, pulled towards the underground biome of the surface biome above (`SURFACE_INFLUENCE`:
-strong in the first layer, weaker with depth, so the deep caves drift away from the country over them). Selenites and robots are rare visitors everywhere, commoner in the ruins."""
+biome is the one under a precursor ruin of the surface (an oval of it); every other region is a region of the surface above (`regions`: large, with blended borders), which has the underground biome of its surface biome with a chance (`SURFACE_INFLUENCE`:
+likely in the first layer, less with depth, so the deep caves drift away from the country over them) and otherwise a biome of its own, drawn from the region's number. Selenites and robots are rare visitors everywhere, commoner in the ruins."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ from typing import Dict, Tuple
 
 import numpy as np  # type: ignore
 
+import spriteconfig
 from atlas import sprite_id
 from chunks import CHUNK_H, CHUNK_W, ChunkKey, chunk_origin
 
@@ -43,6 +43,7 @@ UBIOME_IDS = []
 
 def _biome(*args, **kwargs) -> UBiome:
     biome = UBiome(*args, **kwargs)
+    object.__setattr__(biome, "cover", tuple(spriteconfig.get(f"cave.{biome.key}.cover.{i}", cell) for i, cell in enumerate(biome.cover)))
     UBIOMES[biome.key] = biome
     UBIOME_IDS.append(biome.key)
     return biome
@@ -80,12 +81,11 @@ RUINS = UBIOME_INDEX["ruins"]
 
 # Chance per spawn that a Selenite / a robot is the creature (instead of a cave animal); the ruins are theirs.
 VISITORS = {"default": (0.06, 0.02), "ruins": (0.25, 0.30), "infrastructure": (0.04, 0.12)}
-FIELD_SCALE = 0.009
-SURFACE_INFLUENCE = {-1: 1.0, -2: 0.7, -3: 0.4}
-"""How strongly the surface above decides a cave layer's biome (layers deeper than these: `DEEP_INFLUENCE`)."""
-DEEP_INFLUENCE = 0.15
-PULL = 0.75
-"""At full influence the distance to the surface biome's centre is divided by 1 / (1 - PULL) = 4: its cave covers most of the ground."""
+SURFACE_INFLUENCE = {-1: 0.85, -2: 0.6, -3: 0.35}
+"""The chance that a cave region follows the surface above it (layers deeper than these: `DEEP_INFLUENCE`); otherwise it takes a biome of its own."""
+DEEP_INFLUENCE = 0.12
+OWN_WEIGHT = {"barren": 0.5}
+"""How often each biome is the one a cave region takes of its own (1 unless listed): bare caves are kept to a minority."""
 
 
 @lru_cache(maxsize=1)
@@ -96,68 +96,90 @@ def _surface_to_under() -> np.ndarray:
 
 
 @lru_cache(maxsize=256)
-def _surface_above(master: int, key: ChunkKey, margin: int) -> np.ndarray:
-    """The region biome (index) of the surface over every tile of a chunk and its margin."""
+def _surface_above(master: int, key: ChunkKey, margin: int):
+    """The surface regions (`regions.Field`) over every tile of a chunk and its margin: the caves use the same regions as the country above."""
     import regions
     import shafts
     x0, y0 = chunk_origin(key)
-    return regions.field(shafts.terrain_noise(master), x0 - margin, y0 - margin, CHUNK_W + 2 * margin, CHUNK_H + 2 * margin).biome
+    return regions.field(shafts.terrain_noise(master), x0 - margin, y0 - margin, CHUNK_W + 2 * margin, CHUNK_H + 2 * margin)
 
 
-@lru_cache(maxsize=64)
-def _noises(master: int, z: int):
-    import tcod.noise
+def _of_region(master: int, z: int, region: int, surface_biome: int) -> int:
+    """The underground biome of one region of layer z: the one under its surface biome (more likely near the surface), else one of its own."""
+    import random
     from seeds import mix_seed
-    return [tcod.noise.Noise(dimensions=2, algorithm=tcod.noise.Algorithm.PERLIN, seed=mix_seed(master, z, 77, i) % 2**31) for i in range(2)]
+    rng = random.Random(mix_seed(master, z, region, 7201))
+    if rng.random() < SURFACE_INFLUENCE.get(z, DEEP_INFLUENCE):
+        return int(_surface_to_under()[surface_biome])
+    keys = [k for k in UBIOME_IDS if k != "ruins"]
+    return UBIOME_INDEX[rng.choices(keys, weights=[OWN_WEIGHT.get(k, 1.0) for k in keys])[0]]
 
 
 def clear_caches() -> None:
-    _noises.cache_clear()
     _surface_above.cache_clear()
+
+
+def blended(master: int, z: int, key: ChunkKey, margin: int = 0):
+    """`(biome, other, edge)` of every tile of chunk `key` (plus `margin`): the cave biome of the tile's region, that of the neighbouring
+    region and the neighbour's share (0 deep inside a region .. 0.5 on its border), so caves change gradually like the country does."""
+    from structures import ruin_chunks
+    above = _surface_above(master, key, margin)
+    biome = np.zeros(above.biome.shape, dtype=np.int8)
+    other = np.zeros(above.biome.shape, dtype=np.int8)
+    for region in np.unique(np.concatenate([above.region.ravel(), above.other_region.ravel()])):
+        for ids, out in ((above.region, biome), (above.other_region, other)):
+            here = ids == region
+            if here.any():
+                surface = (above.biome if out is biome else above.other)[here][0]
+                out[here] = _of_region(master, z, int(region), int(surface))
+    edge = np.where(biome == other, 0.0, above.edge)
+    width, height = biome.shape
+    if key in ruin_chunks(master):                    # an oval of ruins under the surface ruin
+        xs = (np.arange(width)[:, None] - margin - CHUNK_W / 2 + 0.5) / (CHUNK_W * 0.46)
+        ys = (np.arange(height)[None, :] - margin - CHUNK_H / 2 + 0.5) / (CHUNK_H * 0.46)
+        oval = xs * xs + ys * ys < 1.0
+        biome[oval], edge[oval] = RUINS, 0.0
+    return biome, other, edge
 
 
 def field(master: int, z: int, key: ChunkKey, margin: int = 0) -> np.ndarray:
     """Biome index of every tile of chunk `key` (plus `margin` tiles around it), shape `(CHUNK_W + 2m, CHUNK_H + 2m)`."""
-    import tcod.noise
-    from structures import ruin_chunks
-    x0, y0 = chunk_origin(key)
-    width, height = CHUNK_W + 2 * margin, CHUNK_H + 2 * margin
-    grid = dict(shape=(height, width), offset=(y0 - margin, x0 - margin))
-    warm, wet = (1.7 * n[tcod.noise.grid(scale=FIELD_SCALE, **grid)] for n in _noises(master, z))
-    candidates = [b for b in UBIOMES.values() if b.key != "ruins"]
-    distance = np.stack([np.hypot(warm - b.centre[0], wet - b.centre[1]) / b.reach for b in candidates])
-    above = _surface_to_under()[_surface_above(master, key, margin)]                # the biome the surface asks for, tile by tile
-    pull = 1.0 - PULL * SURFACE_INFLUENCE.get(z, DEEP_INFLUENCE)
-    wanted = np.array([UBIOME_INDEX[b.key] for b in candidates], dtype=np.int8)[:, None, None] == above[None]
-    distance = np.where(wanted, distance * pull, distance)
-    out = np.array([UBIOME_INDEX[b.key] for b in candidates], dtype=np.int8)[np.argmin(distance, axis=0)]
-    if key in ruin_chunks(master):                    # an oval of ruins under the surface ruin, its edge roughened by the warm field
-        xs = (np.arange(width)[:, None] - margin - CHUNK_W / 2 + 0.5) / (CHUNK_W * 0.46)
-        ys = (np.arange(height)[None, :] - margin - CHUNK_H / 2 + 0.5) / (CHUNK_H * 0.46)
-        out[xs * xs + ys * ys + 0.25 * warm < 1.0] = RUINS
-    return out
+    return blended(master, z, key, margin)[0]
 
 
-def paint(landscape: np.ndarray, biome: np.ndarray, floor: np.ndarray, wall: np.ndarray, rng: np.random.Generator) -> None:
-    """Colour the tiles of a chunk by their biome (`floor` / `wall` are masks) and scatter each biome's cover over its floor."""
+def paint(landscape: np.ndarray, biome: np.ndarray, floor: np.ndarray, wall: np.ndarray, rng: np.random.Generator,
+          other: np.ndarray = None, edge: np.ndarray = None) -> None:
+    """Colour the tiles of a chunk by their biome (`floor` / `wall` are masks) and scatter each biome's cover over its floor. Where a region
+    meets another (`other`, `edge` its share) the colours run into each other and the cover comes from either."""
+    if other is None:
+        other, edge = biome, np.zeros(biome.shape)
+    share = edge[..., None]
+    for layer, dim in (("light", 1.0), ("dark", 0.42)):
+        wall_dim = dim if layer == "light" else 0.4
+        for part, dims, mask in (("floor", dim, floor), ("floor_bg", dim, floor), ("wall", wall_dim, wall)):
+            if part == "floor_bg" and layer != "light":
+                landscape[layer]["bg"][floor] = (0, 0, 0)
+                continue
+            colours = np.array([getattr(UBIOMES[k], part) for k in UBIOME_IDS], dtype=float) * dims
+            mixed = colours[biome] * (1.0 - share) + colours[other] * share
+            target = "bg" if part == "floor_bg" else "fg"
+            landscape[layer][target][mask] = mixed[mask].astype(np.uint8)
+    pick = np.where(rng.random(biome.shape) < edge, other, biome)          # the biome whose cover a tile may carry
     for key, i in UBIOME_INDEX.items():
         b = UBIOMES[key]
-        here = biome == i
+        if not (b.cover and b.cover_chance):
+            continue
+        covered = floor & (pick == i) & (rng.random(biome.shape) < b.cover_chance)
+        if not covered.any():
+            continue
+        sprites = np.array([sprite_id(*cell) for cell in b.cover], dtype=np.int32)
+        chosen = sprites[(rng.random(biome.shape) * len(sprites)).astype(int)[covered]]
+        flip = rng.random(biome.shape)[covered] < 0.5
+        tint = b.floor
         for layer, dim in (("light", 1.0), ("dark", 0.42)):
-            landscape[layer]["fg"][floor & here] = tuple(int(c * dim) for c in b.floor)
-            landscape[layer]["bg"][floor & here] = tuple(int(c * dim) for c in b.floor_bg) if layer == "light" else (0, 0, 0)
-            landscape[layer]["fg"][wall & here] = tuple(int(c * (dim if layer == "light" else 0.4)) for c in b.wall)
-        if b.cover and b.cover_chance:
-            covered = floor & here & (rng.random(biome.shape) < b.cover_chance)
-            if not covered.any():
-                continue
-            sprites = np.array([sprite_id(*cell) for cell in b.cover], dtype=np.int32)
-            chosen = sprites[(rng.random(biome.shape) * len(sprites)).astype(int)[covered]]
-            flip = rng.random(biome.shape)[covered] < 0.5
-            for layer, dim in (("light", 1.0), ("dark", 0.42)):
-                landscape[layer]["sprite"][covered] = chosen
-                landscape[layer]["flip"][covered] = flip
-                landscape[layer]["fg"][covered] = tuple(min(255, int(c * dim * 1.25)) if dim == 1.0 else int(c * dim) for c in b.floor)
+            landscape[layer]["sprite"][covered] = chosen
+            landscape[layer]["flip"][covered] = flip
+            landscape[layer]["fg"][covered] = tuple(min(255, int(c * dim * 1.25)) if dim == 1.0 else int(c * dim) for c in tint)
 
 
 def biome_at(master: int, z: int, x: int, y: int) -> str:
