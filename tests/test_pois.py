@@ -50,15 +50,18 @@ def test_each_kind_builds_something_and_nobody_lives_there(kind):
     from components.unit import Unit
     from chunks import CHUNK_H, CHUNK_W
     source, world = _world()
-    chunk = world.load_chunk((4, 4))
-    for entity in list(chunk.entities):
-        if not getattr(entity, "decal", False):
-            world.remove_entity(entity)
-    before = len(chunk.entities)
-    built = False
-    for number in range(8):
-        site = pois.Site(world, chunk, random.Random(number), source.planet, biomes.BIOMES[next(iter(biomes.BIOMES))], SEED)
-        built = pois.POIS[kind].build(site) or built
+    built, chunk, before = False, None, 0
+    for key in [(4, 4), (4, 5), (5, 5), (3, 5), (6, 4), (2, 6), (7, 7), (-4, 5), (5, -4), (-6, -3)]:        # (regions are big; some chunks are all water or forest)
+        chunk = world.load_chunk(key)
+        for entity in list(chunk.entities):
+            if not getattr(entity, "decal", False):
+                world.remove_entity(entity)
+        before = len(chunk.entities)
+        for number in range(8):
+            site = pois.Site(world, chunk, random.Random(number), source.planet, biomes.BIOMES[next(iter(biomes.BIOMES))], SEED)
+            built = pois.POIS[kind].build(site) or built
+        if built:
+            break
     assert built
     assert len(chunk.entities) > before
     assert not [e for e in chunk.entities if isinstance(e, Unit) and e is not world.engine.player and getattr(e, "ai", None) is None and "settler" in str(getattr(e, "name", "")).lower()]

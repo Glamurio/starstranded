@@ -105,17 +105,22 @@ def reload() -> None:
 
 def catalog() -> List[str]:
     """Every editable key, grouped by kind. Makes sure the lazily-built definitions have registered their defaults."""
+    import biomes      # noqa: F401 - importing registers the ground sprites of every biome
     import planet
+    import scenery     # noqa: F401 - ... the scenery
     import species
     import tile_types   # noqa: F401 - importing registers the tile defaults
+    import underground  # noqa: F401 - ... the cave covers
+    import urban        # noqa: F401 - ... the city sprites
     for template in planet.FLORA_TEMPLATES:
         for i, sprite in enumerate(template.sprites):
             get(f"flora.{template.key}.{i}", sprite)
-    for template in planet.FAUNA_TEMPLATES:
+    for template in planet.FAUNA_TEMPLATES + planet.CAVE_FAUNA:
         get(f"fauna.{template.key}", template.sprite)
         get(f"fauna.{template.key}.corpse", template.corpse_sprite)
-    order = {"item": 0, "unit": 1, "fauna": 2, "flora": 3, "tile": 4}
-    return sorted(DEFAULTS, key=lambda key: (order.get(key.split(".", 1)[0], 9), key))
+    order = {"item": 0, "unit": 1, "fauna": 2, "flora": 3, "scenery": 4, "ground": 5, "city": 6, "cave": 7, "tile": 8}
+    return sorted((k for k in DEFAULTS if not k.startswith("item.scenery_")),      # (scenery is edited as "scenery.<kind>.<n>")
+                  key=lambda key: (order.get(key.split(".", 1)[0], 9), key))
 
 
 def label(key: str) -> str:
@@ -133,6 +138,36 @@ def _apply_live(key: str, pos: Pos) -> None:
             definition = registry.get(key)
             if definition is not None:
                 object.__setattr__(definition, "corpse_sprite" if part == "corpse" else "sprite", pos)
+    elif kind == "scenery":
+        import scenery
+        name, _, slot = rest.rpartition(".")
+        if name in scenery.CELLS and slot.isdigit() and int(slot) < len(scenery.CELLS[name]):
+            scenery.CELLS[name][int(slot)] = pos
+    elif kind in ("ground", "cave"):
+        name, _, tail = rest.partition(".")
+        part, _, slot = tail.rpartition(".")
+        if kind == "ground":
+            import biomes
+            import terrain_text
+            target = biomes.BIOMES.get(name)
+            terrain_text._COVER.clear()
+        else:
+            import underground
+            target = underground.UBIOMES.get(name)
+        if target is not None and slot.isdigit() and int(slot) < len(getattr(target, part)):
+            cells = list(getattr(target, part))
+            cells[int(slot)] = pos
+            object.__setattr__(target, part, tuple(cells))
+    elif kind == "city":
+        import urban
+        if rest.startswith("tower."):
+            tower = list(urban.TOWER_SPRITES)
+            tower[int(rest.split(".")[1])] = pos
+            urban.TOWER_SPRITES = tuple(tower)
+        elif rest == "lane_h":
+            urban.LANE_H = pos
+        elif rest == "lane_v":
+            urban.LANE_V = pos
     elif kind == "tile":
         import tile_types
         name, _, variation = rest.partition(".")

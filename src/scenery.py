@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 import biomes
+import spriteconfig
 from entity import Entity
 from render_order import RenderOrder
 from species import ItemKind, register
@@ -69,6 +70,18 @@ SCENERY: Tuple[SceneryKind, ...] = (
 )
 BY_KEY: Dict[str, SceneryKind] = {k.key: k for k in SCENERY}
 
+def _cells(kind: SceneryKind) -> list:
+    """The sprite cells of a kind, each as the sprite editor has set it ("scenery.<kind>.<n>"; the old "item.scenery_<kind>" setting still moves the first)."""
+    cells = [spriteconfig.get(f"scenery.{kind.key}.{i}", cell) for i, cell in enumerate(kind.sprites)]
+    old = f"item.scenery_{kind.key}"
+    if spriteconfig.is_changed(old) and not spriteconfig.is_changed(f"scenery.{kind.key}.0"):
+        cells[0] = spriteconfig.current(old)
+    return cells
+
+
+CELLS: Dict[str, list] = {k.key: _cells(k) for k in SCENERY}
+"""What each kind is drawn with now (changed live by the sprite editor)."""
+
 KINDS: Dict[str, ItemKind] = {
     k.key: register(ItemKind(f"scenery_{k.key}", "Scenery", species=k.name, sprite=k.sprites[0], color=k.color, shade_sigma=8,
                              render_order=RenderOrder.DECAL))
@@ -95,7 +108,7 @@ class Scenery(Entity):
     @property
     def sprite_id(self) -> int:
         from tile_types import sprite_id
-        sprites = self.spec.sprites
+        sprites = CELLS[self.scenery_key]
         return sprite_id(*sprites[self.variant % len(sprites)])
 
     @property
