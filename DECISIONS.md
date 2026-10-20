@@ -832,3 +832,28 @@ Appearance, species identity and behaviour are already separate fields of `Fauna
 ## Codex descriptions and drops
 **What.** Creature and plant entries start with a short generated description (`lore.describe_unit/describe_plant`): the covering (fur, feathers, exoskeleton, scales, skin) or wood/fibre, its one or two standout properties (relative to what is normal for that covering, so fur is only "warm" when unusually so), and a climate ability (insulation: "can even thrive in a cold climate"; low conduction: "copes with a hot climate"). Below the facts a "Drops" list gives each thing the entry can leave (meat, hide, bones; branches, fibre, fruit) with its strongest properties, shown at the level the player has learned them ("???" otherwise). Meat and bones are rolled per piece, so they are listed as ranges. Also fixed: the diet fact printed an enum number.
 **Alternative.** Hand-written descriptions per species: not possible with generated planets.
+
+
+## Exclusive landmarks, the frost grove, and landmark vs biome (20 Oct)
+
+**Exclusive landmarks.** Inside a landmark that has plants of its own, ordinary species now thin out linearly with the landmark's
+strength and are gone from `LANDMARK_EXCLUSIVE_AT` (0.5) upwards (`Planet._landmark_exclusivity`, applied in `species_weights`, so
+trees, shrubs and flowers alike). A mushroom forest holds only fungi, a cactus desert only cacti; the soft edge still mixes both.
+Alternative: remove ordinary species only in the 100 % core. Rejected: the winner's strength is rarely 1, so the core would stay
+full of ordinary trees.
+
+**Frost grove** (cold landmark): rimed pale trees, frosted shrubs and flowers on blue-white ground, -8 C ambient, its own fauna
+(fur grazer/hopper/hunter) and music pool (reuses the `cold` tracks until it gets its own).
+
+**Landmark or biome?** A biome is what the *climate* makes (temperature x moisture); it fills the map and changes with latitude-like
+gradients. A landmark is *noise-placed*, rare, bounded, and overrides the look and life of whatever biome it lands on.
+By that test:
+- Hot spring / volcanic mountains / crystal badlands / decayed land / beach / meadow: place-like or event-like, rare, and keyed to
+  special features rather than a climate band -> landmarks. (A hot spring would be a landmark: a small thing you travel to.)
+- Mushroom forest, frost grove, cactus desert: they feel like biomes because they are big, have a whole flora and fauna of their
+  own, and are tied to a climate. They are the "exotic biome" tier.
+Recommendation (not applied, because it renames save-visible keys): keep one mechanism, but split the *vocabulary* into two
+tiers: "region" for the large exotic ones (mushroom forest, frost grove, cactus desert, decayed land) and "landmark" for the small
+local features (beach, meadow, crystal badlands, volcanic field, and later hot springs, oases, ruins). Code-wise both stay in
+`landmarks.py`; a `scale`/`kind` field would drive the codex wording and the map legend. Merging them into `biomes.py` would mean
+giving them climate bands, which would make them cover every matching tile (no more rarity), so we keep them noise-placed.
