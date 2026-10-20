@@ -3,6 +3,15 @@
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
 
+## Biome regions, second round, 20 Oct 2026
+- Changed: regions are much larger (about 300-tile cells, grouped into provinces that favour one family), with soft borders 34 tiles wide, so similar biomes sit together and the odd one out is a thin transition.
+- Changed: caves follow the surface region above them, with the same blended borders (colour lerp), instead of their own small noise patches. Hovering a cave tile now describes its contents, not its biome.
+- Changed: hot/cold/wet/dry variants and water colours fade in gradually (no stark grid of patches).
+- Changed: bridges, roads and floors keep their own material colour; remembered-but-unseen tiles are far darker; every sprite has a 1 pixel black outline.
+- New: the HUD shows the current biome under the music line; "Borderless window" setting (and tabbing out no longer minimises the game).
+- Fixed: the sprite editor lists the ground textures, cityscape, scenery and cave fauna sprites again.
+- Fixed: loose stones no longer land on another stone or on scenery.
+
 ## Biome regions round, 20 Oct 2026
 - New: the world is divided into large regions (about 120 x 120 tiles) of 72 biomes in 12 families, blended at their borders; landmarks are removed. Ground, plants, scenery, animals, music and caves follow the region.
 - New: hot, cold, wet and dry variants of a biome (tint, vegetation, temperature, name).

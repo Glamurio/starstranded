@@ -11,7 +11,7 @@ Code: `src/biomes.py` (the catalogue), `src/regions.py` (where regions are), `sr
 * **The biome of a region is drawn once, at world level** from the climate at its site (temperature, moisture, elevation) times each biome's
   `rarity`, never per tile. Near the landing site only mild, non-hostile biomes are allowed (`regions.mild`, `SPAWN_SAFE` = 300 tiles).
 * **Borders blend.** Every tile knows its biome, the neighbouring region's biome (`other`) and an `edge` share from 0 to 0.5. Ground colour, plant weights,
-  scenery weights, fauna suitability and music all blend by `edge` over `BORDER` = 14 tiles, so there are no hard lines.
+  scenery weights, fauna suitability and music all blend by `edge` over `BORDER` = 34 tiles (cells are 300 tiles, three to a province), so there are no hard lines.
 * **Inside a region** the ground shade, an alternate ground patch, vegetation patches, flooding and city density come from their own noise fields, so a region is never flat.
 * **Variants** (hot, cold, wet, dry) are climate flags on a tile (how far its climate is from the middle of the biome's range). They change ground tint,
   vegetation density, ambient temperature and the name shown; they never change the identity of the biome. They are not combined automatically (see section 3).
