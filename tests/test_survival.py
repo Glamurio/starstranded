@@ -151,3 +151,17 @@ def test_npc_hunger_ticks_in_ai_perform(small_world):
     e.game_world.current_time = simulation.HUNGER_PERIOD * simulation.THIRST_PERIOD
     BaseAI.perform(a.ai)
     assert a.hunger == 99 and a.thirst == 99
+
+
+def test_the_player_slowly_heals_one_point_per_fifteen_turns(small_world, monkeypatch):
+    import simulation
+    import survival
+    monkeypatch.setattr(survival, "tick", lambda *a, **k: None)
+    e = small_world()
+    player = e.player
+    player.max_hp, player.hp = 40, 10
+    player.hunger = player.thirst = 100
+    start = e.game_world.current_time
+    e.game_world.current_time = start - start % simulation.HEAL_PERIOD       # (on a period boundary)
+    e.game_world.pass_time(player, simulation.HEAL_PERIOD * 4)
+    assert player.hp == 14

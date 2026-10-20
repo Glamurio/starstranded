@@ -29,6 +29,7 @@ HUNGER_DAYS, THIRST_DAYS = 7, 3
 """Full hunger lasts this many days of `GameConfig.day_length` (480 turns) with nothing eaten, full thirst this many without drinking: then you die."""
 HUNGER_PERIOD = -(-HUNGER_DAYS * 480 // 100)  # hunger -1 every 34th turn (a little over 7 days from 100 to 0)
 THIRST_PERIOD = -(-THIRST_DAYS * 480 // 100)  # thirst -1 every 15th turn (a little over 3 days)
+HEAL_PERIOD = 15  # the player recovers one hit point every 15th turn (not while poisoned)
 GROWTH_PERIOD = 2  # plants grow every 2nd turn
 
 

@@ -964,6 +964,8 @@ class GameWorld:
                     unit.handle_hunger(-1)
                 if not self.current_time % simulation.THIRST_PERIOD:
                     unit.handle_thirst(-1)
+                if not self.current_time % simulation.HEAL_PERIOD and unit.poison <= 0:
+                    unit.heal(1)
                 unit.tick_poison(1)
                 if self.planet is not None:  # the old single-species test worlds have no climate
                     import survival
