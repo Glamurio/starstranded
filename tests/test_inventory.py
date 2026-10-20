@@ -97,8 +97,10 @@ def test_food_consumption_restores_and_depletes(small_world):
     p = e.player
     p.hunger = 50
     meat = Meat("x", p.inventory); p.inventory.add(meat)
+    meat.nourishment = 20
+    raw = meat.hunger_amount                       # raw food gives only a fraction (cooking gives the rest)
     meat.activate(p)
-    assert p.hunger == 60 and meat not in p.inventory.items
+    assert p.hunger == 50 + raw and 0 < raw < 20 and meat not in p.inventory.items
 
 
 def test_only_the_players_drops_are_announced(small_world):

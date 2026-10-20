@@ -2,6 +2,16 @@
 
 Behavior changes made by the modernization project (branch `modernize`). Pure refactors are not listed.
 
+## Cooking, water and sleep round, 21 Oct 2026
+- Fixed: the world map no longer zooms with the cursor. It keeps a fixed block size and scrolls by whole chunks when the cursor reaches the edge (Home recentres).
+- Changed: inventory, character, codex, recipe and cooking screens cover the full height of the left side.
+- Changed: healing is 1 point per 15 turns (not while poisoned).
+- Changed: a body of water takes its colour and kind once, from the biome of its source; rivers keep it all the way down. Shores fade with a depth gradient; lily pads take the chunk's plant colours. Lava stays orange.
+- New: bedroll (many fibres). It wears out after a few nights. Sleeping asks how long to sleep.
+- New: heat and cold build up in a body-heat meter shown in the HUD (Hypothermia / Hyperthermia). At the maximum you die.
+- New: cooking. Food has some of six flavours (sweet, spicy, salty, sour, savory, bitter), never all. Raw food gives only a fraction of its value; cooking gives far more. Meat restores more than other food. Some food is toxic raw or always. Humans must cook meat or it poisons them.
+- New: stews (meat + liquid), soups (liquid + fruit), skewers (meat or fruit + branch), with optional herbs or flowers for seasoning; each comes in flavour variants. Cook by using a lit campfire. Ovens and fish are not in yet.
+
 ## Survival, map and polish round, 20 Oct 2026
 - Changed: thirst empties in about 3 days and hunger in about 7. Neither costs health any more: at 0 you die. Heat and cold no longer drain through hit points either.
 - New: the death message and the ending name the cause: the killer and the damage type, or starvation, thirst, poison, cold, suffocation.

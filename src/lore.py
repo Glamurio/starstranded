@@ -87,7 +87,8 @@ def facts_for_plant(kind) -> List[Fact]:
         facts.append(Fact("material", Skill.BIOLOGY, 2, f"gives {stuff.name}", capability="botanical_expertise"))
     if kind.fruit is not None:
         toxic = kind.fruit.toxicity > 0
-        facts.append(Fact("fruit", Skill.BIOLOGY, 3, "toxic fruit" if toxic else "edible fruit", hint="Bears fruit.",
+        text = ("fruit poisonous raw: cook it" if kind.fruit.raw_toxic else "toxic fruit") if toxic else "edible fruit"
+        facts.append(Fact("fruit", Skill.BIOLOGY, 3, text, hint="Bears fruit.",
                           capability="botanical_expertise"))
     return facts
 
@@ -97,7 +98,9 @@ def facts_for_fruit(kind, planet=None) -> List[Fact]:
     parent = next((s for s in getattr(planet, "flora", ()) if s.key == kind.parent_key), None)
     facts = [name_fact(kind.species),
              Fact("nutrition", Skill.BIOLOGY, 1, f"restores {kind.hunger_amount} hunger, {kind.thirst_amount} thirst", hint="Edible?")]
-    facts.append(Fact("safety", Skill.BIOLOGY, 2, "toxic: it poisons" if kind.toxicity > 0 else "safe to eat",
+    facts.append(Fact("flavour", Skill.BIOLOGY, 1, ", ".join(kind.flavours) or "bland", hint="What does it taste of?"))
+    unsafe = "toxic raw: cook it first" if kind.raw_toxic else "toxic: it poisons"
+    facts.append(Fact("safety", Skill.BIOLOGY, 2, unsafe if kind.toxicity > 0 else "safe to eat",
                       hint="Might be harmful?", capability="botanical_expertise"))
     if parent is not None:
         facts.append(Fact("grows on", Skill.BIOLOGY, 2, parent.name, hint="Grows on a plant."))
@@ -434,7 +437,7 @@ def describe_plant(kind) -> str:
     elif climate:
         text += f"; it grows in {climate} country"
     if kind.fruit is not None:
-        safe = "poisonous" if kind.fruit.toxicity > 0 else "edible"
+        safe = ("poisonous raw" if kind.fruit.raw_toxic else "poisonous") if kind.fruit.toxicity > 0 else "edible"
         last = kind.fruit.species.lower().split(" ")[-1]
         if kind.category.name == "FLOWER":                              # (a flower's bloom is the flower: "its bud is poisonous")
             text += f". Its {last if last in ('bud', 'blossom', 'bloom') else 'bloom'} is {safe}"
@@ -470,7 +473,11 @@ def drops_of(engine, subject: str) -> List[Tuple[str, bool]]:
     out: List[Tuple[str, bool]] = []
     for kind in planet.fauna:
         if species_subject(kind) == subject:
-            out.append((f"Meat: restores {min(MEAT_HUNGER)}-{max(MEAT_HUNGER)} hunger, varies by carcass", True))
+            import cooking
+            raw = (max(1, round(min(MEAT_HUNGER) * cooking.RAW_FRACTION)), max(1, round(max(MEAT_HUNGER) * cooking.RAW_FRACTION)))
+            out.append((f"Meat: raw {raw[0]}-{raw[1]} hunger (cooked {min(MEAT_HUNGER)}-{max(MEAT_HUNGER)}), varies by carcass; people must cook it", True))
+            if kind.flavours:
+                out.append((f"Meat tastes {', '.join(kind.flavours)}", True))
             if kind.hide is not None:
                 out += _material_lines(run, "Hide", kind.hide, planet)
             ranges = decay.BONE_RANGES

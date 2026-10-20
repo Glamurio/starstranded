@@ -99,6 +99,8 @@ class ItemKind(_Definition):
     base_power: int = 0              # property-made weapons: power at a delivery rating of 5 (see items.Gear.power_bonus)
     parent_key: Optional[str] = None  # fruit and blooms: the key of the PlantSpecies that bears it
     bloom: bool = False               # a flower's bloom (named bud or blossom, not fruit)
+    flavours: Tuple[str, ...] = ()    # what it tastes of (see cooking.FLAVOURS): the stuff dishes are made from
+    raw_toxic: bool = False           # poisonous raw, harmless once cooked (`toxicity` poisons always)
 
 
 @dataclass(frozen=True)
@@ -134,6 +136,7 @@ class UnitSpecies(_Definition):
     blood_color: RGB = (150, 18, 24)   # what it bleeds when it dies (robots could leave black oil, say)
     blood_name: str = "blood"
     covering: str = "fur"              # what covers its body: fur, feather, chitin, scale or skin (see `COVERINGS`)
+    flavours: Tuple[str, ...] = ()     # what its meat tastes of (see cooking.FLAVOURS)
     faction: str = "wildlife"          # wildlife | federation | robot (see `allegiance`); humanoids are the Federation
     renegade: bool = False             # fights its own faction too (the exiled cave Selenites)
 
@@ -183,7 +186,7 @@ _RACE_BASE = dict(max_hp=30, power=2, defense=1, level_up_base=100, xp_given=50,
 HUMAN = register(UnitSpecies(
     "human", "Human", sprite=(117, 0), corpse_sprite=(24, 16), color=(255, 255, 255), shade_sigma=None,
     default_name="Ardan", diet=Diet.OMNIVORE, faction="federation",
-    grants=grants("improved_crafting", "omnivore", "requires_organic", "night_aversion", "humanoid"), **_RACE_BASE,
+    grants=grants("improved_crafting", "omnivore", "requires_organic", "night_aversion", "humanoid", "cooks_meat"), **_RACE_BASE,
 ))
 SELENITE_PEOPLE = register(UnitSpecies(
     "selenite_people", "Selenite", sprite=(118, 1), corpse_sprite=(44, 16), color=(190, 215, 255), shade_sigma=None,
@@ -210,7 +213,10 @@ ROBOT = register(UnitSpecies(
 ))
 
 # ── Items ────────────────────────────────────────────────────────────────────────
-MEAT = register(ItemKind("meat", "Meat", sprite=(1, 21), color=color.red, hunger_amount=10, thirst_amount=5))
+MEAT = register(ItemKind("meat", "Meat", sprite=(1, 21), color=color.red, hunger_amount=10, thirst_amount=5, flavours=("savory",)))
+STEW = register(ItemKind("stew", "Stew", sprite=(9, 22), color=(200, 140, 80)))
+SOUP = register(ItemKind("soup", "Soup", sprite=(7, 22), color=(200, 190, 110)))
+SKEWER = register(ItemKind("skewer", "Skewer", sprite=(5, 22), color=(210, 150, 90)))
 LEATHER = register(ItemKind("leather", "Leather", sprite=(1, 25), color=(0xA0, 0x6A, 0x3A), shade_sigma=8))
 FLASK = register(ItemKind("flask", "Flask", sprite=(3, 23), color=(0xB0, 0x78, 0x40), material="Leather"))
 BRANCH = register(ItemKind("branch", "Branch", sprite=(108, 0), shade_sigma=10))

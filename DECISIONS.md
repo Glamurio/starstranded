@@ -897,3 +897,10 @@ giving them climate bands, which would make them cover every matching tile (no m
 - **Why:** health loss from needs made thirst and hunger a slow chore; a bare death hid the cause; the inventory covered the log; the map showed nothing about the land.
 - **Alternatives:** keep the drain with scaled damage (rejected: the brief says they just kill you); a sprite per chunk (too coarse); a sprite per tile (a 70x40 chunk would need 2800 records, ten tiles per block reads the same at far less data).
 - **Limits:** blocks are chosen when a chunk's explored share grows, so a block shows what was in view then; the unscanned plant-name table is by template, not by sprite.
+
+
+## Cooking, water and sleep round (21 Oct 2026)
+- **What:** `cooking.py` holds flavours, dish recipes and the cook rules; `ItemKind.flavours/raw_toxic`, capability tag "cooks_meat" (humans), `Dish` consumable; raw food is scaled by a fraction (`_raw`). Water colour/kind is fixed per body from its source biome (`biomes.water_hue`, `worldgen.liquid_palette`, `hydrology.water_sources`). `survival.py` keeps a `body_heat` meter (`BODY_HEAT_LIMIT`); `SleepAction(turns, max_turns)` with `SleepDurationHandler`; bedroll has `nights`. Map zoom is a fixed `DEFAULT_BLOCK` with chunk-wise `origin`. `HEAL_PERIOD = 15`.
+- **Why:** colour that changed with biome made one lake look like several; needs and weather should build up and be visible; cooking gives food a purpose beyond eating.
+- **Alternatives:** recolouring water per tile by local biome (rejected: loses the breadcrumb trail); instant temperature damage (rejected: no warning); free-form ingredient mixing (rejected for fixed dish types with flavour variants, simpler to test and read).
+- **Limits:** ovens and fish are not implemented; sea basins can show faint seams where noise-warped cell borders cross.

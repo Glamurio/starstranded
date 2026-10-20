@@ -194,6 +194,8 @@ class Unit(Entity):
             return self.diet is not Diet.HERBIVORE
         if nutrition == "plant":
             return self.diet is not Diet.CARNIVORE
+        if nutrition == "mixed":
+            return self.diet is Diet.OMNIVORE
         return False
 
     def cause_of_death(self) -> str:

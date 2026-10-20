@@ -687,9 +687,16 @@ def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, inde
     label = namer.fruit_of(f"bloom:{template.key}:{index}", name, (noun,)) if namer.culture == "human" and name.modifier \
         else namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
     toxic = rng.random() < 0.2
+    import cooking
+    key = f"bloom:{template.key}:{index}"
+    toxicity = rng.randint(6, 14) if toxic else 0
+    raw_toxic = False
+    if not toxic:
+        toxicity = cooking.roll_raw_toxicity(key, color, 0.15)
+        raw_toxic = toxicity > 0
     bloom = ItemKind(None, "Consumable", species=label, sprite=sprite, color=color, shade_sigma=8,
-                     hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=rng.randint(6, 14) if toxic else 0,
-                     parent_key=f"planet:flora:{template.key}:{index}", bloom=True)
+                     hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=toxicity, raw_toxic=raw_toxic,
+                     flavours=cooking.roll_flavours(key, color, "herb"), parent_key=f"planet:flora:{template.key}:{index}", bloom=True)
     return PlantSpecies(
         f"planet:flora:{template.key}:{index}", name.text, PlantCategory.FLOWER, sprite=sprite, corpse_sprite=(3, 9), color=color, fruit=bloom,
         max_hp=template.max_hp, growth_cycle=template.growth_cycle, inventory_capacity=2, blocks_movement=False, blocks_sight=False,
@@ -717,9 +724,16 @@ def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index
         label = namer.fruit_of(f"fruit:{template.key}:{index}", parent, (shape_word,))
     else:
         label = namer.fruit(f"fruit:{template.key}:{index}", fruit_color, shape_word)
+    import cooking
+    key = f"fruit:{template.key}:{index}"
+    toxicity = rng.randint(8, 20) if toxic else 0
+    raw_toxic = False
+    if not toxic and template.key != "crop":
+        toxicity = cooking.roll_raw_toxicity(key, fruit_color, 0.22)      # (some fruit is only poisonous raw: cooking makes it safe)
+        raw_toxic = toxicity > 0
     return ItemKind(None, "Consumable", species=label, sprite=sprite, color=fruit_color, shade_sigma=10,
-                    hunger_amount=rng.choice((8, 10, 12)), thirst_amount=rng.choice((6, 10, 14)), toxicity=rng.randint(8, 20) if toxic else 0,
-                    parent_key=f"planet:flora:{template.key}:{index}")
+                    hunger_amount=rng.choice((8, 10, 12)), thirst_amount=rng.choice((6, 10, 14)), toxicity=toxicity, raw_toxic=raw_toxic,
+                    flavours=cooking.roll_flavours(key, fruit_color, "fruit"), parent_key=f"planet:flora:{template.key}:{index}")
 
 
 def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) -> UnitSpecies:
@@ -746,8 +760,9 @@ def _make_fauna(rng: random.Random, namer: Namer, add, template: FaunaTemplate) 
     import species as defs
     noun = defs.COVERINGS[template.hide_kind][1]
     hide = add(Material(f"hide:{template.key}", f"{name.text} {noun}", family, color, **props, **fuel))
+    import cooking
     return UnitSpecies(
-        f"planet:fauna:{template.key}", name.text, sprite=spriteconfig.get(f"fauna.{template.base or template.key}", template.sprite),
+        f"planet:fauna:{template.key}", name.text, flavours=cooking.roll_flavours(f"fauna:{template.key}", color, "meat"), sprite=spriteconfig.get(f"fauna.{template.base or template.key}", template.sprite),
         corpse_sprite=spriteconfig.get(f"fauna.{template.base or template.key}.corpse", template.corpse_sprite), mirror=True, color=color,
         shade_sigma=12, max_hp=template.max_hp, power=template.power, defense=template.defense, radius=template.radius,
         level_up_base=100, xp_given=template.xp, ai=template.ai, diet=template.diet, leather=False, damage_type=template.damage_type,

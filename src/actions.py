@@ -643,6 +643,19 @@ class InteractAction(Action):
                     return thing
         return None
 
+    def stoke(self, fire) -> None:
+        """Add a piece of fuel from the pack to a burning fire."""
+        import crafting
+        import materials
+        user = self.entity
+        fuel = next((i for i in crafting.fuel_candidates(user) if i.form in ("Branch", "Coal")), None)
+        if fuel is None:
+            raise exceptions.Impossible(f"The {fire.kind.object_type.lower()} burns on. You have no fuel to add.")
+        user.inventory.remove(fuel)
+        fire.add_fuel(materials.burn_turns(fuel.substance))
+        self.engine.message_log.add_message(f"You add {fuel.get_title()} to the fire.", color.orange)
+        self.engine.game_world.pass_time(unit=user, time=1)
+
     def _site(self):
         from structures import Structure
         world, e = self.engine.game_map, self.entity
@@ -667,6 +680,11 @@ class InteractAction(Action):
         if fire is None:
             raise exceptions.Impossible("There's nothing to interact with here.")
         user, log = self.entity, self.engine.message_log
+        if fire.is_lit and fire.emits_light and not isinstance(fire, crafting.Torch):
+            import cooking
+            if cooking.has_food(user):            # a lit fire and food in the pack: cook (the cooking screen can still stoke the fire)
+                import input_handlers
+                return self.engine.session.push(input_handlers.CookingHandler(self.engine))
         fuel = next((i for i in crafting.fuel_candidates(user) if i.form in ("Branch", "Coal")), None)
         own = getattr(fire, "stock", 0)
         if fire.is_lit:

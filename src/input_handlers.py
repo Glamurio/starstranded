@@ -603,6 +603,148 @@ def ui_right() -> int:
     return ui.RIGHT
 
 
+class CookingHandler(Panel):
+    """Cooking at a lit campfire: pick a dish (Left/Right), mark the ingredients from your pack (Space), cook (Enter). What the dish
+    would be, or what is wrong with the choice, is shown below the list."""
+
+    TITLE = "Cooking"
+    HINTS = [("Left/Right", "dish"), ("Up/Down", "choose"), ("Space", "add/remove"), ("Enter", "cook"), ("F", "stoke fire"), ("Esc", "close")]
+
+    def __init__(self, engine):
+        super().__init__(engine)
+        import cooking
+        self.dishes = list(cooking.DISHES.values())
+        self.dish_i = 0
+        self.chosen: list = []
+        self.list = None
+        self.refresh()
+
+    @property
+    def dish(self):
+        return self.dishes[self.dish_i]
+
+    def refresh(self) -> None:
+        import cooking
+        import widgets
+        items = cooking.cookable(self.engine.player)
+        self.chosen = [i for i in self.chosen if i in items]
+        rows = []
+        for category, roles in (("Main", ("meat", "fruit")), ("Seasoning", ("herb",)), ("Liquid and sticks", ("liquid", "stick"))):
+            group = [i for i in items if cooking.role(i) in roles]
+            if group:
+                rows.append(widgets.Row(category, header=True))
+            for item in group:
+                mark = "[x]" if item in self.chosen else "[ ]"
+                flavours = ", ".join(cooking.flavours_of(item))
+                rows.append(widgets.Row(item.get_title() + (f" ({flavours})" if flavours else ""), icon=(item.sprite_id, item.color, getattr(item, "flipped", False)),
+                                        right=mark, data=item))
+        keep = self.list.selected if self.list is not None else None
+        self.list = widgets.ListView(rows, reserved="abcdefghijklmnopqrstuvwxyz")
+        if keep is not None and keep < len(self.list.rows) and not self.list.rows[keep].header:
+            self.list.selected = keep
+
+    def outcome(self):
+        import cooking
+        return cooking.plan(self.dish, self.chosen)
+
+    def on_render(self, canvas: Canvas) -> None:
+        import widgets
+        from ui import Theme
+        ix, iy, iw, ih = self.frame(canvas)
+        x = ix
+        for k, dish in enumerate(self.dishes):
+            label = f" {dish.name} "
+            canvas.print(x, iy, label, fg=Theme.HILITE_TEXT if k == self.dish_i else Theme.DIM, bg=Theme.HILITE if k == self.dish_i else None)
+            x += len(label) + 1
+        canvas.print(ix, iy + 1, self.dish.summary, fg=Theme.DIM)
+        list_h = max(4, ih - 14)
+        if not self.list.entries:
+            canvas.print(ix, iy + 3, "You carry nothing you can cook with.", fg=Theme.DIM)
+        else:
+            self.list.draw(canvas, ix, iy + 3, iw, list_h)
+        plan = self.outcome()
+        top = iy + 4 + list_h
+        canvas.rule(ix - 1, top - 1, iw + 2)
+        if self.chosen and plan.ok:
+            canvas.print(ix, top, plan.name.capitalize(), fg=Theme.TITLE)
+            canvas.print(ix, top + 1, f"restores {plan.hunger} hunger, {plan.thirst} thirst", fg=Theme.TEXT)
+            canvas.print(ix, top + 2, f"flavours: {', '.join(plan.flavours)}", fg=Theme.TEXT)
+            if plan.toxic:
+                canvas.print(ix, top + 4, "Something in it is poisonous no matter how it is cooked.", fg=Theme.BAD)
+            raw = [i for i in plan.used if getattr(getattr(i, "kind", None), "raw_toxic", False)]
+            if raw:
+                canvas.print(ix, top + 3, "Cooking makes the raw-poisonous parts safe.", fg=Theme.DIM)
+        elif self.chosen:
+            widgets.text_block(canvas, ix, top, iw, 4, [(plan.problem, Theme.BAD)])
+        else:
+            widgets.text_block(canvas, ix, top, iw, 4, [("Mark the ingredients with Space.", Theme.DIM)])
+
+    def _toggle(self) -> None:
+        row = self.list.current
+        if row is None or row.data is None:
+            return
+        item = row.data
+        if item in self.chosen:
+            self.chosen.remove(item)
+        else:
+            self.chosen.append(item)
+        self.refresh()
+
+    def _cook(self) -> None:
+        import cooking
+        engine = self.engine
+        try:
+            made = cooking.cook(engine, engine.player, self.dish, list(self.chosen))
+        except exceptions.Impossible as exc:
+            engine.message_log.add_message(exc.args[0] if exc.args else "You cannot cook that.", color.impossible)
+            return
+        engine.message_log.add_message(f"You cook {made.get_title()}.", color.green)
+        self.chosen = []
+        self.refresh()
+        engine.handle_enemy_turns()
+
+    def _stoke(self) -> None:
+        import cooking
+        engine = self.engine
+        fire = cooking.lit_fire_near(engine.game_map, engine.player.x, engine.player.y)
+        if fire is None:
+            return
+        try:
+            actions.InteractAction(engine.player).stoke(fire)
+        except exceptions.Impossible as exc:
+            engine.message_log.add_message(exc.args[0], color.impossible)
+        self.refresh()
+
+    def ev_keydown(self, event: events.KeyDown) -> Optional[ActionOrHandler]:
+        key = event.sym
+        if key == Key.ESCAPE:
+            return self.on_exit()
+        if key == Key.LEFT:
+            self.dish_i = (self.dish_i - 1) % len(self.dishes)
+        elif key == Key.RIGHT:
+            self.dish_i = (self.dish_i + 1) % len(self.dishes)
+        elif key == Key.UP:
+            self.list.move(-1)
+        elif key == Key.DOWN:
+            self.list.move(1)
+        elif key == Key.SPACE:
+            self._toggle()
+        elif key in (Key.RETURN, Key.KP_ENTER):
+            self._cook()
+        elif key == Key.F:
+            self._stoke()
+        return None
+
+    def ev_mousebuttondown(self, event) -> Optional[ActionOrHandler]:
+        if event.button == MouseButton.RIGHT:
+            return self.on_exit()
+        index = self.list.row_at(int(event.position[0]) * 24 + 12, int(event.position[1]) * 24 + 12) if self.list is not None else None
+        if index is not None:
+            self.list.selected = index
+            self._toggle()
+        return None
+
+
 class SleepDurationHandler(Panel):
     """How long to sleep (Z next to a bed or bedroll)."""
 

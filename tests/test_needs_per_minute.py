@@ -15,7 +15,9 @@ def drained(engine, step, total=1020):
 
 
 @pytest.mark.parametrize("step", [1, 2, 3, 5, 6])
-def test_long_actions_cost_as_much_hunger_and_thirst_as_single_minutes(small_world, step):
+def test_long_actions_cost_as_much_hunger_and_thirst_as_single_minutes(small_world, step, monkeypatch):
+    import survival
+    monkeypatch.setattr(survival, "tick", lambda *a, **k: None)         # (exposure is not what is measured here)
     engine = small_world()
     import simulation
     assert drained(engine, step) == (1020 // simulation.HUNGER_PERIOD, 1020 // simulation.THIRST_PERIOD) == (30, 68)

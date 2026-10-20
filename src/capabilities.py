@@ -162,6 +162,7 @@ _tag("herbivore", TagKind.TRAIT, "Digests plant matter only.", ("food",))
 _tag("omnivore", TagKind.TRAIT, "Digests meat and plant matter.", ("food",))
 _tag("humanoid", TagKind.TRAIT, "A person-like creature (the combat music of a hostile one is the humanoid track).", ("music",))
 _tag("robot", TagKind.TRAIT, "A machine (the combat music of a hostile one is the robot track).", ("music",))
+_tag("cooks_meat", TagKind.TRAIT, "Raw meat makes it sick: meat has to be cooked.", ("food",))
 _tag("requires_organic", TagKind.TRAIT, "Cannot live on inorganic substances (minerals, metal).", ("food",))
 
 

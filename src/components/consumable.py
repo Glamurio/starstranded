@@ -44,6 +44,10 @@ class FoodConsumable(Consumable):
     def thirst_amount(self) -> int:
         return self.kind.thirst_amount
 
+    def poison_turns(self, user: Unit) -> int:
+        """Turns of poison this food gives `user` when eaten as it is."""
+        return int(getattr(self.kind, "toxicity", 0) or 0) * 2
+
     def activate(self, user: Unit) -> None:
         if not user.can_eat(self):
             raise Impossible(f"{user.get_title()} cannot digest {self.get_title()}.")
@@ -59,7 +63,7 @@ class FoodConsumable(Consumable):
         thirst_restore = f' and loses {self.thirst_amount} thirst' if self.thirst_amount < 0 else f' and restores {self.thirst_amount} thirst' if self.thirst_amount > 0 else ''
 
         self.deplete()
-        poison = int(getattr(self.kind, "toxicity", 0) or 0) * 2          # (a toxic fruit poisons: one damage a turn)
+        poison = self.poison_turns(user)          # (a toxic fruit poisons: one damage a turn)
         if poison:
             user.apply_poison(poison)
 
@@ -69,8 +73,13 @@ class FoodConsumable(Consumable):
         return message
 
 
-MEAT_HUNGER = (7, 8, 9, 10, 11, 12, 14)
-"""How much hunger a piece of meat restores: rolled per piece."""
+MEAT_HUNGER = (16, 18, 20, 22, 24, 26, 30)
+"""What a piece of meat is worth when cooked: rolled per piece (meat is the richest food). Raw it gives `cooking.RAW_FRACTION` of it."""
+
+
+def _raw(amount: float) -> int:
+    import cooking
+    return max(1, round(amount * cooking.RAW_FRACTION))
 
 
 class Meat(FoodConsumable):
@@ -84,8 +93,27 @@ class Meat(FoodConsumable):
         self.nourishment = random.choice(MEAT_HUNGER)       # every carcass is a little different
 
     @property
-    def hunger_amount(self) -> int:
+    def base_hunger(self) -> int:
+        """Its worth cooked."""
         return getattr(self, "nourishment", None) or self.kind.hunger_amount
+
+    @property
+    def hunger_amount(self) -> int:
+        return _raw(self.base_hunger)
+
+    @property
+    def thirst_amount(self) -> int:
+        return _raw(self.kind.thirst_amount)
+
+    @property
+    def flavours(self) -> tuple:
+        return tuple(getattr(self.source, "flavours", ()) or ()) or self.kind.flavours
+
+    def poison_turns(self, user: Unit) -> int:
+        if "cooks_meat" in user.capabilities.tags:      # (people have to cook their meat)
+            import cooking
+            return cooking.RAW_MEAT_POISON
+        return 0
 
     @property
     def material(self) -> str:
@@ -115,6 +143,14 @@ class Fruit(FoodConsumable):
         FoodConsumable.__init__(self, kind or defs.make_fruit_kind())
         self.parent = parent
 
+    @property
+    def hunger_amount(self) -> int:
+        return _raw(self.kind.hunger_amount) if self.kind.hunger_amount else 0
+
+    @property
+    def thirst_amount(self) -> int:
+        return _raw(self.kind.thirst_amount) if self.kind.thirst_amount else 0
+
     def get_title(self, exclude_attributes: bool = False) -> str:
         """Returns the entity title, including attributes and type. If entity is unnamed, returns type."""
         attributes = [] if exclude_attributes else self.attributes
@@ -126,3 +162,30 @@ class Fruit(FoodConsumable):
         description = f'{" ".join(attributes)} {material_type}' if attributes else material_type
         import naming
         return f'{self.name}, the {description}' if self.name else (naming.lower_first(description) if self.kind.key else description)
+
+
+class Dish(FoodConsumable):
+    """A cooked meal (see `cooking`): its worth, flavours and any poison were fixed when it was made."""
+
+    def __init__(self, kind: ItemKind, label: str, flavours: tuple, hunger: int, thirst: int, toxicity: int = 0,
+                 nutrition: str = "plant", parent: Union[GameMap, Inventory, None] = None):
+        FoodConsumable.__init__(self, kind)
+        self.parent = parent
+        self.label = label
+        self.flavours = tuple(flavours)
+        self._hunger, self._thirst, self._toxicity = hunger, thirst, toxicity
+        self.nutrition = nutrition
+
+    @property
+    def hunger_amount(self) -> int:
+        return self._hunger
+
+    @property
+    def thirst_amount(self) -> int:
+        return self._thirst
+
+    def poison_turns(self, user: Unit) -> int:
+        return self._toxicity * 2
+
+    def get_title(self, exclude_attributes: bool = False) -> str:
+        return self.label
