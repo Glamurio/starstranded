@@ -235,6 +235,8 @@ def abandoned_farm(site: Site) -> bool:
     if at is None or site.planet is None:
         return False
     x, y = at
+    import worldgen
+    bare = worldgen.cover_sprites()          # (no crop stands on a tuft of ground cover)
     gate = x + w // 2
     for i in range(x, x + w):
         for j in (y, y + h - 1):
@@ -246,7 +248,7 @@ def abandoned_farm(site: Site) -> bool:
                 site.world.add_entity(Fence(), i, j)
     for j in range(y + 2, y + h - 2, 2):
         for i in range(x + 2, x + w - 2):
-            if site.rng.random() < 0.7 and _free(site, i, j):
+            if site.rng.random() < 0.7 and _free(site, i, j) and int(site.world.tile_at(i, j)["light"]["sprite"]) not in bare:
                 plant = components.plant.Shrub(site.planet.crop)
                 plant.growth = site.rng.randrange(int(plant.avg_cycle) + 1)
                 site.world.add_entity(plant, i, j)
