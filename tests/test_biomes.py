@@ -41,8 +41,8 @@ def test_the_plants_a_biome_lists_exist_and_every_native_plant_has_a_home():
 
 
 def test_music_pools_named_by_biomes_exist_in_the_manifest():
-    path = os.path.join(os.path.dirname(__file__), "..", "src", "data", "music.json")
-    pools = set(json.load(open(path))["pools"])
+    import music
+    pools = set(music.load_manifest()["pools"])
     for b in BIOMES.values():
         for name in (b.music_pool, b.generic_pool):
             assert not name or name in pools, (b.key, name)

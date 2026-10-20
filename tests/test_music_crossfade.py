@@ -34,18 +34,18 @@ def _director(tmp_path):
     return director, cross, clock
 
 
-def test_a_landmark_switch_starts_the_new_track_at_once_with_a_fade_not_after_a_fade_out(tmp_path):
+def test_a_region_switch_starts_the_new_track_at_once_with_a_fade_not_after_a_fade_out(tmp_path):
     director, backend, clock = _director(tmp_path)
     director.update(Context())
     assert backend.plays and backend.plays[0][0].startswith("a")
     clock.advance(1)
     for _ in range(60):
         clock.advance(0.5)
-        director.update(Context("volcanic_mountains", 1.0))
+        director.update(Context("volcanic", 1.0))
     names = [p[0] for p in backend.plays]
     assert any(n.startswith("v") for n in names)
     first_v = next(p for p in backend.plays if p[0].startswith("v"))
-    assert first_v[2] == pytest.approx(director.fades["landmark"] / 1000.0)      # brought in over the landmark fade, over the old track
+    assert first_v[2] == pytest.approx(director.fades["region"] / 1000.0)      # brought in over the region fade, over the old track
 
 
 def test_combat_crosses_over_quickly(tmp_path):
