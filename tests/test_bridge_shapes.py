@@ -42,9 +42,10 @@ def test_every_piece_is_walkable_and_counts_as_laid():
     assert not tt.is_bridge(tt.floor.get_array()[None])[0]
 
 
-def test_pieces_follow_the_single_tile_until_given_their_own_sprite():
-    assert tt.bridge_h_mid.sprite_pos == tt.bridge.sprite_pos
-    assert tt.bridge_v_end.sprite_pos == tt.bridge_vertical.sprite_pos
+def test_every_bridge_piece_has_a_sprite():
+    """(The pieces started on the single bridge tile; the artist has since drawn their own, so they may differ now.)"""
+    for piece in (tt.bridge_h_mid, tt.bridge_h_start, tt.bridge_h_end, tt.bridge_v_mid, tt.bridge_v_start, tt.bridge_v_end):
+        assert piece.sprite_pos is not None
 
 
 def test_a_built_bridge_reshapes_as_planks_are_added(new_engine):

@@ -19,10 +19,14 @@ def sheet():
     return atlas.SpriteAtlas.load("urizen_white.png")
 
 
+REDRAWN = {"tile.built_floor"}
+"""Sprites the artist has since redrawn on purpose (sprites.json, 20 Oct): no longer expected to match the old sheet."""
+
+
 def test_every_sprite_the_game_uses_is_pixel_identical_to_before(sheet):
     refs = sprite_refs()
     assert set(GOLDEN) <= set(refs), set(GOLDEN) - set(refs)  # sprites added since the migration are only checked to be non-empty
-    changed = [label for label, sprite in refs.items() if label in GOLDEN and sprite_hash(sheet, sprite) != GOLDEN[label]]
+    changed = [label for label, sprite in refs.items() if label in GOLDEN and label not in REDRAWN and sprite_hash(sheet, sprite) != GOLDEN[label]]
     assert not changed, changed
 
 
