@@ -109,3 +109,20 @@ def test_a_city_chunk_is_walled_wrecked_and_empty_of_people(new_engine):
     assert any(getattr(e, "scenery_key", "") in ("lamp_post", "signpost", "wreck_car", "wreck_truck", "rubble") for e in world.entities)
     assert not [e for e in world.entities if isinstance(e, Unit) and e is not engine.player and e.kind.faction == "federation"]
     debug._enabled = False
+
+
+def test_no_farm_hamlet_or_site_touches_a_city():
+    import settlements
+    import shafts
+    u = np.array([biomes.BIOMES[k].urban is not None for k in biomes.BIOME_IDS])
+    for seed in (3, 7):
+        noise = shafts.terrain_noise(seed)
+        checked = 0
+        for cx in range(-20, 20):
+            for cy in range(-20, 20):
+                if settlements.kind_of(seed, (cx, cy)) is None:
+                    continue
+                field = regions.field(noise, cx * CHUNK_W - urban.MARGIN, cy * CHUNK_H - urban.MARGIN, CHUNK_W + 16, CHUNK_H + 16)
+                assert not u[field.biome].any(), (seed, cx, cy)
+                checked += 1
+        assert checked > 10

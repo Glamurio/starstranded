@@ -68,7 +68,10 @@ def kind_of(master: int, key: ChunkKey) -> Optional[str]:
     import biomes
     import regions
     centre = regions.biome_at(shafts.terrain_noise(master), key[0] * CHUNK_W + CHUNK_W // 2, key[1] * CHUNK_H + CHUNK_H // 2)
-    if biomes.BIOMES[centre].urban is not None or biomes.BIOMES[centre].family in ("volcanic", "crystal"):      # (a city has its own buildings)
+    if biomes.BIOMES[centre].family in ("volcanic", "crystal"):
+        return None
+    import urban
+    if urban.touches(master, key):      # (a city has its own buildings: no farm or hamlet in or against one)
         return None
     return "farm" if rng.random() < FARM_SHARE else "town"
 
