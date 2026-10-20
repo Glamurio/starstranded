@@ -1,8 +1,8 @@
 {
-  "_help": "Music manifest. Put the audio files in the music folder (settings 'music_dir', else the STARSTRANDED_MUSIC environment variable, else the 'music' folder beside src/). Each pool lists tracks as a path below that folder, or {\"file\": path, \"weight\": 2, \"length\": seconds}. A landmark's pool is named by its 'music' key; 'ambient' plays everywhere else. Empty pools fall back (landmark -> ambient, combat category -> default category). See src/music.py for the rules. 'biomes' maps a biome to the pool it plays (landmark pool first, then the biome's, then ambient).",
+  "_help": "Music manifest. Audio files live in the music folder (setting 'music_dir', else the STARSTRANDED_MUSIC environment variable, else 'root' below). A track is a path below that folder, or {\"file\": path, \"weight\": 2, \"length\": seconds}. What plays, best first: combat (by the creature's category), the region pool (Biome.music_pool: the biome's own, else its family's), the climate pool (Family.generic: forest, plains, cold, wet, dry), then 'ambient'. An empty pool falls back to the next. See src/music.py.",
   "root": "data/music",
   "fade_ms": {
-    "landmark": 3000,
+    "region": 3000,
     "combat_in": 700,
     "combat_out": 1200,
     "resume_in": 1500,
@@ -11,29 +11,29 @@
   "timing": {
     "switch_delay": 6.0,
     "combat_cooldown": 1.0,
-    "landmark_enter": 0.55,
-    "landmark_leave": 0.3,
+    "region_enter": 0.55,
+    "region_leave": 0.3,
     "resume_min_left": 10.0
   },
-  "pools": {
-    "ambient": [
-      "RIOT.mp3",
-      "To The Stars.mp3",
-      "Infinity Zone.ogg"
-    ],
-    "mushroom_forest": [
+  "ambient": [
+    "RIOT.mp3",
+    "To The Stars.mp3",
+    "Infinity Zone.ogg"
+  ],
+  "regions": {
+    "fungal": [
       "Lullaby.ogg"
     ],
     "cactus_desert": [
       "BLOODSTAIN.ogg"
     ],
-    "crystal_badlands": [
+    "crystal": [
       "pcpassc_dc3023.mp3"
     ],
-    "volcanic_mountains": [
+    "volcanic": [
       "Fresh.ogg"
     ],
-    "decayed_land": [
+    "decay": [
       "MUDAI.mp3"
     ],
     "beach": [
@@ -46,6 +46,16 @@
     "flowering_meadow": [
       "HosizoraTheme.mp3"
     ],
+    "alien": [
+      "spacecultinst.mp3",
+      "System99.ogg"
+    ],
+    "urban": [
+      "City Lights.mp3",
+      "6ft.mp3"
+    ]
+  },
+  "climates": {
     "forest": [
       "Inception.ogg",
       "Eyeball Planet is Not Found.mp3"
@@ -64,14 +74,6 @@
     ],
     "dry": [
       "Don't Eff With Me.mp3"
-    ],
-    "alien": [
-      "spacecultinst.mp3",
-      "System99.ogg"
-    ],
-    "urban": [
-      "City Lights.mp3",
-      "6ft.mp3"
     ]
   },
   "combat": {
@@ -100,6 +102,5 @@
         "Broadcast Signal Intrusion.ogg"
       ]
     }
-  },
-  "biomes": {}
+  }
 }

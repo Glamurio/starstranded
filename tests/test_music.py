@@ -53,7 +53,7 @@ class Clock:
 
 def make(tmp_path, pools=None, combat=None, **extra):
     """A director over a temporary music folder holding every file the pools name."""
-    pools = pools if pools is not None else {"ambient": ["a1.mp3", "a2.mp3"], "volcanic_mountains": ["v1.mp3", "v2.mp3"]}
+    pools = pools if pools is not None else {"ambient": ["a1.mp3", "a2.mp3"], "volcanic": ["v1.mp3", "v2.mp3"]}
     combat = combat if combat is not None else {"wildlife": ["w1.mp3", "w2.mp3"], "robot": ["r1.mp3"], "humanoid": ["h1.mp3"]}
     names = {n if isinstance(n, str) else n["file"] for p in list(pools.values()) + list(combat.values()) for n in p}
     for name in names:
@@ -74,7 +74,7 @@ def run(director, clock, context, seconds, step=0.25):
 
 
 NOTHING = Context()
-IN_VOLCANO = Context("volcanic_mountains", 0.9)
+IN_VOLCANO = Context("volcanic", 0.9)
 
 
 # ── picking ──────────────────────────────────────────────────────────────────────────────────────────
@@ -105,12 +105,12 @@ def test_ambient_starts_fades_in_and_stays_through_ordinary_terrain(tmp_path):
     assert len(backend.played) == 1                      # nothing restarts it
 
 
-def test_entering_a_landmark_switches_after_the_delay_with_fades(tmp_path):
+def test_entering_a_region_switches_after_the_delay_with_fades(tmp_path):
     director, backend, clock = make(tmp_path)
     run(director, clock, NOTHING, 5)
     first = backend.played[0][0]
     run(director, clock, IN_VOLCANO, director.timing["switch_delay"] - 1)
-    assert len(backend.played) == 1                      # not yet: the landmark must hold
+    assert len(backend.played) == 1                      # not yet: the region must hold
     run(director, clock, IN_VOLCANO, 1.5)
     assert backend.volume < 1.0                          # fading out
     run(director, clock, IN_VOLCANO, 12)
@@ -119,7 +119,7 @@ def test_entering_a_landmark_switches_after_the_delay_with_fades(tmp_path):
 
 
 def test_a_track_shared_by_both_pools_is_not_restarted_at_the_boundary(tmp_path):
-    director, backend, clock = make(tmp_path, pools={"ambient": ["s.mp3"], "volcanic_mountains": ["s.mp3", "v.mp3"]})
+    director, backend, clock = make(tmp_path, pools={"ambient": ["s.mp3"], "volcanic": ["s.mp3", "v.mp3"]})
     run(director, clock, NOTHING, 5)
     assert backend.played == [("s.mp3", 0.0)]
     for context in (IN_VOLCANO, NOTHING, IN_VOLCANO, NOTHING):
@@ -137,18 +137,18 @@ def test_a_track_that_ends_is_followed_by_a_different_one_of_the_wanted_pool(tmp
         assert backend.played[-1][0] != before and backend.played[-1][0].startswith("v")
 
 
-def test_landmark_edges_do_not_flap(tmp_path):
+def test_region_edges_do_not_flap(tmp_path):
     director, backend, clock = make(tmp_path)
     run(director, clock, IN_VOLCANO, 20)
     plays = len(backend.played)
     for strength in (0.4, 0.6, 0.35, 0.5, 0.45) * 8:     # wobbling between leave (0.3) and enter (0.55)
-        run(director, clock, Context("volcanic_mountains", strength), 2)
-    assert len(backend.played) == plays and director.landmark == "volcanic_mountains"
-    run(director, clock, Context("volcanic_mountains", 0.2), 1)
-    assert director.landmark == ""
+        run(director, clock, Context("volcanic", strength), 2)
+    assert len(backend.played) == plays and director.region == "volcanic"
+    run(director, clock, Context("volcanic", 0.2), 1)
+    assert director.region == ""
 
 
-def test_leaving_a_landmark_goes_back_to_ambient_after_the_delay(tmp_path):
+def test_leaving_a_region_goes_back_to_ambient_after_the_delay(tmp_path):
     director, backend, clock = make(tmp_path)
     run(director, clock, IN_VOLCANO, 20)
     run(director, clock, NOTHING, 20)
@@ -216,8 +216,8 @@ def test_the_category_comes_from_tags_not_names():
 
 
 # ── fallbacks ────────────────────────────────────────────────────────────────────────────────────────
-def test_an_empty_landmark_pool_falls_back_to_ambient(tmp_path):
-    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3", "a2.mp3"], "volcanic_mountains": []})
+def test_an_empty_region_pool_falls_back_to_ambient(tmp_path):
+    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3", "a2.mp3"], "volcanic": []})
     run(director, clock, IN_VOLCANO, 30)
     assert len(backend.played) == 1 and backend.played[0][0].startswith("a")
 
@@ -261,7 +261,7 @@ def test_music_folder_choice(monkeypatch, tmp_path):
 
 
 # ── the manifest and the game ────────────────────────────────────────────────────────────────────────
-def test_the_shipped_manifest_has_a_pool_for_every_landmark_and_combat_category():
+def test_the_shipped_manifest_has_a_pool_for_every_region_and_combat_category():
     manifest = music.load_manifest()
     assert "ambient" in manifest["pools"]
     import biomes
@@ -283,7 +283,7 @@ def test_the_context_follows_the_game(tmp_path):
     assert context.threat is None
     import biomes
     key, strength = resources.biome_and_share(engine.game_world, engine.game_map.z, engine.player.x, engine.player.y)
-    assert context.landmark == (biomes.BIOMES[key].music_pool if key else "")
+    assert context.region == (biomes.BIOMES[key].music_pool if key else "")
     assert context.biome == (biomes.BIOMES[key].generic_pool if key else "")
     from animals import Animal
     from species import AIKind
@@ -357,7 +357,7 @@ def test_music_is_mixed_quieter_than_the_slider_says():
 
 
 def test_a_generic_pool_plays_where_the_region_has_no_music_of_its_own_and_waits_until_it_is_steady(tmp_path):
-    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": ["f1.mp3"], "volcanic_mountains": ["v1.mp3"]},
+    director, backend, clock = make(tmp_path, pools={"ambient": ["a1.mp3"], "forest": ["f1.mp3"], "volcanic": ["v1.mp3"]},
                                     biomes={})
     director.update(Context())
     assert backend.played[-1][0] == "a1.mp3"
@@ -369,9 +369,9 @@ def test_a_generic_pool_plays_where_the_region_has_no_music_of_its_own_and_waits
         clock.advance(1)
         director.update(Context(biome="forest"))
     assert backend.played[-1][0] == "f1.mp3"
-    for _ in range(40):                                    # a landmark outranks the biome
+    for _ in range(40):                                    # a region outranks the biome
         clock.advance(1)
-        director.update(Context("volcanic_mountains", 1.0, biome="forest"))
+        director.update(Context("volcanic", 1.0, biome="forest"))
     assert backend.played[-1][0] == "v1.mp3"
 
 
@@ -388,7 +388,7 @@ def test_the_shipped_manifest_names_files_that_exist_and_covers_every_biome():
     import biomes
     manifest = music.load_manifest()
     root = music.music_root(manifest)
-    assert set(manifest["biomes"].values()) <= set(manifest["pools"])
+    assert set(manifest["regions"]) | set(manifest["climates"]) | {"ambient"} == set(manifest["pools"])
     if not os.path.isdir(root):
         return                                             # (the music folder is not part of the repository)
     for pool in manifest["pools"].values():

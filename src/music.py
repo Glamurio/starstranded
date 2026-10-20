@@ -9,18 +9,18 @@ What plays is decided by three things, in this order of priority (the *priority 
    `combat_cooldown` seconds after the last hostile left view; then the exploration track that was playing is resumed from where it was
    cut off (or a new one starts if little of it was left).
 2. **Region** - inside a biome that has music of its own (`Biome.music`, else its family's), with hysteresis: the pool is entered at
-   strength `landmark_enter` and left below `landmark_leave`, so walking along an edge does not flap. A track that belongs to the
+   strength `region_enter` and left below `region_leave`, so walking along an edge does not flap. A track that belongs to the
    wanted pool is never interrupted or restarted; a track from another pool is replaced (fade out, fade in) only once the wanted
    pool has been steady for `switch_delay` seconds, and a track that ends is followed by one of the wanted pool.
-3. **Generic** - the biome family's general pool (forest, plains, cold, wet, dry), if it has tracks. The manifest's `biomes` table overrides the pool of single biomes.
+3. **Climate** - the biome family's general pool (forest, plains, cold, wet, dry), if it has tracks.
 4. **Ambient** - everywhere else: the `ambient` pool, which is the fallback of everything above it.
 
 Tracks are picked by weight and never repeat the one just played (when the pool has another). Everything is data: `data/music.json`
 names the pools, tracks (paths below the music folder; the folder is not part of the repository), weights, fades and timings.
-Missing files, an empty pool, a missing music folder or no audio device are never errors: an empty pool falls back (landmark ->
+Missing files, an empty pool, a missing music folder or no audio device are never errors: an empty pool falls back (region ->
 ambient, a combat category -> the default category -> keep what plays) and with nothing to play there is silence.
 
-`MusicDirector` knows nothing about pygame or the game: it is told the `Context` (landmark, strength, threat category) and a clock, and it
+`MusicDirector` knows nothing about pygame or the game: it is told the `Context` (region, strength, threat category) and a clock, and it
 drives a `Backend`. `PygameBackend` plays through `pygame.mixer.music`; `NullBackend` plays nothing. The sound-effect system that is
 to come can share the same manifest style and the volume settings (`settings.effective("music")`)."""
 from __future__ import annotations
@@ -37,9 +37,11 @@ ENV_DIR = "STARSTRANDED_MUSIC"
 
 DEFAULTS = {
     "root": "data/music",
-    "fade_ms": {"landmark": 3000, "combat_in": 700, "combat_out": 1200, "resume_in": 1500, "start": 2000},
-    "timing": {"switch_delay": 6.0, "combat_cooldown": 1.0, "landmark_enter": 0.55, "landmark_leave": 0.3, "resume_min_left": 10.0},
-    "pools": {},
+    "fade_ms": {"region": 3000, "combat_in": 700, "combat_out": 1200, "resume_in": 1500, "start": 2000},
+    "timing": {"switch_delay": 6.0, "combat_cooldown": 1.0, "region_enter": 0.55, "region_leave": 0.3, "resume_min_left": 10.0},
+    "ambient": [],
+    "regions": {},
+    "climates": {},
     "combat": {"priority": ["robot", "humanoid", "wildlife"], "default": "wildlife", "tags": {"robot": ["robot"], "humanoid": ["humanoid"]},
                "pools": {}},
 }
@@ -54,9 +56,9 @@ class Track:
 
 @dataclass(frozen=True)
 class Context:
-    """What the director is told about the game: the landmark the player is in (key, strength 0..1; "" for none) and the
+    """What the director is told about the game: the region the player is in (key, strength 0..1; "" for none) and the
     category of the hostile creature in view, if any."""
-    landmark: str = ""
+    region: str = ""
     strength: float = 0.0
     threat: Optional[str] = None
     biome: str = ""
@@ -77,6 +79,8 @@ def load_manifest(path: str = MANIFEST) -> dict:
             merged[key].update(value)
         else:
             merged[key] = value
+    if "pools" not in merged:        # one flat table for the director: ambient, then region pools, then climate pools
+        merged["pools"] = {"ambient": merged["ambient"], **merged["regions"], **merged["climates"]}
     return merged
 
 
@@ -302,7 +306,7 @@ class MusicDirector:
             self.pools["combat:" + key] = self._existing(_tracks(entries))
         self.playing: Optional[_Playing] = None
         self.last: Optional[str] = None                  # the track played last (never picked again straight away)
-        self.landmark = ""                               # the landmark pool wanted (with hysteresis)
+        self.region = ""                               # the region pool wanted (with hysteresis)
         self._wanted = "ambient"                          # the exploration pool wanted at the last update
         self.biome = ""                                  # the biome pool wanted (the track only changes once it has been steady, see switch_delay)
         self.mismatch_since: Optional[float] = None      # since when the wanted pool is not the one playing
@@ -316,10 +320,10 @@ class MusicDirector:
         self._pending: Optional[_Pending] = None
 
     def reset(self) -> None:
-        """Back to the start: stop at once and forget the fight, the landmark and what was cut off (leaving a game for the menu)."""
+        """Back to the start: stop at once and forget the fight, the region and what was cut off (leaving a game for the menu)."""
         self.backend.stop()
         self.playing = None
-        self.landmark = ""
+        self.region = ""
         self.biome = ""
         self.mismatch_since = None
         self.threat_until = -1.0
@@ -350,8 +354,8 @@ class MusicDirector:
         return self.pools.get(key, [])
 
     def exploration_pool(self) -> str:
-        """The wanted exploration pool: the landmark's if it has tracks, else the biome's, else ambient (an empty pool falls back)."""
-        for key in (self.landmark, self.biome):
+        """The wanted exploration pool: the region's if it has tracks, else the biome's, else ambient (an empty pool falls back)."""
+        for key in (self.region, self.biome):
             if key and self.pool(key):
                 return key
         return "ambient"
@@ -385,10 +389,10 @@ class MusicDirector:
         self._advance(now)
 
     def _hysteresis(self, context: Context) -> None:
-        if context.landmark and context.strength >= self.timing["landmark_enter"]:
-            self.landmark = context.landmark
-        elif self.landmark and not (context.landmark == self.landmark and context.strength >= self.timing["landmark_leave"]):
-            self.landmark = ""
+        if context.region and context.strength >= self.timing["region_enter"]:
+            self.region = context.region
+        elif self.region and not (context.region == self.region and context.strength >= self.timing["region_leave"]):
+            self.region = ""
 
     def _idle(self) -> bool:
         return self._pending is None and self._ramp is None
@@ -403,7 +407,7 @@ class MusicDirector:
         if playing is None or not self.backend.busy():                       # nothing playing, or the track ended
             track = pick(self.pool(wanted), self.last, self.rng)
             if track is not None:
-                self._switch(track, wanted, 0.0, self.fades["start" if playing is None else "landmark"], now)
+                self._switch(track, wanted, 0.0, self.fades["start" if playing is None else "region"], now)
             self.mismatch_since = None
             return
         if any(t.path == playing.track.path for t in self.pool(wanted)) or playing.combat:
@@ -414,7 +418,7 @@ class MusicDirector:
         if now - self.mismatch_since >= self.timing["switch_delay"]:
             track = pick(self.pool(wanted), self.last, self.rng)
             if track is not None:
-                self._switch(track, wanted, 0.0, self.fades["landmark"], now)
+                self._switch(track, wanted, 0.0, self.fades["region"], now)
             self.mismatch_since = None
 
     def _begin_combat(self, category: Optional[str], now: float) -> None:
@@ -467,14 +471,14 @@ class MusicDirector:
     # ── playing and fading ───────────────────────────────────────────────────────────────────────
     def _switch(self, track: Track, pool: str, start: float, fade_in_ms: float, now: float, combat: bool = False,
                 out: Optional[float] = None) -> None:
-        """Fade what plays out (over `out` ms, default the landmark fade), then start `track` and fade it in."""
+        """Fade what plays out (over `out` ms, default the region fade), then start `track` and fade it in."""
         self._pending = _Pending(track, pool, start, fade_in_ms / 1000.0, combat)
         if self.backend.crossfades:                      # the old track fades out under the new one: nothing to wait for
             self._ramp = None
             self._start(now)
             return
         if self.playing is not None and self.backend.busy():
-            seconds = max(self.fades["landmark"] if out is None else out, 1) / 1000.0
+            seconds = max(self.fades["region"] if out is None else out, 1) / 1000.0
             self._ramp = (now, seconds, self._factor, 0.0)
         else:
             self.playing = None
@@ -531,12 +535,12 @@ THREAT_RADIUS = 8
 
 
 def context_for(engine, manifest: dict) -> Context:
-    """The director's context from the game: the landmark under the player (surface only) and the best hostile creature in view."""
+    """The director's context from the game: the region under the player (surface only) and the best hostile creature in view."""
     import resources
     from entity import EntityCategory
     player = engine.player
     world = engine.game_map
-    landmark, strength, biome = "", 0.0, ""
+    region, strength, biome = "", 0.0, ""
     game_world = getattr(engine, "game_world", None)
     if game_world is not None:
         try:
@@ -544,11 +548,10 @@ def context_for(engine, manifest: dict) -> Context:
             key, strength = resources.biome_and_share(game_world, world.z, player.x, player.y)
             if key:
                 info = biomes.BIOMES[key]
-                overrides = manifest.get("biomes", {})
-                landmark = overrides.get(key) or info.music_pool
+                region = info.music_pool
                 biome = info.generic_pool
         except Exception:
-            landmark, strength, biome = "", 0.0, ""
+            region, strength, biome = "", 0.0, ""
     rank = {c: i for i, c in enumerate(manifest["combat"]["priority"])}
     best: Optional[str] = None
     import debug
@@ -561,7 +564,7 @@ def context_for(engine, manifest: dict) -> Context:
         category = combat_category(unit, manifest)
         if best is None or rank.get(category, 99) < rank.get(best, 99):
             best = category
-    return Context(landmark, strength, best, biome)
+    return Context(region, strength, best, biome)
 
 
 _DIRECTOR: Optional[MusicDirector] = None
