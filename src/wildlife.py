@@ -94,7 +94,7 @@ def _breed(world, chunk, rng, now: int) -> int:
             by_species.setdefault(animal.kind.key, []).append(animal)
     for key in sorted(by_species):
         parents = by_species[key]
-        if len(parents) < 2 or len(animals) + born >= chunk.wild_capacity * OVERFLOW or rng.random() >= BIRTH_CHANCE:
+        if len(parents) < 2 or len(animals) + born + 1 > chunk.wild_capacity * OVERFLOW or rng.random() >= BIRTH_CHANCE:
             continue
         parent = rng.choice(parents)
         spot = _free_tile(world, chunk, rng, near=(parent.x, parent.y))
