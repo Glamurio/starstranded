@@ -23,6 +23,10 @@ def skeleton_kind(unit) -> str:
     return "human" if getattr(unit.kind, "key", "") in HUMAN_KEYS else "animal"
 
 
+BONE_RANGES = {"hardness": (3, 6.5), "toughness": (2, 5.5), "tenacity": (2, 5), "density": (2, 5)}
+"""The ranges of the properties a bone is rolled with (the rest of its properties are small and also vary)."""
+
+
 def roll_bone(rng: Optional[random.Random] = None):
     """A bone with properties of its own: they do not follow from the creature it came from."""
     from materials import Family, Material
@@ -30,8 +34,8 @@ def roll_bone(rng: Optional[random.Random] = None):
     tint = rng.randint(-14, 10)
     return Material(
         f"bone:{rng.getrandbits(32)}", "bone", Family.BONE, tuple(max(0, min(255, c + tint)) for c in BONE_COLOR),
-        hardness=round(rng.uniform(3, 6.5), 1), toughness=round(rng.uniform(2, 5.5), 1), tenacity=round(rng.uniform(2, 5), 1),
-        density=round(rng.uniform(2, 5), 1), elasticity=round(rng.uniform(0.5, 3), 1), insulation=round(rng.uniform(0.5, 2), 1),
+        hardness=round(rng.uniform(*BONE_RANGES["hardness"]), 1), toughness=round(rng.uniform(*BONE_RANGES["toughness"]), 1),
+        tenacity=round(rng.uniform(*BONE_RANGES["tenacity"]), 1), density=round(rng.uniform(*BONE_RANGES["density"]), 1), elasticity=round(rng.uniform(0.5, 3), 1), insulation=round(rng.uniform(0.5, 2), 1),
         thermal_conductivity=round(rng.uniform(0.5, 2), 1), flammability=round(rng.uniform(0.5, 2), 1))
 
 

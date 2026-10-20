@@ -53,3 +53,18 @@ def test_codex_has_a_picture_for_every_kind_of_subject(new_engine):
     assert lore.species_subject(planet.fauna[0]) in pictures and lore.plant_subject(planet.flora[0]) in pictures
     assert all(lore.material_subject(m) in pictures for _, m in planet.materials)
     assert all(isinstance(s, int) and len(t) == 3 for s, t in pictures.values())
+
+
+def test_codex_describes_and_lists_drops(new_engine):
+    planet = new_engine.game_world.planet
+    for kind in planet.fauna[:8]:
+        text = lore.describe_unit(kind)
+        assert text.startswith("It has") and text.endswith(".") and ("peaceable" in text or "hostile" in text)
+        drops = lore.drops_of(new_engine, lore.species_subject(kind))
+        labels = [t.split(":")[0] for t, _ in drops if not t.startswith(" ")]
+        assert labels[0] == "Meat" and "Bones" in labels and ("Hide" in labels or kind.hide is None)
+    tree = next(k for k in planet.flora if k.material is not None and k.fruit is not None)
+    labels = [t.split(":")[0] for t, _ in lore.drops_of(new_engine, lore.plant_subject(tree)) if not t.startswith(" ")]
+    assert labels[0] == "Branches" and "Fruit" in labels
+    assert "bears" in lore.describe_plant(tree).lower()
+    assert lore.description_of(new_engine, lore.material_subject(planet.materials[0][1])) == ""

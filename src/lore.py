@@ -70,7 +70,7 @@ def facts_for_material(material: Material, planet=None) -> List[Fact]:
 def facts_for_unit(kind) -> List[Fact]:
     facts = [name_fact(kind.name),
              Fact("health", Skill.BIOLOGY, 1, kind.max_hp),
-             Fact("diet", Skill.BIOLOGY, 2, kind.diet.value, capability="species_identification"),
+             Fact("diet", Skill.BIOLOGY, 2, kind.diet.name.lower(), capability="species_identification"),
              Fact("temper", Skill.BIOLOGY, 2, "hostile" if kind.ai.name == "HOSTILE" else "peaceable",
                   capability="species_identification"),
              Fact("attack", Skill.BIOLOGY, 2, f"{kind.power} {kind.damage_type} damage", hint="Has a bite?",
@@ -338,6 +338,143 @@ def codex_pictures(engine) -> Dict[str, Tuple[int, tuple]]:
     for index in range(structures.RUIN_COUNT):
         out[f"ruin:{index}"] = (sprite_id(0, 2), (150, 145, 140))
     return out
+
+
+# ── codex: descriptions and drops ──────────────────────────────────────────────────────────────────────────────
+COVERING_WORDS = {"fur": "fur", "feather": "feathers", "chitin": "exoskeleton", "scale": "scales", "skin": "skin"}
+"""What covers a creature's body, in the sentence "It has hard, tough <covering>"."""
+TRAITS = (      # (property, at least, adjective, what it lets the thing do)
+    ("hardness", 5.5, "hard", ""), ("toughness", 5.5, "tough", ""), ("density", 5.5, "dense", ""), ("elasticity", 5.5, "springy", ""),
+    ("abrasivity", 4.5, "rough", ""), ("insulation", 5.0, "thickly insulating", "can even thrive in a cold climate"),
+    ("thermal_conductivity", 5.0, "heat-shedding", "copes with a hot climate"), ("flammability", 7.0, "flammable", ""),
+)
+
+
+def _join(words: List[str]) -> str:
+    return words[0] if len(words) < 2 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def _traits(material, covering: str = "") -> Tuple[List[str], List[str]]:
+    """The adjectives and abilities a material's standout properties suggest (at most two adjectives, strongest first). For a body
+    covering "standout" is high for that kind of covering (fur is always warm, so only unusually warm fur counts)."""
+    import planet as pl
+    ranges = pl.COVERING_RANGES.get(covering, {})
+    found = []
+    for prop, low, adjective, ability in TRAITS:
+        value = getattr(material, prop)
+        if prop in ranges:
+            lo, hi = ranges[prop]
+            score = (value - lo) / (hi - lo + 0.01)
+            if score < 0.65:
+                continue
+        elif value < low:
+            continue
+        else:
+            score = value / 10
+        found.append((score, adjective, ability))
+    found.sort(reverse=True)
+    return [a for _, a, _ in found][:2], [b for _, _, b in found if b][:1]
+
+
+def _climate(habitat) -> str:
+    """"cold", "warm" or "" from the middle of the temperature range a species lives in."""
+    if habitat is None:
+        return ""
+    low, high = habitat.temperature
+    middle = (low + high) / 2
+    return "cold" if middle < -0.3 else "hot" if middle > 0.45 else ""
+
+
+def describe_unit(kind) -> str:
+    """A short description made from the creature's body covering, its highest properties and how it behaves."""
+    covering = COVERING_WORDS.get(getattr(kind, "covering", "skin"), "skin")
+    adjectives, abilities = _traits(kind.hide, getattr(kind, "covering", "")) if kind.hide is not None else ([], [])
+    article = "a " if covering == "exoskeleton" else ""
+    body = f"It has {article}{_join(adjectives)} {covering}" if adjectives else f"It has {article}plain {covering}"
+    climate = _climate(kind.habitat)
+    if abilities:
+        body += " and " + abilities[0]
+    elif climate:
+        body += f" and lives in {climate} country"
+    temper = "hostile" if kind.ai.name == "HOSTILE" else "peaceable"
+    diet = {"herbivore": "eats plants", "carnivore": "hunts for meat", "omnivore": "eats anything"}.get(kind.diet.name.lower(), "")
+    return f"{body}. It is {temper} and {diet}." if diet else f"{body}. It is {temper}."
+
+
+def describe_plant(kind) -> str:
+    stuff = kind.material or kind.fiber
+    adjectives, abilities = _traits(stuff) if stuff is not None else ([], [])
+    noun = "wood" if kind.material is not None else "fibre"
+    text = f"Its {noun} is {_join(adjectives)}" if adjectives else f"Its {noun} is plain"
+    climate = _climate(kind.habitat)
+    if abilities:
+        text += f"; it {abilities[0]}"
+    elif climate:
+        text += f"; it grows in {climate} country"
+    if kind.fruit is not None:
+        text += ". It bears " + ("poisonous" if kind.fruit.toxicity > 0 else "edible") + f" {kind.fruit.species.lower()}"
+    return text + "."
+
+
+def _top_properties(material, count: int = 4) -> List[str]:
+    values = sorted(((getattr(material, p), p) for p in PROPERTY_KEYS if getattr(material, p) > 0), reverse=True)
+    return [p for _, p in values[:count]]
+
+
+def _material_lines(run, label: str, material, planet) -> List[Tuple[str, bool]]:
+    """One drop made of a planet material: its name and its strongest properties as far as they are known. [(text, known)]"""
+    subject = material_subject(material)
+    shown = {f.key: text for f, _, text in run.knowledge.view(subject, facts_for_material(material, planet))}
+    lines = [(f"{label}: {material_name(run, material)}", True)]
+    for prop in _top_properties(material):
+        text = shown.get(prop)
+        lines.append((f"    {prop.replace('_', ' ')}: {text if text is not None else '???'}", text is not None))
+    return lines
+
+
+def drops_of(engine, subject: str) -> List[Tuple[str, bool]]:
+    """What a creature or plant of this codex entry can leave behind, with the properties of each; [] for other kinds of entry.
+    Things with properties of their own per piece (meat, bones) are given as ranges."""
+    import decay
+    from components.consumable import MEAT_HUNGER
+    planet, run = engine.game_world.planet, engine.game_world.run
+    if planet is None or run is None:
+        return []
+    out: List[Tuple[str, bool]] = []
+    for kind in planet.fauna:
+        if species_subject(kind) == subject:
+            out.append((f"Meat: restores {min(MEAT_HUNGER)}-{max(MEAT_HUNGER)} hunger, varies by carcass", True))
+            if kind.hide is not None:
+                out += _material_lines(run, "Hide", kind.hide, planet)
+            ranges = decay.BONE_RANGES
+            out.append((f"Bones: {', '.join(f'{p} {lo}-{hi}' for p, (lo, hi) in ranges.items())} (rolled for each bone)", True))
+            return out
+    for kind in planet.flora:
+        if plant_subject(kind) == subject:
+            if kind.material is not None:
+                out += _material_lines(run, "Branches", kind.material, planet)
+            if kind.fiber is not None:
+                out += _material_lines(run, "Fibre", kind.fiber, planet)
+            if kind.fruit is not None:
+                shown = {f.key: text for f, _, text in run.knowledge.view(fruit_subject(kind.fruit), facts_for_fruit(kind.fruit, planet))}
+                out.append((f"Fruit: {kind.fruit.species}", True))
+                out.append((f"    nutrition: {shown.get('nutrition') or '???'}", shown.get("nutrition") is not None))
+                out.append((f"    safety: {shown.get('safety') or '???'}", shown.get("safety") is not None))
+            return out
+    return out
+
+
+def description_of(engine, subject: str) -> str:
+    planet = engine.game_world.planet
+    if planet is None:
+        return ""
+    for kind in planet.fauna:
+        if species_subject(kind) == subject:
+            return describe_unit(kind)
+    for kind in planet.flora:
+        if plant_subject(kind) == subject:
+            return describe_plant(kind)
+    return ""
 
 
 def codex_entries(engine) -> Dict[str, List[Tuple[str, str, List[Fact]]]]:

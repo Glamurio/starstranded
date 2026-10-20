@@ -414,7 +414,14 @@ class CodexHandler(Panel):
                 widgets.sprite_slot(canvas, dx, iy, picture[0], picture[1], size=6)
                 top = iy + 7
             canvas.print(dx + (7 if picture is not None else 0), iy + (2 if picture is not None else 0), title, fg=Theme.TITLE)
-            lines = [(l, Theme.DIM if "???" in l else Theme.TEXT) for l in lore.describe_lines(self.engine.game_world.run, subject, facts)]
+            lines = []
+            description = lore.description_of(self.engine, subject)
+            if description:
+                lines += [(description, Theme.TEXT), ("", Theme.TEXT)]
+            lines += [(l, Theme.DIM if "???" in l else Theme.TEXT) for l in lore.describe_lines(self.engine.game_world.run, subject, facts)]
+            drops = lore.drops_of(self.engine, subject)
+            if drops:
+                lines += [("", Theme.TEXT), ("Drops", Theme.TITLE)] + [(text, Theme.TEXT if known else Theme.DIM) for text, known in drops]
             widgets.text_block(canvas, dx, top + (0 if picture is not None else 2), iw - list_w - 1, ih - (top - iy) - (0 if picture is not None else 2), lines)
 
     def ev_keydown(self, event):
