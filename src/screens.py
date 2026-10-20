@@ -223,7 +223,7 @@ class WorldMapHandler(AskUserEventHandler):
         player = engine.player
         self.home = chunk_key(player.x, player.y)
         self.cursor = self.home
-        self.zoom = None          # pixels per chunk; None = fit the known world
+        self.zoom = None          # pixels per block; None = DEFAULT_BLOCK
         self.origin = None        # chunk at the top-left of the map area; None = centred on the cursor
         self._geometry = None
 
@@ -235,13 +235,12 @@ class WorldMapHandler(AskUserEventHandler):
         side = self.SIDE if ww >= self.MIN_FOR_SIDE else 0
         return (wx, wy, ww, wh), side
 
+    DEFAULT_BLOCK = 24
+    """Pixels per block when the map opens: the sprites at their own size. Only +/- change it; moving the cursor never does."""
+
     def _cell_px(self, known, area_px):
         """Pixels per block (a chunk is `BLOCKS_X` x `BLOCKS_Y` blocks, each one picture)."""
-        import worldmap
-        if self.zoom:
-            return self.zoom
-        x0, y0, x1, y1 = worldmap.bounds(known, [self.home, self.cursor])
-        return worldmap.fit_block(x1 - x0 + 3, y1 - y0 + 3, *area_px)
+        return self.zoom or self.DEFAULT_BLOCK
 
     @staticmethod
     def _chunk_px(cell):
@@ -249,15 +248,16 @@ class WorldMapHandler(AskUserEventHandler):
         return worldmap.BLOCKS_X * cell, worldmap.BLOCKS_Y * cell
 
     def _view(self, known, area_px, cell):
-        """`(kx0, ky0, columns, rows)`: the chunk rectangle shown, kept around the cursor (or the fitted known world)."""
-        import worldmap
+        """`(kx0, ky0, columns, rows)`: the chunk rectangle shown. It starts centred on you and then only moves, a chunk at a time,
+        when the cursor reaches its edge."""
         cw, ch = self._chunk_px(cell)
         columns, rows = max(area_px[0] // cw, 1), max(area_px[1] // ch, 1)
-        x0, y0, x1, y1 = worldmap.bounds(known, [self.home, self.cursor])
-        if not self.zoom and x1 - x0 + 3 <= columns and y1 - y0 + 3 <= rows:     # all of it fits: centre it
-            return x0 - (columns - (x1 - x0 + 1)) // 2, y0 - (rows - (y1 - y0 + 1)) // 2, columns, rows
         cx, cy = self.cursor
-        return cx - columns // 2, cy - rows // 2, columns, rows
+        ox, oy = self.origin if self.origin is not None else (cx - columns // 2, cy - rows // 2)
+        ox += min(0, cx - ox) + max(0, cx - (ox + columns - 1))
+        oy += min(0, cy - oy) + max(0, cy - (oy + rows - 1))
+        self.origin = (ox, oy)
+        return ox, oy, columns, rows
 
     # ── drawing ──────────────────────────────────────────────────────────────────────
     def on_render(self, canvas) -> None:
@@ -436,6 +436,7 @@ class WorldMapHandler(AskUserEventHandler):
             return None
         if key == Key.HOME or key == Key.PERIOD:
             self.cursor = self.home
+            self.origin = None        # (centred on you again)
             return None
         if key in (Key.PLUS, Key.EQUALS, Key.KP_PLUS):
             self.zoom = min((self.zoom or self._fitted()) + 2, 40)

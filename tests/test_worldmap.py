@@ -268,3 +268,22 @@ def test_block_size_fits_the_known_world():
     assert worldmap.fit_block(100, 100, 400, 400) == 3
     size = worldmap.fit_block(6, 4, 1000, 800)
     assert 6 * worldmap.BLOCKS_X * size <= 1000 and 4 * worldmap.BLOCKS_Y * size <= 800
+
+
+def test_moving_the_cursor_never_zooms_and_the_view_scrolls_by_whole_chunks():
+    import events
+    engine = new_game()
+    engine.update_fov()
+    handler = screens.WorldMapHandler(engine)
+    handler.on_render(_canvas(1280, 720))
+    area, cell, kx0, ky0 = handler._geometry
+    columns = area.width // (worldmap.BLOCKS_X * cell)
+    for _ in range(columns + 3):                       # walk the cursor off the right edge
+        handler.ev_keydown(events.KeyDown(events.Key.RIGHT, 0))
+        handler.on_render(_canvas(1280, 720))
+        assert handler._geometry[1] == cell            # (the zoom never changes)
+    assert handler._geometry[2] > kx0                  # the view followed, a chunk at a time
+    assert handler.cursor[0] < handler._geometry[2] + columns
+    handler.ev_keydown(events.KeyDown(events.Key.HOME, 0))
+    handler.on_render(_canvas(1280, 720))
+    assert handler._geometry[2] == kx0
