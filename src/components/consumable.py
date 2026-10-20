@@ -59,8 +59,13 @@ class FoodConsumable(Consumable):
         thirst_restore = f' and loses {self.thirst_amount} thirst' if self.thirst_amount < 0 else f' and restores {self.thirst_amount} thirst' if self.thirst_amount > 0 else ''
 
         self.deplete()
+        poison = int(getattr(self.kind, "toxicity", 0) or 0) * 2          # (a toxic fruit poisons: one damage a turn)
+        if poison:
+            user.apply_poison(poison)
 
         message = f"{user.get_title()} consumes {self.get_title()}{hunger_restore if hunger_restore else ''}{thirst_restore if thirst_restore else ''}."
+        if poison:
+            message += " It was poisonous!"
         return message
 
 

@@ -155,6 +155,14 @@ PROVISIONAL_FORMS = {      # what an unidentified plant looks like, by template 
     "spore_bush": "puffy fungus", "shard_bush": "glassy shrub", "ash_shrub": "scorched shrub", "dead_tree": "dead tree",
     "beach_grass": "tufted grass", "meadow_flower": "flower", "meadow_bloom": "flower", "marsh_flower": "flower",
     "dry_flower": "flower", "crystal_bloom": "frosted flower", "frost_tree": "rimed tree", "rime_shrub": "frosted shrub", "frost_bloom": "frosted flower",
+    "glowcap": "glowing mushroom", "rot_cap": "mushroom", "giant_cap": "giant mushroom", "spore_flower": "spore flower",
+    "crop": "crop plant", "tallgrass": "tall grass", "golden_grass": "tall grass", "fern": "fern", "ivy": "climbing vine",
+    "vine_creeper": "climbing vine", "creeper": "climbing vine", "weed": "weed", "agave": "spiked succulent", "saltbush": "grey-leaved shrub",
+    "glass_cactus": "glassy succulent", "bone_thorn": "thorny shrub", "flesh_pod": "fleshy pod plant", "lumen_frond": "frond",
+    "glow_reed": "reed-like plant", "algae_mat": "slimy mat", "ancient_oak": "broadleaf tree", "jungle_giant": "towering tree",
+    "amber_tree": "broadleaf tree", "thorn_tree": "thorny tree", "petrified_tree": "stone-like tree", "crystal_tree": "glassy tree",
+    "cinder_tree": "scorched tree", "tendril_tree": "tendril tree", "mangrove": "tangled tree", "ember_bloom": "flower",
+    "iris_bloom": "flower", "toxic_bloom": "flower",
 }
 
 
@@ -170,8 +178,7 @@ def fruit_name(run, kind) -> str:
     if run is None or not kind.parent_key or name_known(run, fruit_subject(kind)):
         return kind.species
     last = kind.species.split()[-1] if kind.species else ""
-    is_bloom = tuple(kind.sprite) == (107, 0) if isinstance(kind.sprite, tuple) else False
-    noun = last if last in ("bloom", "blossom", "bud") else "bloom" if is_bloom else "fruit"      # (a flower's bloom stays a bud or a blossom until it is identified)
+    noun = last if last in ("bloom", "blossom", "bud") else "bloom" if kind.bloom else "fruit"      # (a flower's bloom stays a bud or a blossom until it is identified)
     return f"{naming.hue_name(kind.color)} {noun}"
 
 
@@ -290,11 +297,22 @@ def scan(engine, x: int, y: int, entity=None):
     player = engine.player
     run = engine.game_world.run
     learned = run.knowledge.scan(subject, facts, player.skills, player.capabilities)
+    if subject.startswith("fruit:"):
+        link_fruit_to_plant(run, subject)
     for fact, level in learned:
         if level is Know.FULL and fact.key != "name":
             if player.practice(fact.domain, 1):       # a skill that rises reads more next time: say so, it is not luck
                 engine.message_log.add_message(f"Your {fact.domain.value} skill rose to {player.skills.level(fact.domain)}: scan again to read more.", color.orange)
     return title, learned
+
+
+def link_fruit_to_plant(run, fruit_subj: str) -> None:
+    """Once a fruit is known to come from a plant, that plant lists "fruit: ???" (and what the fruit's safety reveals)."""
+    plant = "plant:" + fruit_subj[len("fruit:"):]
+    run.knowledge.note(plant, "fruit")
+    safety = run.knowledge.level(fruit_subj, "safety")
+    if safety:
+        run.knowledge.learn(plant, "fruit", safety)
 
 
 def describe_lines(run, subject: str, facts: Iterable[Fact]) -> List[str]:
@@ -416,7 +434,12 @@ def describe_plant(kind) -> str:
     elif climate:
         text += f"; it grows in {climate} country"
     if kind.fruit is not None:
-        text += ". It bears " + ("poisonous" if kind.fruit.toxicity > 0 else "edible") + f" {kind.fruit.species.lower()}"
+        safe = "poisonous" if kind.fruit.toxicity > 0 else "edible"
+        last = kind.fruit.species.lower().split(" ")[-1]
+        if kind.category.name == "FLOWER":                              # (a flower's bloom is the flower: "its bud is poisonous")
+            text += f". Its {last if last in ('bud', 'blossom', 'bloom') else 'bloom'} is {safe}"
+        else:
+            text += f". It bears {safe} {kind.fruit.species.lower()}"
     return text + "."
 
 

@@ -97,6 +97,7 @@ class ItemKind(_Definition):
     station: Optional[str] = None    # capability a placed copy provides to crafters nearby (workbench, furnace)
     base_power: int = 0              # property-made weapons: power at a delivery rating of 5 (see items.Gear.power_bonus)
     parent_key: Optional[str] = None  # fruit and blooms: the key of the PlantSpecies that bears it
+    bloom: bool = False               # a flower's bloom (named bud or blossom, not fruit)
 
 
 @dataclass(frozen=True)

@@ -187,7 +187,7 @@ def hue_name(color: RGB) -> str:
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
     if v < 0.18:
         return "black"
-    if s < 0.12:
+    if s < 0.22 or (s < 0.35 and v < 0.45):          # a dull or dark tint reads as grey, whatever its hue ("sapphire" is a blue that looks blue)
         return "white" if v > 0.8 else "grey" if v > 0.3 else "black"
     deg = h * 360
     if v < 0.55 and 15 <= deg < 50:

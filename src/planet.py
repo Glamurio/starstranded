@@ -687,9 +687,9 @@ def _make_flower(rng: random.Random, namer: Namer, template: FloraTemplate, inde
     label = namer.fruit_of(f"bloom:{template.key}:{index}", name, (noun,)) if namer.culture == "human" and name.modifier \
         else namer.fruit(f"bloom:{template.key}:{index}", color, "bloom")
     toxic = rng.random() < 0.2
-    bloom = ItemKind(None, "Consumable", species=label, sprite=BLOOM_SPRITE, color=color, shade_sigma=8,
+    bloom = ItemKind(None, "Consumable", species=label, sprite=sprite, color=color, shade_sigma=8,
                      hunger_amount=rng.choice((2, 3, 4)), thirst_amount=rng.choice((0, 1, 2)), toxicity=rng.randint(6, 14) if toxic else 0,
-                     parent_key=f"planet:flora:{template.key}:{index}")
+                     parent_key=f"planet:flora:{template.key}:{index}", bloom=True)
     return PlantSpecies(
         f"planet:flora:{template.key}:{index}", name.text, PlantCategory.FLOWER, sprite=sprite, corpse_sprite=(3, 9), color=color, fruit=bloom,
         max_hp=template.max_hp, growth_cycle=template.growth_cycle, inventory_capacity=2, blocks_movement=False, blocks_sight=False,
@@ -711,6 +711,8 @@ def _make_fruit(rng: random.Random, namer: Namer, template: FloraTemplate, index
     # a fruit keeps its parent's colour family, lighter or deeper (so the name's colour word is true)
     fruit_color = tuple(max(30, min(255, int(c * rng.uniform(0.85, 1.25)) + rng.randint(-12, 30))) for c in plant_color)
     toxic = rng.random() < 0.25 and template.key != "crop"     # (a crop is bred to be safe)
+    if shape_word in ("rot spore", "blight spore") or template.name_family == "fungus" and template.key == "rot_cap":
+        toxic = True        # something called a rot spore is never wholesome
     if namer.culture == "human" and parent.modifier:
         label = namer.fruit_of(f"fruit:{template.key}:{index}", parent, (shape_word,))
     else:

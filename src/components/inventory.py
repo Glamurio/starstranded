@@ -42,9 +42,24 @@ class Inventory(BaseComponent):
         self.add(item)
         if source_plant is not None and getattr(source_plant, "category", None) is EntityCategory.PLANT:
             self._harvest_bonus(item, source_plant)
+            self._note_fruit(item)
             if getattr(source_plant, "picked_clean_vanishes", False) and not source_plant.inventory.items and source_plant.parent is not None:
                 source_plant.parent.remove_entity(source_plant)       # a flower with its bloom taken is gone
         # self.engine.message_log.add_message(f"You looted {item.get_title()}.")
+
+    def _note_fruit(self, item) -> None:
+        """Picking a fruit off a plant teaches that the plant bears it."""
+        parent_key = getattr(getattr(item, "kind", None), "parent_key", None)
+        if not parent_key:
+            return
+        try:
+            engine = self.engine
+        except AttributeError:      # a unit not on any map
+            return
+        run = getattr(getattr(engine, "game_world", None), "run", None)
+        if run is not None and self.parent is engine.player:
+            import lore
+            lore.link_fruit_to_plant(run, f"fruit:{parent_key}")
 
     def _harvest_bonus(self, item: Item, plant) -> None:
         """Race modifiers on harvesting: `crop_yield` adds extra pieces (a deterministic remainder is carried, so 1.5

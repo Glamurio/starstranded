@@ -105,6 +105,10 @@ class Knowledge:
             return True
         return False
 
+    def note(self, subject: str, fact_key: str) -> None:
+        """Record that a fact exists without knowing it yet: the subject then lists it as '???'."""
+        self._known.setdefault(subject, {}).setdefault(fact_key, 0)
+
     def scan(self, subject: str, facts: Iterable[Fact], skills: SkillSet, caps: CapabilitySet,
              scanner_tier: int = SCANNER_TIER) -> List[Tuple[Fact, Know]]:
         """Scan a subject: improve the store and return the (fact, level) pairs that are newly learned."""

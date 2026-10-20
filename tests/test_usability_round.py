@@ -126,9 +126,8 @@ def test_a_picked_flower_is_gone_and_new_ones_sprout():
 
 def test_a_bud_stays_a_bud_until_identified(small_world):
     import lore
-    from planet import BLOOM_SPRITE
     import species as defs
-    kind = defs.ItemKind(None, "Consumable", species="Sheny blossom", sprite=BLOOM_SPRITE, color=(200, 80, 80), shade_sigma=8, parent_key="planet:flora:x:0")
+    kind = defs.ItemKind(None, "Consumable", species="Sheny blossom", sprite=(13, 9), color=(200, 80, 80), shade_sigma=8, parent_key="planet:flora:x:0", bloom=True)
     class Run:                                    # (nothing is known yet)
         knowledge = type("K", (), {"level": lambda self, s, k: 0})()
     assert lore.fruit_name(Run(), kind).endswith("blossom")
@@ -236,3 +235,42 @@ def test_flowers_only_grow_back_up_to_what_the_chunk_carried():
     for now in range(0, 20000, 20):
         regrow_flowers(world, [chunk], now)
     assert count() == start                      # picked ones come back, no more
+
+
+def test_a_bloom_looks_like_its_flower_and_is_described_as_its_bud():
+    import lore
+    import planet as pl
+    from species import PlantCategory
+    planet = pl.generate_planet(5, "human")
+    flowers = [s for s in planet.flora if s.category is PlantCategory.FLOWER and s.fruit is not None]
+    assert flowers
+    for flower in flowers:
+        assert tuple(flower.fruit.sprite) == tuple(flower.sprite) and flower.fruit.bloom
+        text = lore.describe_plant(flower)
+        assert "It bears" not in text and ("poisonous" in text or "edible" in text)
+
+
+def test_a_toxic_fruit_poisons_whoever_eats_it(small_world):
+    from components.consumable import Fruit
+    import species as defs
+    e = small_world()
+    kind = defs.ItemKind(None, "Consumable", species="mint bud", sprite=(13, 9), color=(200, 80, 80), shade_sigma=8, hunger_amount=2, toxicity=10)
+    fruit = Fruit(e.player.inventory, kind)
+    e.player.inventory.add(fruit)
+    fruit.activate(e.player)
+    assert e.player.poison == 20
+
+
+def test_a_known_fruit_fills_in_its_plants_fruit_line(small_world):
+    import lore
+    e = small_world()
+    run = e.game_world.run
+    subject = "plant:planet:flora:bush:0"
+    assert not run.knowledge.is_known(subject)
+    lore.link_fruit_to_plant(run, "fruit:planet:flora:bush:0")
+    assert run.knowledge.is_known(subject)
+    assert run.knowledge.level(subject, "fruit") == 0       # listed as "fruit: ???" until it is understood
+    from knowledge import Know
+    run.knowledge.learn("fruit:planet:flora:bush:0", "safety", Know.FULL)
+    lore.link_fruit_to_plant(run, "fruit:planet:flora:bush:0")
+    assert run.knowledge.level(subject, "fruit") == Know.FULL
